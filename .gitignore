@@ -288,6 +288,10 @@ docker-compose.*.yml
 datasets/
 data/raw/
 data/processed/
+
+# Allow .copilot configuration files
+!.copilot/
+!.copilot/*.json
 data/external/
 
 # MLflow artifacts

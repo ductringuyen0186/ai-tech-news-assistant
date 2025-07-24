@@ -6,36 +6,82 @@
 # with AI-powered insights to help professionals stay current with industry trends.
 
 # Stack Architecture & Layers
+# CONSOLIDATION STRATEGY: Use Python Everywhere Except Frontend
 stack:
-  # Backend Layer - Python for AI/ML processing
+  # Backend Layer - Python exclusively for all server-side logic
   backend:
     - language: Python
-      purpose: AI/ML processing, news analysis, NLP operations
-      frameworks: [FastAPI, Flask, Django]
-      libraries: [transformers, pandas, numpy, scikit-learn, spaCy]
+      purpose: FastAPI REST API, LLaMA interface, RAG logic, Vector DB operations
+      frameworks: [FastAPI]
+      libraries: [LangChain, LlamaIndex, transformers, Chroma, pandas, numpy, scikit-learn]
       patterns: ["Clean Architecture", "Repository Pattern", "Dependency Injection"]
     
-  # API Layer - RESTful services
-  api:
+  # Orchestration Layer - Python for all task automation and pipelines  
+  orchestration:
     - language: Python
-      purpose: REST APIs, data aggregation, backend services
-      frameworks: [FastAPI, Flask]
-      patterns: ["RESTful design", "OpenAPI/Swagger documentation", "Rate limiting"]
+      purpose: Scheduled tasks, data pipelines, news scraping, digest generation
+      frameworks: [Prefect]
+      libraries: [asyncio, aiohttp, schedule, celery]
+      patterns: ["Pipeline pattern", "Event-driven architecture", "Cron-based scheduling"]
     
-  # Frontend Layer - TypeScript web interface
+  # Frontend Layer - React + TypeScript SPA only
   frontend:
     - language: TypeScript
-      purpose: User interface, data visualization, interactive dashboards
-      frameworks: [React, Next.js, Vue.js]
+      purpose: Single Page Application, data visualization, interactive dashboards
+      frameworks: [React]
       libraries: [D3.js, Chart.js, Material-UI, Tailwind CSS]
+      deployment: [Vercel]
       patterns: ["Component-based architecture", "State management", "Responsive design"]
     
-  # Infrastructure Layer - Containerization and deployment
+  # Infrastructure Layer - Docker containerization
   infrastructure:
     - containerization: Docker
-      purpose: Application packaging, microservices deployment
-      orchestration: [Docker Compose, Kubernetes]
+      purpose: Application packaging, multi-service orchestration
+      orchestration: [Docker Compose]
       patterns: ["Multi-stage builds", "Health checks", "Environment-based configuration"]
+
+# Recommended Directory Structure for Clarity
+# This monorepo layout eliminates ambiguity for GitHub Copilot and contributors
+directory_structure:
+  monorepo_layout: |
+    ai-tech-news-assistant/
+    ├── backend/                  # 🧠 FastAPI, LangChain, Vector DB logic
+    │   ├── api/                  # REST endpoints (e.g. /summarize, /digest)
+    │   ├── llm/                  # LLaMA interface logic
+    │   ├── rag/                  # Retrieval-Augmented Generation logic
+    │   ├── vectorstore/          # Chroma setup + queries
+    │   ├── main.py               # FastAPI app entrypoint
+    │   └── requirements.txt
+    │
+    ├── frontend/                 # 🌐 React + TypeScript SPA
+    │   ├── src/
+    │   ├── public/
+    │   └── package.json
+    │
+    ├── orchestrator/            # ⚙️ Scheduled tasks & pipelines
+    │   ├── scrape_feed.py
+    │   ├── run_digest.py
+    │   └── prefect_flows.py
+    │
+    ├── docker/                  # 🐳 Docker configs
+    │   ├── Dockerfile.backend
+    │   ├── Dockerfile.frontend
+    │   └── docker-compose.yml
+    │
+    ├── .copilot/config.json     # 🤖 Language override for Copilot
+    ├── .github/workflows/       # 🚀 CI/CD (GitHub Actions)
+    │   └── deploy.yml
+    │
+    ├── data/                    # 📁 Optional: for storing test article data
+    │   └── sample_articles.json
+    │
+    └── README.md                # 📘 Project overview & usage
+  
+  principles:
+    - "Keep everything server-side in Python (no Node.js or Go for API logic)"
+    - "Single /frontend folder for all UI code (avoid mixing Jinja2 templates or Streamlit)"
+    - "Separate orchestrator/ for all background tasks and data pipelines"
+    - "Clear separation between API logic, ML/RAG operations, and task scheduling"
 
 # Code Review Priorities (in order of importance)
 review_priorities:
@@ -66,7 +112,7 @@ review_priorities:
 # Best Practices & Conventions
 best_practices:
   
-  # Python Best Practices
+  # Python Best Practices (for ALL server-side code)
   python:
     - "Use type hints for all function signatures"
     - "Follow PEP 8 style guidelines"
@@ -76,15 +122,49 @@ best_practices:
     - "Use virtual environments and requirements.txt/poetry"
     - "Implement proper logging with structured formats"
     
-  # TypeScript Best Practices
-  typescript:
+  # FastAPI Specific Practices
+  fastapi:
+    - "Use dependency injection for database connections and services"
+    - "Implement proper request/response models with Pydantic"
+    - "Add comprehensive OpenAPI documentation with examples"
+    - "Use async/await for all I/O operations"
+    - "Implement proper middleware for CORS, authentication, and logging"
+    
+  # LangChain & LLM Integration
+  langchain:
+    - "Use LangChain abstractions for LLM interactions"
+    - "Implement proper prompt templates and chains"
+    - "Use LangChain's memory and retrieval components"
+    - "Handle rate limiting and API failures gracefully"
+    - "Cache LLM responses to reduce costs and latency"
+    
+  # Vector Database & RAG
+  chroma_rag:
+    - "Use Chroma for embedding storage and similarity search"
+    - "Implement proper chunking strategies for documents"
+    - "Use metadata filtering for better retrieval"
+    - "Monitor embedding quality and retrieval performance"
+    - "Implement fallback strategies for failed retrievals"
+    
+  # Task Orchestration with Prefect
+  prefect:
+    - "Use Prefect flows for all background tasks and pipelines"
+    - "Implement proper retry logic with exponential backoff"
+    - "Use Prefect's scheduling for cron-like tasks"
+    - "Monitor flow performance and failure rates"
+    - "Implement proper error notifications and alerting"
+    
+  # TypeScript + React Frontend (deployed on Vercel)
+  typescript_react:
     - "Use strict TypeScript configuration with no implicit any"
     - "Define proper interfaces and types for all data structures"
-    - "Use async/await for asynchronous operations"
-    - "Implement proper error handling with try-catch blocks"
+    - "Use React hooks and functional components exclusively"
+    - "Implement proper state management (Context API or Zustand)"
+    - "Use async/await for API calls with proper error handling"
     - "Follow ESLint and Prettier configurations"
     - "Implement proper input validation with libraries like Zod"
-    - "Use environment variables for configuration"
+    - "Use environment variables for API endpoints and configuration"
+    - "Avoid mixing static HTML templates (no Jinja2 or Streamlit)"
     
   # AI/ML Specific Practices
   ai_ml:

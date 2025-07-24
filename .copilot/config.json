@@ -1,0 +1,40 @@
+{
+  "projectLanguages": {
+    "backend": "python",
+    "orchestrator": "python", 
+    "api": "python",
+    "frontend": "typescript"
+  },
+  "primaryFrameworks": {
+    "backend": "fastapi",
+    "frontend": "react",
+    "orchestration": "prefect",
+    "vectordb": "chroma",
+    "llm": "langchain"
+  },
+  "deploymentTargets": {
+    "frontend": "vercel",
+    "backend": "docker",
+    "orchestrator": "docker"
+  },
+  "codeStyle": {
+    "python": {
+      "formatter": "black",
+      "linter": "pylint",
+      "typeChecker": "mypy"
+    },
+    "typescript": {
+      "formatter": "prettier", 
+      "linter": "eslint",
+      "framework": "react"
+    }
+  },
+  "guidelines": [
+    "Use Python for ALL server-side code (backend, API, orchestration)",
+    "Use TypeScript + React ONLY for frontend UI",
+    "No Node.js, Go, or other backends - Python exclusive for server-side",
+    "Deploy frontend to Vercel free tier", 
+    "Containerize Python services with Docker",
+    "Follow the monorepo structure defined in .github/copilot.yaml"
+  ]
+}
