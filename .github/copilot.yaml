@@ -164,7 +164,7 @@ best_practices:
     - "Follow ESLint and Prettier configurations"
     - "Implement proper input validation with libraries like Zod"
     - "Use environment variables for API endpoints and configuration"
-    - "Avoid mixing static HTML templates (no Jinja2 or Streamlit)"
+    - "Avoid mixing static HTML templates (no Jinja2)"
     
   # AI/ML Specific Practices
   ai_ml:
