@@ -1,0 +1,255 @@
+# GitHub Copilot Configuration for AI Tech-News Assistant
+# This file guides Copilot and reviewers on code conventions, architecture, and best practices
+
+# Project Overview
+# This is a job-market-aligned AI Tech-News Assistant that aggregates, analyzes, and presents technology news
+# with AI-powered insights to help professionals stay current with industry trends.
+
+# Stack Architecture & Layers
+# CONSOLIDATION STRATEGY: Use Python Everywhere Except Frontend
+stack:
+  # Backend Layer - Python exclusively for all server-side logic
+  backend:
+    - language: Python
+      purpose: FastAPI REST API, LLaMA interface, RAG logic, Vector DB operations
+      frameworks: [FastAPI]
+      libraries: [LangChain, LlamaIndex, transformers, Chroma, pandas, numpy, scikit-learn]
+      patterns: ["Clean Architecture", "Repository Pattern", "Dependency Injection"]
+    
+  # Orchestration Layer - Python for all task automation and pipelines  
+  orchestration:
+    - language: Python
+      purpose: Scheduled tasks, data pipelines, news scraping, digest generation
+      frameworks: [Prefect]
+      libraries: [asyncio, aiohttp, schedule, celery]
+      patterns: ["Pipeline pattern", "Event-driven architecture", "Cron-based scheduling"]
+    
+  # Frontend Layer - React + TypeScript SPA only
+  frontend:
+    - language: TypeScript
+      purpose: Single Page Application, data visualization, interactive dashboards
+      frameworks: [React]
+      libraries: [D3.js, Chart.js, Material-UI, Tailwind CSS]
+      deployment: [Vercel]
+      patterns: ["Component-based architecture", "State management", "Responsive design"]
+    
+  # Infrastructure Layer - Docker containerization
+  infrastructure:
+    - containerization: Docker
+      purpose: Application packaging, multi-service orchestration
+      orchestration: [Docker Compose]
+      patterns: ["Multi-stage builds", "Health checks", "Environment-based configuration"]
+
+# Recommended Directory Structure for Clarity
+# This monorepo layout eliminates ambiguity for GitHub Copilot and contributors
+directory_structure:
+  monorepo_layout: |
+    ai-tech-news-assistant/
+    ├── backend/                  # 🧠 FastAPI, LangChain, Vector DB logic
+    │   ├── api/                  # REST endpoints (e.g. /summarize, /digest)
+    │   ├── llm/                  # LLaMA interface logic
+    │   ├── rag/                  # Retrieval-Augmented Generation logic
+    │   ├── vectorstore/          # Chroma setup + queries
+    │   ├── main.py               # FastAPI app entrypoint
+    │   └── requirements.txt
+    │
+    ├── frontend/                 # 🌐 React + TypeScript SPA
+    │   ├── src/
+    │   ├── public/
+    │   └── package.json
+    │
+    ├── orchestrator/            # ⚙️ Scheduled tasks & pipelines
+    │   ├── scrape_feed.py
+    │   ├── run_digest.py
+    │   └── prefect_flows.py
+    │
+    ├── docker/                  # 🐳 Docker configs
+    │   ├── Dockerfile.backend
+    │   ├── Dockerfile.frontend
+    │   └── docker-compose.yml
+    │
+    ├── copilot/config.json      # 🤖 Language override for Copilot
+    ├── .github/workflows/       # 🚀 CI/CD (GitHub Actions)
+    │   └── deploy.yml
+    │
+    ├── data/                    # 📁 Optional: for storing test article data
+    │   └── sample_articles.json
+    │
+    └── README.md                # 📘 Project overview & usage
+  
+  principles:
+    - "Keep everything server-side in Python (no Node.js or Go for API logic)"
+    - "Single /frontend folder for all UI code (avoid mixing Jinja2 templates or Streamlit)"
+    - "Separate orchestrator/ for all background tasks and data pipelines"
+    - "Clear separation between API logic, ML/RAG operations, and task scheduling"
+
+# Code Review Priorities (in order of importance)
+review_priorities:
+  1. security:
+      - API key management and secure storage
+      - Input validation and sanitization
+      - Authentication and authorization
+      - Data privacy compliance (GDPR, CCPA)
+      
+  2. performance:
+      - AI model inference optimization
+      - Database query efficiency
+      - Caching strategies (Redis, CDN)
+      - API response times
+      
+  3. maintainability:
+      - Code readability and documentation
+      - Test coverage (unit, integration, e2e)
+      - Error handling and logging
+      - Modular architecture
+      
+  4. scalability:
+      - Horizontal scaling capabilities
+      - Database design for growth
+      - Message queue implementation
+      - Load balancing considerations
+
+# Best Practices & Conventions
+best_practices:
+  
+  # Python Best Practices (for ALL server-side code)
+  python:
+    - "Use type hints for all function signatures"
+    - "Follow PEP 8 style guidelines"
+    - "Implement comprehensive error handling with custom exceptions"
+    - "Use dataclasses or Pydantic models for data structures"
+    - "Write docstrings following Google or NumPy style"
+    - "Use virtual environments and requirements.txt/poetry"
+    - "Implement proper logging with structured formats"
+    
+  # FastAPI Specific Practices
+  fastapi:
+    - "Use dependency injection for database connections and services"
+    - "Implement proper request/response models with Pydantic"
+    - "Add comprehensive OpenAPI documentation with examples"
+    - "Use async/await for all I/O operations"
+    - "Implement proper middleware for CORS, authentication, and logging"
+    
+  # LangChain & LLM Integration
+  langchain:
+    - "Use LangChain abstractions for LLM interactions"
+    - "Implement proper prompt templates and chains"
+    - "Use LangChain's memory and retrieval components"
+    - "Handle rate limiting and API failures gracefully"
+    - "Cache LLM responses to reduce costs and latency"
+    
+  # Vector Database & RAG
+  chroma_rag:
+    - "Use Chroma for embedding storage and similarity search"
+    - "Implement proper chunking strategies for documents"
+    - "Use metadata filtering for better retrieval"
+    - "Monitor embedding quality and retrieval performance"
+    - "Implement fallback strategies for failed retrievals"
+    
+  # Task Orchestration with Prefect
+  prefect:
+    - "Use Prefect flows for all background tasks and pipelines"
+    - "Implement proper retry logic with exponential backoff"
+    - "Use Prefect's scheduling for cron-like tasks"
+    - "Monitor flow performance and failure rates"
+    - "Implement proper error notifications and alerting"
+    
+  # TypeScript + React Frontend (deployed on Vercel)
+  typescript_react:
+    - "Use strict TypeScript configuration with no implicit any"
+    - "Define proper interfaces and types for all data structures"
+    - "Use React hooks and functional components exclusively"
+    - "Implement proper state management (Context API or Zustand)"
+    - "Use async/await for API calls with proper error handling"
+    - "Follow ESLint and Prettier configurations"
+    - "Implement proper input validation with libraries like Zod"
+    - "Use environment variables for API endpoints and configuration"
+    - "Avoid mixing static HTML templates (no Jinja2)"
+    
+  # AI/ML Specific Practices
+  ai_ml:
+    - "Version control ML models and datasets"
+    - "Implement model monitoring and performance tracking"
+    - "Use proper train/validation/test splits"
+    - "Document model assumptions and limitations"
+    - "Implement bias detection and fairness testing"
+    - "Use reproducible random seeds for consistency"
+    
+  # API Design Practices
+  api_design:
+    - "Follow RESTful conventions for resource naming"
+    - "Implement proper HTTP status codes"
+    - "Use pagination for large datasets"
+    - "Implement request/response logging"
+    - "Version APIs appropriately (v1, v2, etc.)"
+    - "Provide comprehensive API documentation"
+    
+  # Docker & Infrastructure
+  docker:
+    - "Use multi-stage builds for smaller images"
+    - "Implement health checks for containers"
+    - "Use .dockerignore to exclude unnecessary files"
+    - "Set proper user permissions (non-root)"
+    - "Use environment-specific configurations"
+    - "Tag images with semantic versioning"
+
+# Testing Strategy
+testing:
+  unit_tests:
+    - "Aim for 80%+ code coverage"
+    - "Test business logic and edge cases"
+    - "Mock external dependencies"
+    - "Use pytest for Python, Jest for TypeScript"
+    
+  integration_tests:
+    - "Test API endpoints with real databases"
+    - "Validate data processing pipelines"
+    - "Test AI model inference workflows"
+    
+  e2e_tests:
+    - "Test critical user journeys"
+    - "Validate UI interactions"
+    - "Test deployment and rollback procedures"
+
+# Documentation Requirements
+documentation:
+  - "README with setup and deployment instructions"
+  - "API documentation with examples"
+  - "Architecture decision records (ADRs)"
+  - "Contributing guidelines"
+  - "Security and deployment guides"
+  - "Model documentation and performance metrics"
+
+# Environment & Configuration
+environment:
+  development:
+    - "Use local Docker Compose for development"
+    - "Implement hot reloading for faster iteration"
+    - "Use test databases and mock services"
+    
+  staging:
+    - "Mirror production environment closely"
+    - "Use production-like data volumes"
+    - "Implement monitoring and alerting"
+    
+  production:
+    - "Use managed services for databases and caching"
+    - "Implement proper backup and disaster recovery"
+    - "Monitor performance and security metrics"
+
+# AI/ML Specific Guidelines
+ml_operations:
+  model_development:
+    - "Use Jupyter notebooks for experimentation"
+    - "Track experiments with MLflow or Weights & Biases"
+    - "Version datasets and feature engineering pipelines"
+    
+  model_deployment:
+    - "Containerize models for consistent deployment"
+    - "Implement A/B testing for model updates"
+    - "Monitor model drift and performance degradation"
+    
+  data_management:
+    - "Implement data validation and quality checks"
+    - "Use proper data versioning strategies"
+    - "Ensure data privacy and anonymization"
