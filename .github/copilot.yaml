@@ -15,18 +15,18 @@ stack:
       libraries: [transformers, pandas, numpy, scikit-learn, spaCy]
       patterns: ["Clean Architecture", "Repository Pattern", "Dependency Injection"]
     
-  # API Layer - RESTful services and GraphQL
+  # API Layer - RESTful services
   api:
-    - language: Python/Node.js
-      purpose: REST APIs, GraphQL endpoints, data aggregation
-      frameworks: [FastAPI, Express.js, Apollo Server]
+    - language: Python
+      purpose: REST APIs, data aggregation, backend services
+      frameworks: [FastAPI, Flask]
       patterns: ["RESTful design", "OpenAPI/Swagger documentation", "Rate limiting"]
     
-  # Frontend Layer - Modern web interface
+  # Frontend Layer - TypeScript web interface
   frontend:
-    - language: JavaScript/TypeScript
+    - language: TypeScript
       purpose: User interface, data visualization, interactive dashboards
-      frameworks: [React, Vue.js, Next.js]
+      frameworks: [React, Next.js, Vue.js]
       libraries: [D3.js, Chart.js, Material-UI, Tailwind CSS]
       patterns: ["Component-based architecture", "State management", "Responsive design"]
     
@@ -76,13 +76,14 @@ best_practices:
     - "Use virtual environments and requirements.txt/poetry"
     - "Implement proper logging with structured formats"
     
-  # Node.js/JavaScript Best Practices
-  javascript:
-    - "Use ES6+ features and async/await for asynchronous operations"
+  # TypeScript Best Practices
+  typescript:
+    - "Use strict TypeScript configuration with no implicit any"
+    - "Define proper interfaces and types for all data structures"
+    - "Use async/await for asynchronous operations"
     - "Implement proper error handling with try-catch blocks"
-    - "Use TypeScript for type safety in larger codebases"
     - "Follow ESLint and Prettier configurations"
-    - "Implement proper input validation with libraries like Joi or Yup"
+    - "Implement proper input validation with libraries like Zod"
     - "Use environment variables for configuration"
     
   # AI/ML Specific Practices
@@ -118,7 +119,7 @@ testing:
     - "Aim for 80%+ code coverage"
     - "Test business logic and edge cases"
     - "Mock external dependencies"
-    - "Use pytest for Python, Jest for JavaScript"
+    - "Use pytest for Python, Jest for TypeScript"
     
   integration_tests:
     - "Test API endpoints with real databases"
