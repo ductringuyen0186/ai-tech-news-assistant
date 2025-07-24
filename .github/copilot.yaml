@@ -68,7 +68,7 @@ directory_structure:
     │   ├── Dockerfile.frontend
     │   └── docker-compose.yml
     │
-    ├── .copilot/config.json     # 🤖 Language override for Copilot
+    ├── copilot/config.json      # 🤖 Language override for Copilot
     ├── .github/workflows/       # 🚀 CI/CD (GitHub Actions)
     │   └── deploy.yml
     │
