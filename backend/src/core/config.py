@@ -93,6 +93,34 @@ class Settings(BaseSettings):
         default="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         env="LOG_FORMAT"
     )
+    log_file: Optional[str] = Field(default=None, env="LOG_FILE")
+    log_max_size: int = Field(default=10 * 1024 * 1024, env="LOG_MAX_SIZE")  # 10MB
+    log_backup_count: int = Field(default=5, env="LOG_BACKUP_COUNT")
+    
+    # Error handling settings
+    enable_error_middleware: bool = Field(default=True, env="ENABLE_ERROR_MIDDLEWARE")
+    enable_correlation_id: bool = Field(default=True, env="ENABLE_CORRELATION_ID")
+    error_detail_in_response: bool = Field(default=False, env="ERROR_DETAIL_IN_RESPONSE")  # Only for dev
+    
+    # Retry and resilience settings
+    default_retry_attempts: int = Field(default=3, env="DEFAULT_RETRY_ATTEMPTS")
+    default_retry_delay: float = Field(default=1.0, env="DEFAULT_RETRY_DELAY")
+    circuit_breaker_threshold: int = Field(default=5, env="CIRCUIT_BREAKER_THRESHOLD")
+    circuit_breaker_timeout: int = Field(default=60, env="CIRCUIT_BREAKER_TIMEOUT")
+    
+    # Monitoring settings
+    enable_metrics: bool = Field(default=True, env="ENABLE_METRICS")
+    metrics_endpoint: str = Field(default="/metrics", env="METRICS_ENDPOINT")
+    health_check_timeout: float = Field(default=5.0, env="HEALTH_CHECK_TIMEOUT")
+    
+    # Rate limiting settings
+    rate_limit_requests: int = Field(default=100, env="RATE_LIMIT_REQUESTS")
+    rate_limit_window: int = Field(default=60, env="RATE_LIMIT_WINDOW")  # seconds
+    
+    # External service timeouts
+    llm_request_timeout: float = Field(default=30.0, env="LLM_REQUEST_TIMEOUT")
+    embedding_request_timeout: float = Field(default=15.0, env="EMBEDDING_REQUEST_TIMEOUT")
+    news_fetch_timeout: float = Field(default=10.0, env="NEWS_FETCH_TIMEOUT")
     
     class Config:
         """Pydantic configuration."""
