@@ -17,7 +17,7 @@ class EmbeddingBase(BaseModel):
 
 class EmbeddingRequest(BaseModel):
     """Model for embedding generation requests."""
-    texts: List[str] = Field(..., min_items=1, max_items=100)
+    texts: List[str] = Field(..., min_length=1, max_length=100)
     model_name: Optional[str] = Field(None, description="Override default model")
     normalize: bool = Field(True, description="Whether to normalize embeddings")
     batch_size: int = Field(32, ge=1, le=128, description="Batch size for processing")
@@ -53,3 +53,43 @@ class SimilarityResult(BaseModel):
     similarity_score: float = Field(..., ge=0.0, le=1.0)
     metadata: Optional[Dict[str, Any]] = Field(None, description="Associated metadata")
     content_snippet: Optional[str] = Field(None, description="Content preview")
+
+
+class EmbeddingCreate(BaseModel):
+    """Model for creating new embeddings."""
+    text: str = Field(..., min_length=1, max_length=10000)
+    model_name: Optional[str] = Field(None, description="Model to use for embedding")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
+
+
+class EmbeddingUpdate(BaseModel):
+    """Model for updating existing embeddings."""
+    text: Optional[str] = Field(None, min_length=1, max_length=10000)
+    model_name: Optional[str] = Field(None, description="Model name")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
+
+
+class Embedding(BaseModel):
+    """Complete embedding model."""
+    id: str = Field(..., description="Unique embedding identifier")
+    text: str = Field(..., description="Source text")
+    vector: List[float] = Field(..., description="Embedding vector")
+    model_name: str = Field(..., description="Model used for generation")
+    embedding_dim: int = Field(..., description="Vector dimension")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
+    created_at: Optional[str] = Field(None, description="Creation timestamp")
+
+
+class EmbeddingSearchRequest(BaseModel):
+    """Model for embedding search requests."""
+    query_text: str = Field(..., min_length=1, max_length=1000)
+    top_k: int = Field(5, ge=1, le=50)
+    similarity_threshold: float = Field(0.7, ge=0.0, le=1.0)
+    filters: Optional[Dict[str, Any]] = Field(None, description="Additional filters")
+
+
+class EmbeddingError(BaseModel):
+    """Model for embedding-related errors."""
+    error_type: str = Field(..., description="Type of error")
+    message: str = Field(..., description="Error message")
+    details: Optional[Dict[str, Any]] = Field(None, description="Additional error details")

@@ -52,8 +52,7 @@ class Article(ArticleBase):
     view_count: Optional[int] = Field(0, description="Number of times article has been viewed")
     embedding_generated: Optional[bool] = Field(False, description="Whether embedding has been generated")
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class ArticleSummary(BaseModel):

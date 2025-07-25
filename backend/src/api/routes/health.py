@@ -12,7 +12,7 @@ from datetime import datetime
 from ...core.config import get_settings
 
 settings = get_settings()
-from ...models.api import HealthCheck
+from ...models.api import HealthCheck, HealthResponse, ComponentHealth
 
 router = APIRouter(prefix="", tags=["Health"])
 
