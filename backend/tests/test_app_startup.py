@@ -8,13 +8,13 @@ Used by CI pipeline to validate build integrity.
 
 import pytest
 from unittest.mock import patch
-import os
+from pathlib import Path
 import sys
 
 # Add the backend directory to the path
-backend_dir = os.path.dirname(os.path.abspath(__file__))
-if backend_dir not in sys.path:
-    sys.path.insert(0, os.path.join(backend_dir, '..'))
+backend_dir = Path(__file__).parent.parent
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
 
 
 def test_import_main_modules():
