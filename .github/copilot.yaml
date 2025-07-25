@@ -13,7 +13,7 @@ stack:
     - language: Python
       purpose: FastAPI REST API, LLaMA interface, RAG logic, Vector DB operations
       frameworks: [FastAPI]
-      libraries: [LangChain, LlamaIndex, transformers, Chroma, pandas, numpy, scikit-learn]
+      libraries: [LangChain, transformers, Chroma, pandas, numpy, sentence-transformers]
       patterns: ["Clean Architecture", "Repository Pattern", "Dependency Injection"]
     
   # Orchestration Layer - Python for all task automation and pipelines  
@@ -21,7 +21,7 @@ stack:
     - language: Python
       purpose: Scheduled tasks, data pipelines, news scraping, digest generation
       frameworks: [Prefect]
-      libraries: [asyncio, aiohttp, schedule, celery]
+      libraries: [asyncio, aiohttp, schedule, requests, beautifulsoup4]
       patterns: ["Pipeline pattern", "Event-driven architecture", "Cron-based scheduling"]
     
   # Frontend Layer - React + TypeScript SPA only
