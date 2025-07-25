@@ -86,12 +86,22 @@ jobs:
         pip install -r backend/requirements.txt
     - name: Install Node dependencies
       run: |
-        cd frontend
-        npm ci
+        if [ -d "frontend" ]; then
+          cd frontend
+          npm ci
+        else
+          echo "Error: frontend directory does not exist."
+          exit 1
+        fi
     - name: Build frontend
       run: |
-        cd frontend
-        npm run build
+        if [ -d "frontend" ]; then
+          cd frontend
+          npm run build
+        else
+          echo "Error: frontend directory does not exist."
+          exit 1
+        fi
     - name: Test backend startup
       run: |
         cd backend
