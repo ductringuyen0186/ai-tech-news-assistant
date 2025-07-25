@@ -8,7 +8,7 @@ and debugging throughout the application.
 
 import traceback
 from typing import Any, Dict, Optional, Union
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 
@@ -55,7 +55,7 @@ class NewsAssistantError(Exception):
         self.category = category
         self.user_message = user_message or "An error occurred while processing your request."
         self.retry_after = retry_after  # Seconds to wait before retry
-        self.timestamp = datetime.utcnow()
+        self.timestamp = datetime.now(timezone.utc)
         self.stack_trace = traceback.format_exc()
         
         super().__init__(self.message)
