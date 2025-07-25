@@ -42,7 +42,7 @@ class NewsService:
     def __init__(self):
         """Initialize the news service."""
         self.client = None
-        self.rss_feeds = settings.rss_feeds or []
+        self.rss_feeds = settings.rss_sources or []
         self.request_timeout = 30.0
         self.max_retries = 3
         
