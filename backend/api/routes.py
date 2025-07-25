@@ -244,9 +244,162 @@ async def get_news_stats() -> Dict[str, Any]:
 
 # Placeholder routes for future implementation
 @router.post("/summarize", tags=["AI"])
-async def summarize_article() -> Dict[str, str]:
-    """Summarize an article using AI (placeholder)."""
-    return {"message": "Summarization endpoint - coming soon"}
+async def summarize_article(
+    article_id: Optional[int] = Query(default=None, description="Database article ID to summarize"),
+    url: Optional[str] = Query(default=None, description="Article URL to fetch and summarize"),
+    text: Optional[str] = Query(default=None, description="Direct text to summarize"),
+    provider: str = Query(default="auto", description="LLM provider: auto, ollama, claude")
+) -> Dict[str, Any]:
+    """
+    Summarize an article using AI/LLM.
+    
+    Supports three input modes:
+    1. article_id: Summarize existing article from database
+    2. url: Fetch and summarize article from URL
+    3. text: Summarize provided text directly
+    
+    Args:
+        article_id: ID of article in database
+        url: URL to fetch and summarize
+        text: Direct text to summarize
+        provider: LLM provider to use (auto, ollama, claude)
+        
+    Returns:
+        Summarization result with summary, keywords, and metadata
+    """
+    from llm import ArticleSummarizer, LLMProviderType
+    from ingestion.content_parser import ContentParser
+    import sqlite3
+    from pathlib import Path
+    
+    try:
+        # Validate input - exactly one input method required
+        input_count = sum(x is not None for x in [article_id, url, text])
+        if input_count != 1:
+            raise HTTPException(
+                status_code=400, 
+                detail="Provide exactly one of: article_id, url, or text"
+            )
+        
+        # Initialize summarizer
+        summarizer = ArticleSummarizer()
+        
+        # Validate provider
+        try:
+            provider_enum = LLMProviderType(provider.lower())
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid provider: {provider}. Use: auto, ollama, claude"
+            )
+        
+        article_text = ""
+        article_title = None
+        source_info = {}
+        
+        # Get article content based on input method
+        if article_id:
+            # Fetch from database
+            db_path = Path("./data/articles.db")
+            if not db_path.exists():
+                raise HTTPException(status_code=404, detail="Article database not found")
+            
+            with sqlite3.connect(db_path) as conn:
+                cursor = conn.execute("""
+                    SELECT title, content, source, url, published_date 
+                    FROM articles 
+                    WHERE id = ?
+                """, (article_id,))
+                row = cursor.fetchone()
+                
+                if not row:
+                    raise HTTPException(status_code=404, detail=f"Article {article_id} not found")
+                
+                article_title, article_text, source, url, published_date = row
+                source_info = {
+                    "source": "database",
+                    "article_id": article_id,
+                    "original_source": source,
+                    "url": url,
+                    "published_date": published_date
+                }
+        
+        elif url:
+            # Fetch and parse from URL
+            logger.info(f"Fetching article from URL: {url}")
+            parser = ContentParser()
+            parsed_content = await parser.parse_url(url)
+            
+            if not parsed_content or not parsed_content.get("content"):
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Could not extract readable content from URL"
+                )
+            
+            article_text = parsed_content["content"]
+            article_title = parsed_content.get("title")
+            source_info = {
+                "source": "url",
+                "url": url,
+                "extraction_method": parsed_content.get("extraction_method")
+            }
+        
+        else:
+            # Use provided text directly
+            article_text = text
+            source_info = {"source": "direct_text"}
+        
+        # Validate content length
+        if not article_text or len(article_text.strip()) < 50:
+            raise HTTPException(
+                status_code=400,
+                detail="Article text is too short to summarize (minimum 50 characters)"
+            )
+        
+        # Perform summarization
+        logger.info(f"Summarizing article using provider: {provider}")
+        result = await summarizer.summarize_article(
+            article_text=article_text,
+            title=article_title,
+            provider=provider_enum
+        )
+        
+        # Add source information to result
+        result.update(source_info)
+        
+        logger.info(f"Successfully summarized article (length: {len(article_text)} -> {len(result['summary'])})")
+        return result
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        logger.error(f"Error during summarization: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Summarization failed: {str(e)}")
+
+
+@router.get("/summarize/status", tags=["AI"])
+async def get_summarization_status() -> Dict[str, Any]:
+    """
+    Get status of available LLM providers for summarization.
+    
+    Returns:
+        Provider status and availability information
+    """
+    try:
+        from llm import ArticleSummarizer
+        
+        summarizer = ArticleSummarizer()
+        status = await summarizer.get_provider_status()
+        
+        return {
+            "message": "Summarization service status",
+            **status
+        }
+        
+    except Exception as e:
+        logger.error(f"Error checking summarization status: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to check service status")
 
 
 @router.get("/search", tags=["Search"])

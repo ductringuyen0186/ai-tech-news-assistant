@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     ollama_host: str = Field(default="http://localhost:11434", env="OLLAMA_HOST")
     ollama_model: str = Field(default="llama3.2", env="OLLAMA_MODEL")
     
+    # Claude settings (using proper attribute names)
+    ANTHROPIC_API_KEY: Optional[str] = Field(default=None, env="ANTHROPIC_API_KEY")
+    OLLAMA_MODEL: str = Field(default="llama3.2", env="OLLAMA_MODEL")
+    
     # Vector database settings
     chroma_persist_directory: str = Field(
         default="./data/chroma_db", 
