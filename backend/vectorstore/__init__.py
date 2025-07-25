@@ -2,18 +2,17 @@
 Vector Store Module for AI Tech News Assistant
 ==============================================
 
-This module handles vector database operations using Chroma:
-- Embedding storage and retrieval
+This module handles vector database operations and embeddings:
+- Embedding generation using Sentence Transformers
+- Vector storage and retrieval using Chroma
 - Similarity search operations
 - Metadata filtering and management
 - Database persistence and backup
-
-Future implementation will include:
-- Chroma client setup and configuration
-- Embedding model integration
-- Advanced search strategies
-- Performance monitoring
 """
+
+from .embeddings import EmbeddingGenerator, generate_article_embeddings
+
+__all__ = ["EmbeddingGenerator", "generate_article_embeddings", "VectorStore"]
 
 from typing import List, Dict, Any, Optional
 from utils.logger import get_logger

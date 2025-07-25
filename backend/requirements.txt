@@ -23,12 +23,18 @@ feedparser==6.0.11
 beautifulsoup4==4.12.2
 newspaper3k==0.2.8
 
-# AI/ML Libraries (for future implementation)
+# AI/ML Libraries for Embeddings and Vector Search
+sentence-transformers==2.2.2
+transformers==4.35.2
+torch==2.1.1
+numpy==1.24.4
+
+# Vector Database
+chromadb==0.4.18
+
+# Future LangChain integration
 # langchain==0.0.350
 # langchain-core==0.1.0
-# transformers==4.35.2
-# sentence-transformers==2.2.2
-# chromadb==0.4.18
 
 # Task Orchestration (for future implementation)
 # prefect==2.14.11

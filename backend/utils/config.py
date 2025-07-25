@@ -43,9 +43,13 @@ class Settings(BaseSettings):
     ollama_host: str = Field(default="http://localhost:11434", env="OLLAMA_HOST")
     ollama_model: str = Field(default="llama3.2", env="OLLAMA_MODEL")
     
-    # Claude settings (using proper attribute names)
+    # Additional LLM settings (using uppercase for consistency with environment variables)
     ANTHROPIC_API_KEY: Optional[str] = Field(default=None, env="ANTHROPIC_API_KEY")
     OLLAMA_MODEL: str = Field(default="llama3.2", env="OLLAMA_MODEL")
+    
+    # Embedding settings
+    embedding_model: str = Field(default="all-MiniLM-L6-v2", env="EMBEDDING_MODEL")
+    embedding_batch_size: int = Field(default=32, env="EMBEDDING_BATCH_SIZE")
     
     # Vector database settings
     chroma_persist_directory: str = Field(

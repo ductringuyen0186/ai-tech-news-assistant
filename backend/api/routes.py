@@ -406,3 +406,175 @@ async def get_summarization_status() -> Dict[str, Any]:
 async def search_articles() -> Dict[str, str]:
     """Search articles using semantic search (placeholder)."""
     return {"message": "Search endpoint - coming soon"}
+
+
+@router.post("/embeddings/generate", tags=["Embeddings"])
+async def generate_embeddings(
+    limit: int = Query(default=50, ge=1, le=500, description="Maximum articles to process"),
+    force: bool = Query(default=False, description="Force regeneration of existing embeddings")
+) -> Dict[str, Any]:
+    """
+    Generate embeddings for articles that don't have them yet.
+    
+    This endpoint processes articles in the database and generates vector embeddings
+    for semantic search functionality. Only processes articles with content.
+    
+    Args:
+        limit: Maximum number of articles to process
+        force: Whether to regenerate embeddings for articles that already have them
+        
+    Returns:
+        Processing summary with statistics
+    """
+    try:
+        import sys
+        import os
+        
+        # Add current directory to path for imports
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        backend_dir = os.path.dirname(current_dir)
+        if backend_dir not in sys.path:
+            sys.path.append(backend_dir)
+        
+        from manage_embeddings import ArticleEmbeddingManager
+        
+        logger.info(f"Embedding generation requested (limit: {limit}, force: {force})")
+        
+        manager = ArticleEmbeddingManager()
+        
+        try:
+            # Set up database schema
+            await manager.setup_database()
+            
+            # Get initial statistics
+            initial_stats = await manager.get_embedding_statistics()
+            
+            if not force and initial_stats["pending_articles"] == 0:
+                return {
+                    "message": "All articles already have embeddings",
+                    "stats": initial_stats,
+                    "processed": 0
+                }
+            
+            # Get articles to process
+            if force:
+                # Get all articles if forcing regeneration
+                import sqlite3
+                from pathlib import Path
+                
+                db_path = Path("./data/articles.db")
+                with sqlite3.connect(db_path) as conn:
+                    conn.row_factory = sqlite3.Row
+                    cursor = conn.cursor()
+                    
+                    cursor.execute("""
+                        SELECT id, title, content, summary, source, url, published_date
+                        FROM articles 
+                        WHERE content IS NOT NULL
+                        ORDER BY published_date DESC
+                        LIMIT ?
+                    """, (limit,))
+                    
+                    rows = cursor.fetchall()
+                    articles = [dict(row) for row in rows]
+            else:
+                # Get only articles without embeddings
+                articles = await manager.get_articles_without_embeddings(limit=limit)
+            
+            if not articles:
+                return {
+                    "message": "No articles found to process",
+                    "stats": initial_stats,
+                    "processed": 0
+                }
+            
+            # Process articles
+            processed_count = await manager.generate_embeddings_for_articles(
+                articles, 
+                batch_size=10
+            )
+            
+            # Get final statistics
+            final_stats = await manager.get_embedding_statistics()
+            
+            return {
+                "message": f"Successfully processed {processed_count} articles",
+                "initial_stats": initial_stats,
+                "final_stats": final_stats,
+                "processed": processed_count,
+                "total_requested": len(articles),
+                "success_rate": round(processed_count / len(articles) * 100, 1) if articles else 0
+            }
+            
+        finally:
+            await manager.cleanup()
+            
+    except ImportError as e:
+        logger.error(f"Embedding dependencies not available: {str(e)}")
+        raise HTTPException(
+            status_code=503, 
+            detail="Embedding functionality requires sentence-transformers. Install with: pip install sentence-transformers"
+        )
+    except Exception as e:
+        logger.error(f"Error during embedding generation: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Embedding generation failed: {str(e)}")
+
+
+@router.get("/embeddings/status", tags=["Embeddings"])
+async def get_embedding_status() -> Dict[str, Any]:
+    """
+    Get status of article embeddings in the database.
+    
+    Returns:
+        Embedding statistics and model information
+    """
+    try:
+        import sys
+        import os
+        
+        # Add current directory to path for imports
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        backend_dir = os.path.dirname(current_dir)
+        if backend_dir not in sys.path:
+            sys.path.append(backend_dir)
+        
+        from manage_embeddings import ArticleEmbeddingManager
+        from vectorstore.embeddings import EmbeddingGenerator
+        
+        # Get database statistics
+        manager = ArticleEmbeddingManager()
+        try:
+            stats = await manager.get_embedding_statistics()
+        finally:
+            await manager.cleanup()
+        
+        # Get model information
+        generator = EmbeddingGenerator()
+        model_info = generator.get_model_info()
+        
+        return {
+            "message": "Embedding status retrieved successfully",
+            "database_stats": stats,
+            "model_info": model_info,
+            "embedding_ready": stats["embedded_articles"] > 0
+        }
+        
+    except ImportError:
+        return {
+            "message": "Embedding functionality not available",
+            "database_stats": {
+                "total_articles": 0,
+                "embedded_articles": 0,
+                "pending_articles": 0,
+                "completion_rate": 0,
+                "model_stats": {}
+            },
+            "model_info": {
+                "available": False,
+                "error": "sentence-transformers not installed"
+            },
+            "embedding_ready": False
+        }
+    except Exception as e:
+        logger.error(f"Error checking embedding status: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to check embedding status: {str(e)}")
