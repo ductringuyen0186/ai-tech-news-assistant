@@ -34,11 +34,21 @@ except ImportError as e:
 class ConfigValidator:
     """Validates environment configuration and external services."""
     
+    # Constants for placeholder detection
+    DEFAULT_SECRET_KEY = "your-super-secret-key-change-this-in-production-at-least-32-chars"
+    PLACEHOLDER_PATTERNS = ["your-", "test-", "fake-", "example-", "placeholder-"]
+    
     def __init__(self, env_file: Optional[str] = None):
         self.env_file = env_file
         self.issues: List[str] = []
         self.warnings: List[str] = []
         self.settings: Optional[Settings] = None
+        
+    def is_placeholder_api_key(self, key: str) -> bool:
+        """Check if an API key appears to be a placeholder or invalid."""
+        if not key or key == "":
+            return True
+        return any(key.startswith(pattern) for pattern in self.PLACEHOLDER_PATTERNS)
         
     def load_config(self) -> bool:
         """Load and validate the configuration."""
@@ -68,7 +78,7 @@ class ConfigValidator:
             if self.settings.debug:
                 self.issues.append("Debug mode is enabled in production")
             
-            if self.settings.secret_key.get_secret_value() == "your-super-secret-key-change-this-in-production-at-least-32-chars":
+            if self.settings.secret_key.get_secret_value() == self.DEFAULT_SECRET_KEY:
                 self.issues.append("Default secret key is being used in production")
             
             if "*" in self.settings.allowed_origins:
@@ -120,7 +130,7 @@ class ConfigValidator:
                 self.issues.append("OpenAI API key is required when using OpenAI provider")
             else:
                 key = self.settings.openai_api_key.get_secret_value()
-                if key.startswith("your-") or key == "":
+                if self.is_placeholder_api_key(key):
                     self.issues.append("Invalid OpenAI API key")
         
         elif provider == LLMProvider.ANTHROPIC:
@@ -128,7 +138,7 @@ class ConfigValidator:
                 self.issues.append("Anthropic API key is required when using Anthropic provider")
             else:
                 key = self.settings.anthropic_api_key.get_secret_value()
-                if key.startswith("your-") or key == "":
+                if self.is_placeholder_api_key(key):
                     self.issues.append("Invalid Anthropic API key")
         
         elif provider == LLMProvider.HUGGINGFACE:

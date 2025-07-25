@@ -225,14 +225,6 @@ class Settings(BaseSettings):
                 raise ValueError(f"Invalid environment: {v}. Must be one of: {list(Environment)}")
         return v
     
-    @field_validator("debug")
-    @classmethod
-    def validate_debug_for_production(cls, v, info):
-        """Ensure debug is disabled in production."""
-        # Note: In Pydantic v2, we need to access other fields differently
-        # This validator will be called after environment is validated
-        return v
-    
     @field_validator("secret_key")
     @classmethod
     def validate_secret_key_length(cls, v):
@@ -244,20 +236,6 @@ class Settings(BaseSettings):
         
         if len(secret_value) < 32:
             raise ValueError("Secret key must be at least 32 characters long")
-        return v
-    
-    @field_validator("allowed_origins")
-    @classmethod
-    def validate_cors_origins_for_production(cls, v):
-        """Ensure CORS origins are restricted in production."""
-        # Note: Production validation will be handled in model validation
-        return v
-    
-    @field_validator("database_url")
-    @classmethod
-    def validate_database_url_for_production(cls, v):
-        """Ensure database URL is provided for production."""
-        # Note: Production validation will be handled in model validation
         return v
     
     @field_validator("ollama_host")
@@ -342,15 +320,6 @@ class Settings(BaseSettings):
         case_sensitive = False
         use_enum_values = True
         validate_assignment = True
-        
-        # Environment-specific overrides
-        @classmethod
-        def customise_sources(cls, init_settings, env_settings, file_secret_settings):
-            return (
-                init_settings,
-                env_settings,
-                file_secret_settings,
-            )
 
 
 
