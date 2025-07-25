@@ -66,6 +66,23 @@ class HealthCheck(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 
+class HealthResponse(BaseModel):
+    """Health check response model."""
+    status: str = Field(..., description="Overall health status")
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    services: Dict[str, str] = Field(default_factory=dict, description="Service status")
+    version: str = Field("1.0.0", description="API version")
+    uptime: float = Field(0.0, description="Uptime in seconds")
+
+
+class ComponentHealth(BaseModel):
+    """Individual component health status."""
+    name: str = Field(..., description="Component name")
+    status: str = Field(..., description="Component status")
+    details: Optional[Dict[str, Any]] = Field(None, description="Additional details")
+    last_check: datetime = Field(default_factory=datetime.utcnow)
+
+
 class AsyncTaskResponse(BaseModel):
     """Response for asynchronous task operations."""
     task_id: str = Field(..., description="Unique task identifier")

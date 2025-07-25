@@ -24,7 +24,12 @@ from .embedding import (
     EmbeddingResponse,
     EmbeddingStats,
     SimilarityRequest,
-    SimilarityResult
+    SimilarityResult,
+    EmbeddingCreate,
+    EmbeddingUpdate,
+    Embedding,
+    EmbeddingSearchRequest,
+    EmbeddingError
 )
 
 from .database import (
@@ -42,6 +47,8 @@ from .api import (
     PaginatedResponse,
     PaginationInfo,
     HealthCheck,
+    HealthResponse,
+    ComponentHealth,
     AsyncTaskResponse
 )
 
@@ -61,6 +68,11 @@ __all__ = [
     "EmbeddingRequest",
     "EmbeddingResponse", 
     "EmbeddingStats",
+    "EmbeddingCreate",
+    "EmbeddingUpdate",
+    "Embedding",
+    "EmbeddingSearchRequest",
+    "EmbeddingError",
     "SimilarityRequest",
     "SimilarityResult",
     
@@ -78,5 +90,7 @@ __all__ = [
     "PaginatedResponse",
     "PaginationInfo",
     "HealthCheck",
+    "HealthResponse",
+    "ComponentHealth",
     "AsyncTaskResponse"
 ]
