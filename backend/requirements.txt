@@ -18,17 +18,17 @@ python-multipart==0.0.6
 pandas==2.1.4
 numpy==1.24.4
 
+# Web Scraping and RSS Parsing
+feedparser==6.0.11
+beautifulsoup4==4.12.2
+newspaper3k==0.2.8
+
 # AI/ML Libraries (for future implementation)
 # langchain==0.0.350
 # langchain-core==0.1.0
 # transformers==4.35.2
 # sentence-transformers==2.2.2
 # chromadb==0.4.18
-
-# Web Scraping (for future implementation)
-# beautifulsoup4==4.12.2
-# newspaper3k==0.2.8
-# feedparser==6.0.10
 
 # Task Orchestration (for future implementation)
 # prefect==2.14.11

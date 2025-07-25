@@ -7,7 +7,7 @@ It supports environment variables and provides type-safe configuration.
 """
 
 import os
-from typing import List, Optional
+from typing import List, Optional, Dict
 from functools import lru_cache
 
 from pydantic import BaseSettings, Field
@@ -50,13 +50,35 @@ class Settings(BaseSettings):
     )
     
     # News sources settings
-    news_sources: List[str] = Field(
+    rss_sources: List[Dict[str, str]] = Field(
         default=[
-            "https://feeds.feedburner.com/oreilly/radar",
-            "https://techcrunch.com/feed/",
-            "https://feeds.arstechnica.com/arstechnica/index",
+            {
+                "name": "O'Reilly Radar",
+                "url": "https://feeds.feedburner.com/oreilly/radar",
+                "description": "O'Reilly Radar tech insights"
+            },
+            {
+                "name": "TechCrunch",
+                "url": "https://techcrunch.com/feed/",
+                "description": "TechCrunch startup and tech news"
+            },
+            {
+                "name": "Ars Technica", 
+                "url": "https://feeds.arstechnica.com/arstechnica/index",
+                "description": "Ars Technica technology news and analysis"
+            },
+            {
+                "name": "The Verge",
+                "url": "https://www.theverge.com/rss/index.xml", 
+                "description": "The Verge technology, science, art, and culture"
+            },
+            {
+                "name": "MIT Technology Review",
+                "url": "https://www.technologyreview.com/feed/",
+                "description": "MIT Technology Review"
+            }
         ],
-        env="NEWS_SOURCES"
+        env="RSS_SOURCES"
     )
     
     # Logging settings
