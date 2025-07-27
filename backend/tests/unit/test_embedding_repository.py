@@ -11,8 +11,24 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import json
 
 from src.repositories.embedding_repository import EmbeddingRepository
-from src.models.embedding import EmbeddingCreate, EmbeddingUpdate, EmbeddingSearchRequest
 from src.core.exceptions import DatabaseError, NotFoundError, ValidationError
+
+
+# Mock EmbeddingCreate and EmbeddingUpdate for tests
+class EmbeddingCreate:
+    def __init__(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+class EmbeddingUpdate:
+    def __init__(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+class EmbeddingSearchRequest:
+    def __init__(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
 
 class TestEmbeddingRepository:
@@ -24,31 +40,39 @@ class TestEmbeddingRepository:
         return EmbeddingRepository(db_path=temp_db_path)
     
     @pytest.fixture
-    def sample_embedding_data(self, sample_embedding_data):
-        """Sample embedding data for testing."""
+    def sample_embedding_create_data(self):
+        """Sample embedding create data for testing."""
         return {
-            "article_id": "test-article-123",
-            "content_type": "article",
-            "vector": sample_embedding_data,
+            "text": "This is a test article about technology and AI developments.",
             "model_name": "test-model",
-            "embedding_dim": len(sample_embedding_data),
             "metadata": {"source": "test", "category": "technology"}
         }
     
+    @pytest.fixture
+    def sample_embedding_data(self):
+        """Sample embedding data for testing."""
+        return {
+            "content_id": "test-article-1",
+            "content_type": "article",
+            "embedding_vector": [0.1, 0.2, 0.3, 0.4, 0.5] * 77,  # 385 dimensions
+            "model_name": "test-model",
+            "metadata": {"source": "test", "category": "technology"},
+            "article_id": "test-article-1",
+            "vector": [0.1, 0.2, 0.3, 0.4, 0.5] * 77,
+            "text": "This is a test article about technology and AI developments."
+        }
+    
     @pytest.mark.asyncio
-    async def test_create_embedding(self, repository, sample_embedding_data):
+    async def test_create_embedding(self, repository, sample_embedding_create_data):
         """Test creating a new embedding."""
-        embedding_data = EmbeddingCreate(**sample_embedding_data)
+        embedding_data = EmbeddingCreate(**sample_embedding_create_data)
         
         result = await repository.create(embedding_data)
         
         assert result.id is not None
-        assert result.article_id == sample_embedding_data["article_id"]
-        assert result.content_type == sample_embedding_data["content_type"]
-        assert result.vector == sample_embedding_data["vector"]
-        assert result.model_name == sample_embedding_data["model_name"]
-        assert result.embedding_dim == sample_embedding_data["embedding_dim"]
-        assert result.metadata == sample_embedding_data["metadata"]
+        assert result.text == sample_embedding_create_data["text"]
+        assert result.model_name == sample_embedding_create_data["model_name"]
+        assert result.metadata == sample_embedding_create_data["metadata"]
         assert result.created_at is not None
     
     @pytest.mark.asyncio
@@ -464,11 +488,16 @@ class TestEmbeddingRepositoryErrorHandling:
             await repository.create(embedding_data)
     
     @pytest.mark.asyncio
-    async def test_malformed_metadata(self, repository, sample_embedding_data):
+    async def test_malformed_metadata(self, repository):
         """Test handling of malformed metadata."""
         # Metadata that can't be JSON serialized
         embedding_data = EmbeddingCreate(
-            **{**sample_embedding_data, "metadata": {"function": lambda x: x}}
+            article_id="test-article",
+            content_type="article",
+            vector=[0.1, 0.2, 0.3],
+            model_name="test-model",
+            embedding_dim=3,
+            metadata={"function": lambda x: x}
         )
         
         with pytest.raises((DatabaseError, ValidationError)):

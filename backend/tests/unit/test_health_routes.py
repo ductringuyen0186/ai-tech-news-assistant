@@ -9,6 +9,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
 from fastapi import FastAPI
+from pydantic import ValidationError
 
 from src.api.routes.health import router, HealthResponse, ComponentHealth
 
@@ -222,10 +223,18 @@ class TestHealthRoutes:
         # Should handle exceptions gracefully
         assert data["status"] in ["degraded", "unhealthy"]
         assert data["components"]["database"]["status"] == "unhealthy"
-        assert "error" in data["components"]["database"]
+        assert "message" in data["components"]["database"]
+        assert "Service unavailable" in data["components"]["database"]["message"]
     
-    def test_readiness_check(self, client):
+    @patch('src.api.routes.health.get_article_repository')
+    def test_readiness_check(self, mock_article_repo, client):
         """Test readiness check endpoint."""
+        # Mock repository to return healthy status
+        mock_article_repo.return_value.health_check = AsyncMock(return_value={
+            "status": "healthy",
+            "database_accessible": True
+        })
+        
         response = client.get("/health/ready")
         
         assert response.status_code == 200
@@ -362,8 +371,8 @@ class TestHealthResponseModels:
             timestamp="2024-01-01T12:00:00Z",
             version="1.0.0",
             components={
-                "database": ComponentHealth(status="healthy"),
-                "api": ComponentHealth(status="degraded", details={"warning": "High latency"})
+                "database": ComponentHealth(name="database", status="healthy"),
+                "api": ComponentHealth(name="api", status="degraded", details={"warning": "High latency"})
             }
         )
         
@@ -374,7 +383,8 @@ class TestHealthResponseModels:
     def test_component_health_model(self):
         """Test ComponentHealth model validation."""
         # Healthy component
-        component = ComponentHealth(status="healthy")
+        component = ComponentHealth(name="database", status="healthy")
+        assert component.name == "database"
         assert component.status == "healthy"
         assert component.details is None
         
@@ -388,10 +398,10 @@ class TestHealthResponseModels:
     
     def test_invalid_status_values(self):
         """Test that invalid status values are rejected."""
-        with pytest.raises(ValueError):
+        with pytest.raises(ValidationError):
             ComponentHealth(status="invalid_status")
         
-        with pytest.raises(ValueError):
+        with pytest.raises(ValidationError):
             HealthResponse(
                 status="invalid_status",
                 timestamp="2024-01-01T12:00:00Z",

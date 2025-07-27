@@ -5,8 +5,8 @@ API Response Models
 Standard API response models for consistent error handling and responses.
 """
 
-from typing import List, Optional, Dict, Any, Generic, TypeVar
-from datetime import datetime
+from typing import List, Optional, Dict, Any, Generic, TypeVar, Union
+from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 
 T = TypeVar('T')
@@ -17,7 +17,7 @@ class BaseResponse(BaseModel, Generic[T]):
     success: bool = Field(..., description="Whether the request was successful")
     message: str = Field(..., description="Response message")
     data: Optional[T] = Field(None, description="Response data")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ErrorDetail(BaseModel):
@@ -35,7 +35,7 @@ class ErrorResponse(BaseModel):
     error_type: str = Field(..., description="Type of error")
     message: str = Field(..., description="Error message")
     details: Optional[List[ErrorDetail]] = Field(None, description="Detailed error information")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     request_id: Optional[str] = Field(None, description="Request identifier for tracking")
 
 
@@ -44,7 +44,7 @@ class PaginatedResponse(BaseModel, Generic[T]):
     success: bool = Field(True, description="Whether the request was successful")
     data: List[T] = Field(..., description="Response data items")
     pagination: "PaginationInfo" = Field(..., description="Pagination information")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class PaginationInfo(BaseModel):
@@ -63,16 +63,20 @@ class HealthCheck(BaseModel):
     version: str = Field(..., description="API version")
     uptime_seconds: float = Field(..., description="Service uptime in seconds")
     dependencies: Dict[str, str] = Field(default_factory=dict, description="Dependency status")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    uptime: Optional[Union[str, float]] = Field(None, description="Uptime (string or numeric)")
+    services: Optional[Dict[str, Any]] = Field(None, description="Service statuses")
+    components: Optional[Dict[str, Any]] = Field(None, description="Component health details")
 
 
 class HealthResponse(BaseModel):
     """Health check response model."""
     status: str = Field(..., description="Overall health status")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     services: Dict[str, str] = Field(default_factory=dict, description="Service status")
     version: str = Field("1.0.0", description="API version")
     uptime: float = Field(0.0, description="Uptime in seconds")
+    components: Optional[Dict[str, Dict[str, Any]]] = Field(default_factory=dict, description="Component details")
 
 
 class ComponentHealth(BaseModel):
@@ -80,14 +84,14 @@ class ComponentHealth(BaseModel):
     name: str = Field(..., description="Component name")
     status: str = Field(..., description="Component status")
     details: Optional[Dict[str, Any]] = Field(None, description="Additional details")
-    last_check: datetime = Field(default_factory=datetime.utcnow)
+    last_check: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class AsyncTaskResponse(BaseModel):
     """Response for asynchronous task operations."""
     task_id: str = Field(..., description="Unique task identifier")
     status: str = Field(..., description="Task status")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     estimated_completion: Optional[datetime] = Field(None, description="Estimated completion time")
     progress_percentage: Optional[float] = Field(None, ge=0.0, le=100.0)
 

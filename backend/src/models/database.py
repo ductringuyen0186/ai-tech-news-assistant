@@ -25,6 +25,12 @@ class DatabaseStats(BaseModel):
     database_size_mb: float = Field(0.0, description="Database size in MB")
     last_updated: datetime = Field(default_factory=datetime.utcnow)
     table_stats: Dict[str, int] = Field(default_factory=dict, description="Row counts by table")
+    # Additional fields for comprehensive stats
+    articles_today: Optional[int] = Field(None, description="Articles added today")
+    unique_sources: Optional[int] = Field(None, description="Number of unique sources")
+    avg_articles_per_day: Optional[float] = Field(None, description="Average articles per day")
+    articles_with_summaries: Optional[int] = Field(None, description="Articles with summaries")
+    articles_with_embeddings: Optional[int] = Field(None, description="Articles with embeddings")
 
 
 class QueryResult(BaseModel):

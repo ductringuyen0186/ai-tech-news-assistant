@@ -45,16 +45,14 @@ class TestCompleteWorkflows:
         
         # Step 3: Generate summary (mocked)
         with patch.object(SummarizationService, 'summarize_content') as mock_summarize:
-            from src.models.article import ArticleSummary
-            from datetime import datetime
+            from src.models.article import AISummary
+            from datetime import datetime, timezone
             
-            mock_summary = ArticleSummary(
+            mock_summary = AISummary(
                 summary="This is a test summary of the article content.",
                 provider="test",
                 model="test-model",
-                content_length=len(sample_article_data["content"]),
-                summary_length=50,
-                generated_at=datetime.utcnow()
+                content_length=len(sample_article_data["content"])
             )
             mock_summarize.return_value = mock_summary
             

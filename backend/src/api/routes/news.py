@@ -15,7 +15,9 @@ from ...models.article import (
     Article, 
     ArticleCreate, 
     ArticleSearchRequest,
-    ArticleStats
+    ArticleStats,
+    IngestRequest,
+    IngestResponse
 )
 from ...models.api import BaseResponse, PaginatedResponse, PaginationInfo
 from ...core.exceptions import NewsIngestionError, ValidationError
@@ -29,7 +31,9 @@ def get_news_service() -> NewsService:
 
 def get_article_repository() -> ArticleRepository:
     """Get article repository instance."""
-    return ArticleRepository()
+    from ...core.config import get_settings
+    settings = get_settings()
+    return ArticleRepository(settings.get_database_path())
 
 
 @router.get("/", response_model=PaginatedResponse[Article])
@@ -73,9 +77,9 @@ async def get_articles(
         
         # Get articles and total count
         articles, total_count = await repo.list_articles(
-            filter_params=filter_params,
             limit=page_size,
-            offset=offset
+            offset=offset,
+            source=source
         )
         
         # Calculate pagination info
@@ -101,52 +105,24 @@ async def get_articles(
         )
 
 
-@router.get("/{article_id}", response_model=BaseResponse[Article])
-async def get_article(
-    article_id: int,
-    repo: ArticleRepository = Depends(get_article_repository)
-) -> BaseResponse[Article]:
-    """
-    Get a specific article by ID.
-    
-    Args:
-        article_id: The article ID
-        
-    Returns:
-        Article details
-    """
-    try:
-        article = await repo.get_by_id(article_id)
-        return BaseResponse(
-            success=True,
-            message="Article retrieved successfully",
-            data=article
-        )
-        
-    except Exception as e:
-        if "not found" in str(e).lower():
-            raise HTTPException(status_code=404, detail=f"Article not found: {article_id}")
-        raise HTTPException(status_code=500, detail=f"Failed to get article: {str(e)}")
-
-
-@router.post("/ingest", response_model=BaseResponse[Dict[str, Any]])
+@router.post("/ingest", response_model=BaseResponse[IngestResponse])
 async def ingest_news(
-    feed_urls: Optional[List[str]] = None,
+    request: IngestRequest,
     service: NewsService = Depends(get_news_service),
     repo: ArticleRepository = Depends(get_article_repository)
-) -> BaseResponse[Dict[str, Any]]:
+) -> BaseResponse[IngestResponse]:
     """
     Trigger RSS feed ingestion to fetch new articles.
     
     Args:
-        feed_urls: Optional list of specific RSS feed URLs to ingest
+        request: Ingest request containing feed URLs
         
     Returns:
         Ingestion results and statistics
     """
     try:
         # Fetch articles from RSS feeds
-        new_articles = await service.fetch_rss_feeds(feed_urls)
+        new_articles = await service.fetch_rss_feeds(request.feed_urls)
         
         # Store articles in database
         stored_count = 0
@@ -169,15 +145,17 @@ async def ingest_news(
                 errors.append(f"Failed to store article {article_data.url}: {str(e)}")
                 continue
         
+        response_data = IngestResponse(
+            processed=len(new_articles),
+            new_articles=stored_count,
+            duplicates=skipped_count,
+            errors=errors[:10]  # Limit error list
+        )
+        
         return BaseResponse(
             success=True,
             message=f"Ingestion completed. Stored: {stored_count}, Skipped: {skipped_count}",
-            data={
-                "total_fetched": len(new_articles),
-                "stored": stored_count,
-                "skipped": skipped_count,
-                "errors": errors[:10]  # Limit error list
-            }
+            data=response_data
         )
         
     except NewsIngestionError as e:
@@ -281,3 +259,31 @@ async def search_articles(
             status_code=500,
             detail=f"Search failed: {str(e)}"
         )
+
+
+@router.get("/{article_id}", response_model=BaseResponse[Article])
+async def get_article(
+    article_id: int,
+    repo: ArticleRepository = Depends(get_article_repository)
+) -> BaseResponse[Article]:
+    """
+    Get a specific article by ID.
+    
+    Args:
+        article_id: The article ID
+        
+    Returns:
+        Article details
+    """
+    try:
+        article = await repo.get_by_id(article_id)
+        return BaseResponse(
+            success=True,
+            message="Article retrieved successfully",
+            data=article
+        )
+        
+    except Exception as e:
+        if "not found" in str(e).lower():
+            raise HTTPException(status_code=404, detail=f"Article not found: {article_id}")
+        raise HTTPException(status_code=500, detail=f"Failed to get article: {str(e)}")

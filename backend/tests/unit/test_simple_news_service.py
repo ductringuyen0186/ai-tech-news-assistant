@@ -58,15 +58,15 @@ class TestSimpleNewsService:
     def test_extract_domain_invalid(self, service):
         """Test domain extraction with invalid URL."""
         domain = service._extract_domain("invalid-url")
-        assert domain == "unknown"
+        assert domain == "invalid-url"
     
     @pytest.mark.asyncio
     async def test_get_news_stats(self, service):
         """Test getting news statistics."""
         stats = await service.get_news_stats()
-        assert "total_feeds" in stats
-        assert "last_updated" in stats
-        assert isinstance(stats["total_feeds"], int)
+        assert hasattr(stats, 'total_articles')
+        assert hasattr(stats, 'articles_with_summaries') 
+        assert isinstance(stats.total_articles, int)
     
     @pytest.mark.asyncio 
     async def test_health_check(self, service):

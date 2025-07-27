@@ -12,8 +12,9 @@ from enum import Enum
 from ...services import EmbeddingService
 from ...repositories import ArticleRepository, EmbeddingRepository
 from ...models.article import Article
-from ...models.embedding import SimilarityResult
+from ...models.embedding import SimilarityResult, SimilarityRequest
 from ...models.api import BaseResponse
+from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/search", tags=["Search"])
 
@@ -23,6 +24,23 @@ class SearchMode(str, Enum):
     TEXT = "text"
     SEMANTIC = "semantic"
     HYBRID = "hybrid"
+
+
+class SemanticSearchRequest(BaseModel):
+    """Model for semantic search requests."""
+    query: str = Field(..., min_length=1, max_length=1000, description="Search query")
+    limit: int = Field(20, ge=1, le=50, description="Maximum results")
+    threshold: float = Field(0.7, ge=0.0, le=1.0, description="Similarity threshold")
+    content_type: str = Field("article", description="Type of content to search")
+
+
+class HybridSearchRequest(BaseModel):
+    """Model for hybrid search requests."""
+    query: str = Field(..., min_length=1, max_length=1000, description="Search query")
+    limit: int = Field(20, ge=1, le=50, description="Maximum results")
+    text_weight: float = Field(0.5, ge=0.0, le=1.0, description="Weight for text search")
+    semantic_weight: float = Field(0.5, ge=0.0, le=1.0, description="Weight for semantic search")
+    similarity_threshold: float = Field(0.7, ge=0.0, le=1.0, description="Similarity threshold")
 
 
 # Dependency injection
@@ -36,7 +54,9 @@ def get_embedding_repository() -> EmbeddingRepository:
 
 def get_article_repository() -> ArticleRepository:
     """Get article repository instance."""
-    return ArticleRepository()
+    from ...core.config import get_settings
+    settings = get_settings()
+    return ArticleRepository(settings.get_database_path())
 
 
 @router.get("/", response_model=BaseResponse[Dict[str, Any]])
@@ -331,4 +351,316 @@ async def find_similar_articles(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to find similar articles: {str(e)}"
+        )
+
+
+@router.get("/text")
+async def text_search(
+    query: str = Query(..., description="Search query"),
+    limit: int = Query(default=20, ge=1, le=50, description="Maximum results"),
+    offset: int = Query(default=0, ge=0, description="Offset for pagination"),
+    article_repo: ArticleRepository = Depends(get_article_repository)
+) -> Dict[str, Any]:
+    """
+    Perform text-based search across articles.
+    
+    Args:
+        query: Search query string
+        limit: Maximum number of results
+        offset: Offset for pagination
+        
+    Returns:
+        Search results with articles and metadata
+    """
+    try:
+        # Custom validation for empty query
+        if not query or query.strip() == "":
+            raise HTTPException(
+                status_code=400,
+                detail="Query cannot be empty"
+            )
+        
+        # Validate query length
+        if len(query) > 500:
+            raise HTTPException(
+                status_code=400,
+                detail="Query too long. Maximum length is 500 characters."
+            )
+        
+        articles = await article_repo.search_articles(query, limit, offset)
+        
+        return {
+            "results": articles,
+            "total_count": len(articles),
+            "query": query,
+            "limit": limit,
+            "offset": offset
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Text search failed: {str(e)}"
+        )
+
+
+@router.post("/semantic", response_model=BaseResponse[List[SimilarityResult]])
+async def semantic_search(
+    request: SemanticSearchRequest,
+    embedding_service: EmbeddingService = Depends(get_embedding_service),
+    embedding_repo: EmbeddingRepository = Depends(get_embedding_repository)
+) -> BaseResponse[List[SimilarityResult]]:
+    """
+    Perform semantic search using embeddings.
+    
+    Args:
+        request: Semantic search parameters
+        
+    Returns:
+        List of similar articles with similarity scores
+    """
+    try:
+        # Generate embedding for the query
+        from ...models.embedding import EmbeddingRequest
+        embedding_request = EmbeddingRequest(texts=[request.query], batch_size=1)
+        embedding_response = await embedding_service.generate_embeddings(embedding_request)
+        query_embedding = embedding_response.embeddings[0]
+        
+        # Find similar items
+        similar_results = await embedding_repo.similarity_search(
+            query_embedding=query_embedding,
+            model_name=embedding_response.model_name,
+            top_k=request.limit,
+            similarity_threshold=request.threshold,
+            content_type=request.content_type
+        )
+        
+        return BaseResponse(
+            success=True,
+            message=f"Found {len(similar_results)} similar articles",
+            data=similar_results
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Semantic search failed: {str(e)}"
+        )
+
+
+@router.post("/hybrid", response_model=BaseResponse[Dict[str, Any]])
+async def hybrid_search(
+    request: HybridSearchRequest,
+    article_repo: ArticleRepository = Depends(get_article_repository),
+    embedding_service: EmbeddingService = Depends(get_embedding_service),
+    embedding_repo: EmbeddingRepository = Depends(get_embedding_repository)
+) -> BaseResponse[Dict[str, Any]]:
+    """
+    Perform hybrid search combining text and semantic search.
+    
+    Args:
+        request: Hybrid search parameters
+        
+    Returns:
+        Combined search results
+    """
+    try:
+        if request.text_weight + request.semantic_weight != 1.0:
+            raise HTTPException(status_code=400, detail="Text weight and semantic weight must sum to 1.0")
+        
+        # Perform text search
+        text_articles = await article_repo.search_articles(request.query, request.limit)
+        
+        # Perform semantic search
+        from ...models.embedding import EmbeddingRequest
+        embedding_request = EmbeddingRequest(texts=[request.query], batch_size=1)
+        embedding_response = await embedding_service.generate_embeddings(embedding_request)
+        query_embedding = embedding_response.embeddings[0]
+        
+        semantic_results = await embedding_repo.similarity_search(
+            query_embedding=query_embedding,
+            model_name=embedding_response.model_name,
+            top_k=request.limit,
+            similarity_threshold=request.similarity_threshold,
+            content_type="article"
+        )
+        
+        return BaseResponse(
+            success=True,
+            message=f"Hybrid search completed",
+            data={
+                "query": request.query,
+                "text_results": text_articles,
+                "semantic_results": semantic_results,
+                "weights": {"text": request.text_weight, "semantic": request.semantic_weight}
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Hybrid search failed: {str(e)}"
+        )
+
+
+@router.get("/trending", response_model=BaseResponse[List[str]])
+async def get_trending_searches() -> BaseResponse[List[str]]:
+    """
+    Get trending search queries.
+    
+    Returns:
+        List of trending search terms
+    """
+    try:
+        # Mock trending searches for now
+        trending = [
+            "artificial intelligence",
+            "machine learning",
+            "neural networks",
+            "deep learning",
+            "natural language processing"
+        ]
+        
+        return BaseResponse(
+            success=True,
+            message="Trending searches retrieved successfully",
+            data=trending
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get trending searches: {str(e)}"
+        )
+
+
+@router.get("/analytics", response_model=BaseResponse[Dict[str, Any]])
+async def get_search_analytics() -> BaseResponse[Dict[str, Any]]:
+    """
+    Get search analytics and statistics.
+    
+    Returns:
+        Search analytics data
+    """
+    try:
+        # Mock analytics data for now
+        analytics = {
+            "total_searches": 1250,
+            "unique_queries": 890,
+            "top_queries": [
+                {"query": "artificial intelligence", "count": 45},
+                {"query": "machine learning", "count": 38},
+                {"query": "neural networks", "count": 32}
+            ],
+            "search_trends": {
+                "last_7_days": 156,
+                "last_30_days": 678
+            }
+        }
+        
+        return BaseResponse(
+            success=True,
+            message="Search analytics retrieved successfully",
+            data=analytics
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get search analytics: {str(e)}"
+        )
+
+
+@router.post("/advanced", response_model=BaseResponse[List[Article]])
+async def advanced_search(
+    query: str,
+    sources: Optional[List[str]] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    authors: Optional[List[str]] = None,
+    categories: Optional[List[str]] = None,
+    limit: int = 20,
+    article_repo: ArticleRepository = Depends(get_article_repository)
+) -> BaseResponse[List[Article]]:
+    """
+    Perform advanced search with filters.
+    
+    Args:
+        query: Search query string
+        sources: Filter by news sources
+        date_from: Start date filter (YYYY-MM-DD)
+        date_to: End date filter (YYYY-MM-DD)
+        authors: Filter by authors
+        categories: Filter by categories
+        limit: Maximum number of results
+        
+    Returns:
+        Filtered search results
+    """
+    try:
+        # For now, just perform basic text search
+        # Advanced filtering would require more complex repository methods
+        articles = await article_repo.search_articles(query, limit)
+        
+        return BaseResponse(
+            success=True,
+            message=f"Advanced search completed",
+            data=articles
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Advanced search failed: {str(e)}"
+        )
+
+
+@router.get("/export", response_model=BaseResponse[Dict[str, Any]])
+async def export_search_results(
+    query: str = Query(..., description="Search query"),
+    format: str = Query(default="json", description="Export format (json, csv)"),
+    limit: int = Query(default=100, ge=1, le=1000, description="Maximum results"),
+    article_repo: ArticleRepository = Depends(get_article_repository)
+) -> BaseResponse[Dict[str, Any]]:
+    """
+    Export search results in various formats.
+    
+    Args:
+        query: Search query string
+        format: Export format (json or csv)
+        limit: Maximum number of results
+        
+    Returns:
+        Export data and metadata
+    """
+    try:
+        if format not in ["json", "csv"]:
+            raise HTTPException(status_code=400, detail="Format must be 'json' or 'csv'")
+        
+        articles = await article_repo.search_articles(query, limit)
+        
+        export_data = {
+            "query": query,
+            "format": format,
+            "total_results": len(articles),
+            "exported_at": "2024-01-01T00:00:00Z",  # Would use actual timestamp
+            "data": articles
+        }
+        
+        return BaseResponse(
+            success=True,
+            message=f"Search results exported in {format} format",
+            data=export_data
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Export failed: {str(e)}"
         )

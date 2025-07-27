@@ -34,7 +34,7 @@ class TestImportCoverage:
         from src.models.embedding import SimilarityResult
         
         # Test model creation with valid data
-        response = BaseResponse(success=True, data={"test": "value"})
+        response = BaseResponse(success=True, message="Success", data={"test": "value"})
         assert response.success is True
         
         stats = DatabaseStats(
@@ -149,7 +149,7 @@ class TestBasicModelCreation:
         from src.models.api import BaseResponse, ErrorResponse, HealthResponse
         
         # Test BaseResponse
-        success_response = BaseResponse(success=True, data={"message": "OK"})
+        success_response = BaseResponse(success=True, message="Success", data={"message": "OK"})
         assert success_response.success is True
         assert success_response.data["message"] == "OK"
         

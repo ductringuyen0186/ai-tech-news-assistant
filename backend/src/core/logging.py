@@ -12,11 +12,15 @@ import logging
 import sys
 import contextvars
 from typing import Optional, Dict, Any, Union
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from src.core.config import get_settings
 from src.core.exceptions import NewsAssistantError
+
+
+# Make settings available as a module-level attribute for testing
+settings = get_settings()
 
 
 # Context variable for correlation ID (request tracing)
@@ -33,7 +37,7 @@ class StructuredFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         # Base log structure
         log_entry = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -132,8 +136,6 @@ def get_logger(name: str, level: Optional[str] = None) -> logging.Logger:
     Returns:
         Configured logger instance
     """
-    settings = get_settings()
-    
     # Create logger
     logger = logging.getLogger(name)
     
@@ -165,8 +167,6 @@ def get_logger(name: str, level: Optional[str] = None) -> logging.Logger:
 
 def setup_logging() -> None:
     """Setup application-wide logging configuration."""
-    settings = get_settings()
-    
     # Configure root logger
     root_logger = logging.getLogger()
     

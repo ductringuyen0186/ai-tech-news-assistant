@@ -9,7 +9,7 @@ Handles the core embedding operations with proper error handling and performance
 import asyncio
 import logging
 from typing import List, Dict, Any, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ..core.config import get_settings
 
@@ -22,6 +22,18 @@ from ..models.embedding import (
     SimilarityResult,
     EmbeddingStats
 )
+
+# Import at module level for testing purposes
+try:
+    from sentence_transformers import SentenceTransformer
+    import torch
+    import numpy as np
+    TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    SentenceTransformer = None
+    torch = None
+    np = None
+    TRANSFORMERS_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -56,9 +68,9 @@ class EmbeddingService:
         try:
             logger.info(f"Initializing embedding service with model: {self.model_name}")
             
-            # Import here to avoid import errors if transformers not installed
-            from sentence_transformers import SentenceTransformer
-            import torch
+            # Check if transformers are available
+            if not TRANSFORMERS_AVAILABLE:
+                raise EmbeddingError("sentence-transformers package is not installed")
             
             # Detect device
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -96,7 +108,7 @@ class EmbeddingService:
             await self.initialize()
             
         try:
-            start_time = datetime.utcnow()
+            start_time = datetime.now(timezone.utc)
             
             # Validate request
             if not request.texts:
@@ -113,7 +125,8 @@ class EmbeddingService:
             )
             
             # Calculate processing time
-            processing_time = (datetime.utcnow() - start_time).total_seconds()
+            end_time = datetime.now(timezone.utc)
+            processing_time = (end_time - start_time).total_seconds()
             
             logger.info(f"Generated {len(embeddings)} embeddings in {processing_time:.2f}s")
             
@@ -192,7 +205,8 @@ class EmbeddingService:
             raise ValidationError("Embeddings must have the same dimension")
         
         try:
-            import numpy as np
+            if not TRANSFORMERS_AVAILABLE or np is None:
+                raise EmbeddingError("numpy package is not available")
             
             # Convert to numpy arrays
             emb1 = np.array(embedding1)
@@ -231,7 +245,8 @@ class EmbeddingService:
             List of similarity scores
         """
         try:
-            import numpy as np
+            if not TRANSFORMERS_AVAILABLE or np is None:
+                raise EmbeddingError("numpy package is not available")
             
             query = np.array(query_embedding)
             candidates = np.array(candidate_embeddings)

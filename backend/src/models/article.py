@@ -5,7 +5,7 @@ Article Data Models
 Pydantic models for article data structures.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field, validator
 
@@ -56,13 +56,34 @@ class Article(ArticleBase):
 
 
 class ArticleSummary(BaseModel):
-    """Model for article summary information."""
-    id: int
-    title: str
-    summary: Optional[str]
-    source: str
-    published_date: Optional[datetime]
-    url: Optional[str]
+    """Model for article summary view (basic article info + summary)."""
+    id: int = Field(..., description="Article ID")
+    title: str = Field(..., description="Article title")
+    summary: str = Field(..., description="Article summary")
+    source: str = Field(..., description="Article source")
+    published_date: Optional[datetime] = Field(None, description="Publication date")
+    url: str = Field(..., description="Article URL")
+    # Optional metadata fields for summarization details
+    word_count: Optional[int] = Field(None, description="Word count of summary")
+    original_length: Optional[int] = Field(None, description="Original content length")
+    summary_length: Optional[int] = Field(None, description="Summary length")
+    compression_ratio: Optional[float] = Field(None, description="Compression ratio")
+    processing_time: Optional[float] = Field(None, description="Processing time in seconds")
+    model_used: Optional[str] = Field(None, description="Model used for generation")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Creation timestamp")
+
+
+class AISummary(BaseModel):
+    """Model for AI-generated summary information."""
+    summary: str = Field(..., description="Generated summary text")
+    provider: Optional[str] = Field(None, description="AI provider used")
+    model: Optional[str] = Field(None, description="Model used for generation")
+    content_length: Optional[int] = Field(None, description="Original content length")
+    summary_length: Optional[int] = Field(None, description="Summary length")
+    key_points: Optional[List[str]] = Field(default_factory=list, description="Key points extracted")
+    word_count: Optional[int] = Field(None, description="Word count of summary")
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ArticleStats(BaseModel):
@@ -71,6 +92,8 @@ class ArticleStats(BaseModel):
     articles_with_summaries: int = Field(0, description="Articles with AI summaries")
     articles_with_embeddings: int = Field(0, description="Articles with embeddings")
     sources: Dict[str, int] = Field(default_factory=dict, description="Articles per source")
+    top_sources: List[Dict[str, Any]] = Field(default_factory=list, description="Top article sources with counts")
+    recent_articles: int = Field(0, description="Number of recent articles")
     date_range: Optional[Dict[str, Optional[datetime]]] = Field(None, description="Date range of articles")
 
 
@@ -96,3 +119,22 @@ class SummarizationRequest(BaseModel):
     max_length: int = Field(200, ge=50, le=1000, description="Maximum summary length in words")
     style: str = Field("concise", pattern="^(concise|detailed|bullet_points)$", description="Summary style")
     focus_keywords: Optional[List[str]] = Field(None, description="Keywords to focus on in summary")
+
+
+class BatchSummarizationRequest(BaseModel):
+    """Model for batch summarization requests."""
+    requests: List[SummarizationRequest] = Field(..., min_length=1, max_length=10, description="List of summarization requests")
+    batch_size: int = Field(5, ge=1, le=10, description="Batch processing size")
+
+
+class IngestRequest(BaseModel):
+    """Model for news ingestion requests."""
+    feed_urls: List[str] = Field(..., min_length=1, description="List of RSS feed URLs to ingest")
+
+
+class IngestResponse(BaseModel):
+    """Model for news ingestion response data."""
+    processed: int = Field(..., description="Total number of articles processed")
+    new_articles: int = Field(..., description="Number of new articles added")
+    duplicates: int = Field(..., description="Number of duplicate articles skipped")
+    errors: List[str] = Field(default_factory=list, description="Any error messages encountered")

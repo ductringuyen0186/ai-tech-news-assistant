@@ -7,7 +7,7 @@ Tests for embedding service business logic operations.
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime
+from datetime import datetime, timezone
 
 from src.services.embedding_service import EmbeddingService
 from src.models.embedding import EmbeddingRequest, EmbeddingResponse
@@ -77,10 +77,11 @@ class TestEmbeddingService:
         )
         
         with patch('src.services.embedding_service.datetime') as mock_datetime:
-            mock_datetime.utcnow.side_effect = [
-                datetime(2024, 1, 1, 12, 0, 0),  # start
-                datetime(2024, 1, 1, 12, 0, 1)   # end
-            ]
+            # Configure the mock to return proper datetime objects when .now() is called
+            start_dt = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+            end_dt = datetime(2024, 1, 1, 12, 0, 1, tzinfo=timezone.utc)
+            mock_datetime.now.side_effect = [start_dt, end_dt]
+            mock_datetime.timezone = timezone
             
             result = await service.generate_embeddings(request)
         
@@ -95,15 +96,14 @@ class TestEmbeddingService:
         """Test embedding generation with validation errors."""
         service._initialized = True
         
-        # Empty texts
-        request = EmbeddingRequest(texts=[], batch_size=1)
-        with pytest.raises(ValidationError, match="No texts provided"):
-            await service.generate_embeddings(request)
+        # Test that Pydantic validation catches empty texts (this will raise pydantic ValidationError)
+        from pydantic import ValidationError as PydanticValidationError
+        with pytest.raises(PydanticValidationError):
+            EmbeddingRequest(texts=[], batch_size=1)
         
-        # Too many texts
-        request = EmbeddingRequest(texts=["text"] * 101, batch_size=1)
-        with pytest.raises(ValidationError, match="Too many texts"):
-            await service.generate_embeddings(request)
+        # Test that Pydantic validation catches too many texts  
+        with pytest.raises(PydanticValidationError):
+            EmbeddingRequest(texts=["text"] * 101, batch_size=1)
     
     @pytest.mark.asyncio
     async def test_generate_embeddings_auto_initialize(self, service):
@@ -226,10 +226,13 @@ class TestEmbeddingService:
         mock_model.encode.return_value = mock_embeddings
         service.model = mock_model
         
-        # Mock asyncio.get_event_loop().run_in_executor
+        # Mock asyncio.get_event_loop().run_in_executor to actually call the lambda
         with patch('asyncio.get_event_loop') as mock_loop:
-            mock_executor = AsyncMock(return_value=mock_embeddings)
-            mock_loop.return_value.run_in_executor = mock_executor
+            def mock_executor(executor, func):
+                # Actually call the lambda function to trigger model.encode
+                return func()
+            
+            mock_loop.return_value.run_in_executor = AsyncMock(side_effect=mock_executor)
             
             result = await service._generate_embeddings_batch(
                 texts=["text1", "text2"],

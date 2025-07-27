@@ -190,9 +190,9 @@ class TestNewsService:
     async def test_fetch_rss_feeds_success(self, service):
         """Test fetching from multiple RSS feeds."""
         # Mock successful feed responses
-        def mock_fetch_single_feed(url):
+        async def mock_fetch_single_feed(url, semaphore=None):
             if "feed1" in url:
-                return asyncio.coroutine(lambda: [
+                return [
                     ArticleCreate(
                         title="Article from Feed 1",
                         url="https://example.com/article1",
@@ -200,9 +200,9 @@ class TestNewsService:
                         author="Author 1",
                         source="example.com"
                     )
-                ])()
+                ]
             else:
-                return asyncio.coroutine(lambda: [
+                return [
                     ArticleCreate(
                         title="Article from Feed 2",
                         url="https://example.com/article2",
@@ -210,7 +210,7 @@ class TestNewsService:
                         author="Author 2",
                         source="example.com"
                     )
-                ])()
+                ]
         
         with patch.object(service, '_fetch_single_feed', side_effect=mock_fetch_single_feed):
             articles = await service.fetch_rss_feeds()
@@ -222,7 +222,7 @@ class TestNewsService:
     @pytest.mark.asyncio
     async def test_fetch_rss_feeds_with_failures(self, service):
         """Test fetching RSS feeds with some feeds failing."""
-        async def mock_fetch_single_feed(url):
+        async def mock_fetch_single_feed(url, semaphore=None):
             if "feed1" in url:
                 return [
                     ArticleCreate(
@@ -249,7 +249,7 @@ class TestNewsService:
         """Test fetching from custom RSS feed URLs."""
         custom_feeds = ["https://custom.com/feed.xml"]
         
-        async def mock_fetch_single_feed(url):
+        async def mock_fetch_single_feed(url, semaphore=None):
             return [
                 ArticleCreate(
                     title="Custom Feed Article",

@@ -313,6 +313,11 @@ class Settings(BaseSettings):
         """Check if running in testing environment."""
         return self.environment == Environment.TESTING
     
+    @property
+    def database_path(self) -> str:
+        """Get database path (alias for sqlite_database_path for compatibility)."""
+        return self.sqlite_database_path
+    
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8", 

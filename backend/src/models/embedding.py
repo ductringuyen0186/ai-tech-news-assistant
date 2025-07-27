@@ -50,6 +50,8 @@ class SimilarityRequest(BaseModel):
 class SimilarityResult(BaseModel):
     """Model for similarity search results."""
     id: str = Field(..., description="Identifier of the similar item")
+    content_id: Optional[str] = Field(None, description="Content identifier")  
+    content_type: Optional[str] = Field(None, description="Type of content")
     similarity_score: float = Field(..., ge=0.0, le=1.0)
     metadata: Optional[Dict[str, Any]] = Field(None, description="Associated metadata")
     content_snippet: Optional[str] = Field(None, description="Content preview")

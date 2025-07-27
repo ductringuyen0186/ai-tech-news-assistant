@@ -50,7 +50,7 @@ class NewsAssistantError(Exception):
     ):
         self.message = message
         self.error_code = error_code or self.__class__.__name__
-        self.details = details or {}
+        self.details = details
         self.severity = severity
         self.category = category
         self.user_message = user_message or "An error occurred while processing your request."
@@ -105,12 +105,17 @@ class NotFoundError(NewsAssistantError):
     """Raised when a requested resource is not found."""
     
     def __init__(self, message: str, resource_type: str = "Resource", **kwargs):
+        # Merge resource_type into details if provided in kwargs
+        existing_details = kwargs.pop('details', {})
+        merged_details = {"resource_type": resource_type}
+        merged_details.update(existing_details)
+        
         super().__init__(
             message=message,
             severity=ErrorSeverity.LOW,
             category=ErrorCategory.BUSINESS_LOGIC,
             user_message=f"{resource_type} not found.",
-            details={"resource_type": resource_type},
+            details=merged_details,
             **kwargs
         )
 
@@ -185,16 +190,17 @@ class ValidationError(NewsAssistantError):
     """Raised when input validation fails."""
     
     def __init__(self, message: str, field: Optional[str] = None, **kwargs):
-        details = kwargs.get("details", {})
+        # Extract details from kwargs to avoid conflict
+        existing_details = kwargs.pop("details", {})
         if field:
-            details["field"] = field
+            existing_details["field"] = field
             
         super().__init__(
             message=message,
             severity=ErrorSeverity.LOW,
             category=ErrorCategory.VALIDATION,
             user_message="Invalid input provided. Please check your request.",
-            details=details,
+            details=existing_details,
             **kwargs
         )
 

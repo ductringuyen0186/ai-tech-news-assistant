@@ -240,6 +240,7 @@ class TestModelValidation:
         
         # Test SimilarityResult
         result = SimilarityResult(
+            id="test_123",
             content_id="test_123",
             content_type="article",
             similarity_score=0.95,
@@ -272,12 +273,13 @@ class TestAPIModels:
         
         response = ErrorResponse(
             success=False,
-            error="Test error",
-            error_code="TEST_ERROR"
+            error_code="TEST_ERROR",
+            error_type="validation",
+            message="Test error message"
         )
-        
+
         assert response.success is False
-        assert response.error == "Test error"
+        assert response.message == "Test error message"
         assert response.error_code == "TEST_ERROR"
 
 

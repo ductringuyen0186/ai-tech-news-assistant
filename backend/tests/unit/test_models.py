@@ -134,15 +134,20 @@ class TestArticleModels:
         
     def test_article_summary(self):
         """Test ArticleSummary model."""
+        from datetime import datetime, timezone
         summary = ArticleSummary(
+            id=1,
+            title="Test Article",
             summary="This is a test summary",
-            key_points=["Point 1", "Point 2"],
-            word_count=50
+            source="example.com",
+            published_date=datetime.now(timezone.utc),
+            url="https://example.com/article"
         )
+        assert summary.id == 1
+        assert summary.title == "Test Article"
         assert summary.summary == "This is a test summary"
-        assert summary.key_points == ["Point 1", "Point 2"]
-        assert summary.word_count == 50
-        assert isinstance(summary.created_at, datetime)
+        assert summary.source == "example.com"
+        assert summary.url == "https://example.com/article"
         
     def test_summarization_request(self):
         """Test SummarizationRequest model."""
@@ -159,12 +164,13 @@ class TestArticleModels:
         """Test ArticleSearchRequest model."""
         search = ArticleSearchRequest(
             query="AI technology",
-            page=1,
-            page_size=10
+            limit=10,
+            source="techcrunch.com"
         )
         assert search.query == "AI technology"
-        assert search.page == 1
-        assert search.page_size == 10
+        assert search.limit == 10
+        assert search.source == "techcrunch.com"
+        assert search.similarity_threshold == 0.7  # default value
 
 
 class TestEmbeddingModels:
