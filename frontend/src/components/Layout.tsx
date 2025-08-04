@@ -7,8 +7,7 @@ import {
   Settings, 
   Activity,
   Brain,
-  Database,
-  Rss
+  Database
 } from 'lucide-react'
 
 interface LayoutProps {

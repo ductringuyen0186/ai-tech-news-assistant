@@ -17,6 +17,16 @@ export default function Articles() {
     queryFn: () => articlesApi.getArticles(searchParams),
   })
 
+  const { data: sourcesData, isLoading: isSourcesLoading } = useQuery({
+    queryKey: ['sources'],
+    queryFn: articlesApi.getSources,
+  })
+
+  const { data: categoriesData, isLoading: isCategoriesLoading } = useQuery({
+    queryKey: ['categories'],
+    queryFn: articlesApi.getCategories,
+  })
+
   return (
     <div className="space-y-6">
       <div>
@@ -35,10 +45,15 @@ export default function Articles() {
               className="input"
               value={searchParams.source}
               onChange={(e) => setSearchParams(prev => ({ ...prev, source: e.target.value }))}
+              disabled={isSourcesLoading}
             >
               <option value="">All Sources</option>
-              <option value="techcrunch.com">TechCrunch</option>
-              <option value="oreilly.com">O'Reilly</option>
+              {isSourcesLoading && <option disabled>Loading sources...</option>}
+              {sourcesData?.sources && Object.keys(sourcesData.sources).map((sourceKey) => (
+                <option key={sourceKey} value={sourceKey}>
+                  {sourcesData.sources[sourceKey].name || sourceKey}
+                </option>
+              ))}
             </select>
           </div>
           
@@ -50,10 +65,15 @@ export default function Articles() {
               className="input"
               value={searchParams.category}
               onChange={(e) => setSearchParams(prev => ({ ...prev, category: e.target.value }))}
+              disabled={isCategoriesLoading}
             >
               <option value="">All Categories</option>
-              <option value="ai">AI</option>
-              <option value="technology">Technology</option>
+              {isCategoriesLoading && <option disabled>Loading categories...</option>}
+              {categoriesData?.categories && categoriesData.categories.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
             </select>
           </div>
 
