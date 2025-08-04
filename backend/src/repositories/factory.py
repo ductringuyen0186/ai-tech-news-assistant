@@ -86,8 +86,15 @@ class RepositoryFactory:
         """Determine which repository type to use."""
         settings = get_settings()
         
-        # Use environment variable or feature flag to determine repository type
-        use_sqlalchemy = getattr(settings, 'use_sqlalchemy_orm', True)
+        # Use explicit configuration check instead of getattr with default
+        try:
+            use_sqlalchemy = settings.use_sqlalchemy_orm
+        except AttributeError:
+            # If setting doesn't exist, this is a configuration error
+            raise AttributeError(
+                "Missing required configuration 'use_sqlalchemy_orm'. "
+                "Please add this setting to your configuration file."
+            )
         
         # For now, default to SQLAlchemy for new Issue #28 implementation
         if use_sqlalchemy:

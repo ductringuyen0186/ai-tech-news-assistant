@@ -20,24 +20,11 @@ try:
     SENTENCE_TRANSFORMERS_AVAILABLE = True
 except ImportError:
     SENTENCE_TRANSFORMERS_AVAILABLE = False
+    # Import fallback implementations
     if not TYPE_CHECKING:
-        # Create dummy classes for runtime
-        class SentenceTransformer:
-            pass
-        class torch:
-            class cuda:
-                @staticmethod
-                def is_available(): return False
-                @staticmethod
-                def get_device_name(): return ""
-                @staticmethod
-                def empty_cache(): pass
-            class backends:
-                class mps:
-                    @staticmethod
-                    def is_available(): return False
-        class np:
-            ndarray = list  # Fallback type
+        from .fallback_deps import FallbackSentenceTransformer as SentenceTransformer
+        from .fallback_deps import FallbackTorch as torch
+        from .fallback_deps import FallbackNumpy as np
 
 from utils.logger import get_logger
 from utils.config import get_settings

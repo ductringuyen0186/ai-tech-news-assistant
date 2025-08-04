@@ -213,29 +213,38 @@ def check_database_connection() -> bool:
 
 def get_database_stats() -> dict:
     """
-    Get basic database statistics.
+    Get basic database statistics without importing models to avoid circular imports.
     
     Returns:
         dict: Database statistics
     """
     try:
         with get_db_session() as session:
-            # Import models here to avoid circular imports
-            from .models import Article, Source, Category, Embedding, User
+            # Use raw SQL queries to avoid model imports and circular dependencies
+            stats = {}
             
-            stats = {
-                "total_articles": session.query(Article).count(),
-                "total_sources": session.query(Source).count(),
-                "total_categories": session.query(Category).count(),
-                "total_embeddings": session.query(Embedding).count(),
-                "total_users": session.query(User).count(),
-                "articles_with_embeddings": session.query(Article).filter(
-                    Article.embedding_generated == True
-                ).count(),
-                "articles_with_summaries": session.query(Article).filter(
-                    Article.summary_generated == True
-                ).count(),
-            }
+            table_counts = [
+                ("total_articles", "SELECT COUNT(*) FROM articles"),
+                ("total_sources", "SELECT COUNT(*) FROM sources"),
+                ("total_categories", "SELECT COUNT(*) FROM categories"),
+                ("total_embeddings", "SELECT COUNT(*) FROM embeddings"),
+                ("total_users", "SELECT COUNT(*) FROM users"),
+            ]
+            
+            for stat_name, query in table_counts:
+                try:
+                    result = session.execute(query).scalar()
+                    stats[stat_name] = result or 0
+                except Exception as e:
+                    logger.warning(f"Failed to get {stat_name}: {e}")
+                    stats[stat_name] = 0
+            
+            # Additional computed stats using raw SQL
+            try:
+                result = session.execute("SELECT COUNT(*) FROM articles WHERE summary IS NOT NULL").scalar()
+                stats["articles_with_summaries"] = result or 0
+            except Exception:
+                stats["articles_with_summaries"] = 0
             
             return stats
     except Exception as e:

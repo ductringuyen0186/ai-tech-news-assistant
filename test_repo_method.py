@@ -82,7 +82,8 @@ def test_repo_method():
         if os.path.exists(db_path):
             try:
                 os.unlink(db_path)
-            except:
+            except (PermissionError, FileNotFoundError, OSError) as e:
+                print(f"Warning: Could not remove test database: {e}")
                 pass
 
 if __name__ == "__main__":

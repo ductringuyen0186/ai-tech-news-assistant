@@ -48,18 +48,32 @@ class SummarizationService:
     def _create_openai_client(self):
         """Create OpenAI-compatible client."""
         try:
-            # Mock client for testing
-            from unittest.mock import MagicMock
-            client = MagicMock()
+            # Check if we should use mock clients for development/testing
+            if settings.debug or getattr(settings, 'use_mock_clients', False):
+                return self._create_mock_client()
             
-            # Create mock structure: client.chat.completions.create
-            client.chat = MagicMock()
-            client.chat.completions = MagicMock()
-            client.chat.completions.create = MagicMock()
-            
-            return client
-        except:
-            # In production, would create actual OpenAI client
+            # Try to create real OpenAI client in production
+            if self.api_key:
+                import openai
+                return openai.OpenAI(api_key=self.api_key)
+            else:
+                logger.warning("No OpenAI API key provided, using mock client")
+                return self._create_mock_client()
+                
+        except ImportError:
+            logger.warning("OpenAI library not installed, using mock client")
+            return self._create_mock_client()
+        except Exception as e:
+            logger.error(f"Failed to create OpenAI client: {e}")
+            return None
+    
+    def _create_mock_client(self):
+        """Create mock client for development/testing."""
+        try:
+            # Use a simple mock implementation instead of unittest.mock
+            return MockOpenAIClient()
+        except Exception as e:
+            logger.error(f"Failed to create mock client: {e}")
             return None
     
     async def summarize_content(self, request: SummarizationRequest) -> ArticleSummary:
@@ -167,16 +181,7 @@ class SummarizationService:
             if not self.client:
                 raise LLMError("OpenAI client not initialized")
             
-            # Mock response for testing
-            mock_response = MagicMock()
-            mock_response.choices = [MagicMock()]
-            mock_response.choices[0].message = MagicMock()
-            mock_response.choices[0].message.content = "This is a test summary of the provided content."
-            
-            # Configure mock
-            self.client.chat.completions.create.return_value = mock_response
-            
-            # Make the call
+            # Make the call - the mock client will handle the response
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -295,3 +300,60 @@ Summary:"""
             "client_available": self.client is not None,
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
+
+
+class MockOpenAIClient:
+    """Mock OpenAI client for development/testing."""
+    
+    def __init__(self):
+        """Initialize mock client."""
+        self.chat = MockChat()
+
+
+class MockChat:
+    """Mock chat completions."""
+    
+    def __init__(self):
+        """Initialize mock chat."""
+        self.completions = MockCompletions()
+
+
+class MockCompletions:
+    """Mock completions."""
+    
+    def create(self, **kwargs):
+        """Mock completion creation."""
+        messages = kwargs.get('messages', [])
+        content = messages[-1].get('content', '') if messages else ''
+        
+        # Simple summarization: take first 100 words
+        words = content.split()[:100]
+        summary = ' '.join(words)
+        if summary and not summary.endswith(('.', '!', '?')):
+            summary += '.'
+        
+        return MockResponse(summary)
+
+
+class MockResponse:
+    """Mock response."""
+    
+    def __init__(self, content: str):
+        """Initialize mock response."""
+        self.choices = [MockChoice(content)]
+
+
+class MockChoice:
+    """Mock choice."""
+    
+    def __init__(self, content: str):
+        """Initialize mock choice."""
+        self.message = MockMessage(content)
+
+
+class MockMessage:
+    """Mock message."""
+    
+    def __init__(self, content: str):
+        """Initialize mock message."""
+        self.content = content
