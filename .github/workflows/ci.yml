@@ -128,7 +128,14 @@ jobs:
       run: |
         if [ -d "frontend" ]; then
           cd frontend
-          npm ci
+          echo "Node.js version: $(node --version)"
+          echo "npm version: $(npm --version)"
+          echo "Cleaning npm cache..."
+          npm cache clean --force
+          echo "Removing node_modules if exists..."
+          rm -rf node_modules
+          echo "Installing dependencies with npm install..."
+          npm install --no-audit --no-fund
         else
           echo "Frontend directory does not exist. Skipping Node dependencies installation."
         fi
