@@ -129,6 +129,23 @@ class Settings(BaseSettings):
     vector_similarity_threshold: float = Field(default=0.7, alias="VECTOR_SIMILARITY_THRESHOLD", ge=0.0, le=1.0)
     vector_max_results: int = Field(default=10, alias="VECTOR_MAX_RESULTS", ge=1, le=100)
     
+    # Repository Configuration
+    use_sqlalchemy_orm: bool = Field(
+        default=True,
+        description="Whether to use SQLAlchemy ORM or raw SQLite implementation",
+        alias="USE_SQLALCHEMY_ORM"
+    )
+    use_vector_database: bool = Field(
+        default=False,
+        description="Whether to use vector database for embeddings",
+        alias="USE_VECTOR_DATABASE"
+    )
+    use_mock_clients: bool = Field(
+        default=False,
+        description="Whether to use mock clients for development/testing",
+        alias="USE_MOCK_CLIENTS"
+    )
+    
     # News sources settings
     rss_sources: List[Dict[str, str]] = Field(
         default=[
