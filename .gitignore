@@ -292,6 +292,11 @@ data/processed/
 # Allow .copilot configuration files
 !.copilot/
 !.copilot/*.json
+
+# Allow package-lock.json for consistent dependencies
+!package-lock.json
+!frontend/package-lock.json
+
 data/external/
 
 # MLflow artifacts

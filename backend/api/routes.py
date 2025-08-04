@@ -8,6 +8,7 @@ Routes are organized by functionality and follow RESTful conventions.
 
 from fastapi import APIRouter, HTTPException, Query
 from typing import Dict, Any, List, Optional
+import sqlite3
 
 from ingestion.rss_feeds import RSSFeedIngester, ingest_tech_news, parse_missing_content
 from utils.logger import get_logger
@@ -29,6 +30,7 @@ async def api_info() -> Dict[str, Any]:
             "news/ingest": "/news/ingest - Trigger RSS ingestion",
             "news/parse": "/news/parse - Parse content for existing articles",
             "news/sources": "/news/sources - Get configured news sources",
+            "news/categories": "/news/categories - Get available article categories",
             "news/stats": "/news/stats - Get article statistics",
             "summarize": "/summarize (coming soon)",
             "search": "/search (coming soon)"
@@ -153,6 +155,61 @@ async def get_news_sources() -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Error fetching news sources: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to fetch news sources")
+
+
+@router.get("/news/categories", tags=["News"])
+async def get_news_categories() -> Dict[str, Any]:
+    """
+    Get list of available article categories from the database.
+    
+    Returns:
+        List of categories found in articles
+    """
+    try:
+        # Get categories from database
+        async with RSSFeedIngester() as ingester:
+            with sqlite3.connect(ingester.db_path) as conn:
+                cursor = conn.cursor()
+                # Get distinct categories from the database
+                cursor.execute("""
+                    SELECT DISTINCT categories 
+                    FROM articles 
+                    WHERE categories IS NOT NULL AND categories != ''
+                """)
+                rows = cursor.fetchall()
+                
+                # Parse and flatten categories (they might be comma-separated or JSON)
+                categories = set()
+                for row in rows:
+                    if row[0]:
+                        try:
+                            # Try to parse as JSON first
+                            import json
+                            if row[0].startswith('[') or row[0].startswith('{'):
+                                parsed = json.loads(row[0])
+                                if isinstance(parsed, list):
+                                    categories.update(parsed)
+                                else:
+                                    categories.add(str(parsed))
+                            else:
+                                # Split by comma for simple comma-separated values
+                                cats = [cat.strip() for cat in row[0].split(',')]
+                                categories.update(cats)
+                        except (json.JSONDecodeError, AttributeError):
+                            # If parsing fails, treat as simple string
+                            categories.add(row[0])
+                
+                # Convert to sorted list and remove empty strings
+                category_list = sorted([cat for cat in categories if cat and cat.strip()])
+                
+        return {
+            "categories": category_list,
+            "count": len(category_list)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching news categories: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch news categories")
 
 
 @router.get("/news/stats", tags=["News"])
