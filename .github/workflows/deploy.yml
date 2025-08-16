@@ -40,8 +40,10 @@ jobs:
         cd frontend
         # Follow Rollup error suggestion: remove both files and reinstall
         rm -rf node_modules package-lock.json
-        # Install with specific options for CI compatibility
+        # Install without optional dependencies that cause issues
         npm install --omit=optional --no-audit --no-fund
+        # Force reinstall rollup without native binaries
+        npm install rollup --no-optional --force
         
     - name: Run backend tests
       run: |
@@ -70,8 +72,9 @@ jobs:
     - name: Build frontend
       run: |
         cd frontend
-        # Set environment for better compatibility
+        # Set environment for better compatibility and force JS fallback
         export NODE_ENV=production
+        export ROLLUP_NO_NATIVE=1
         npm run build:ci
         
     - name: Upload test results
