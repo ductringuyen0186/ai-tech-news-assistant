@@ -19,21 +19,4 @@ export default defineConfig({
       },
     },
   },
-  build: {
-    rollupOptions: {
-      // Force Rollup to use JavaScript fallback instead of native binaries
-      external: (id) => {
-        // Skip external native binary dependencies that cause CI issues
-        if (id.includes('@rollup/rollup-') && id.includes('-gnu')) {
-          return true;
-        }
-        return false;
-      },
-    },
-  },
-  // Environment-specific configurations
-  define: {
-    // Force disable native Rollup in CI
-    'process.env.ROLLUP_NO_NATIVE': JSON.stringify(process.env.ROLLUP_NO_NATIVE || ''),
-  },
 })

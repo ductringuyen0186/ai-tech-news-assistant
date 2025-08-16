@@ -38,12 +38,13 @@ jobs:
     - name: Install Node dependencies
       run: |
         cd frontend
-        # Follow Rollup error suggestion: remove both files and reinstall
+        # Solution from https://github.com/npm/cli/issues/4828
+        # Delete both package-lock.json and node_modules to generate complete cross-platform lockfile
         rm -rf node_modules package-lock.json
-        # Install without optional dependencies that cause issues
-        npm install --omit=optional --no-audit --no-fund
-        # Force reinstall rollup without native binaries
-        npm install rollup --no-optional --force
+        # Install fresh to get all platform dependencies in lockfile
+        npm install
+        # Run npm update to ensure all optional deps are properly resolved
+        npm update
         
     - name: Run backend tests
       run: |
@@ -72,9 +73,7 @@ jobs:
     - name: Build frontend
       run: |
         cd frontend
-        # Set environment for better compatibility and force JS fallback
-        export NODE_ENV=production
-        export ROLLUP_NO_NATIVE=1
+        # Build with clean dependencies (npm update should have resolved platform issues)
         npm run build:ci
         
     - name: Upload test results
