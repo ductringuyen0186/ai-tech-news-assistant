@@ -51,7 +51,7 @@ export default function Articles() {
               {isSourcesLoading && <option disabled>Loading sources...</option>}
               {sourcesData?.sources && Object.keys(sourcesData.sources).map((sourceKey) => (
                 <option key={sourceKey} value={sourceKey}>
-                  {sourcesData.sources[sourceKey].name || sourceKey}
+                  {(sourcesData.sources[sourceKey] as any)?.name || sourceKey}
                 </option>
               ))}
             </select>

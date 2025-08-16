@@ -30,6 +30,24 @@ export interface SearchResponse {
   offset: number
 }
 
+export interface SourcesResponse {
+  sources: Record<string, any>
+  count: number
+}
+
+export interface CategoriesResponse {
+  categories: string[]
+  count: number
+}
+
+export interface StatsResponse {
+  total_articles: number
+  articles_with_summaries: number
+  articles_with_embeddings: number
+  top_sources: Array<{ source: string; count: number }>
+  recent_articles: number
+}
+
 export interface HealthStatus {
   status: 'healthy' | 'degraded' | 'unhealthy'
   timestamp: string
