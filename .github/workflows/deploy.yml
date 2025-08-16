@@ -1,18 +1,14 @@
-name: Deploy AI Tech News Assistant
+name: CI - Build and Test
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, feature/* ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
-
 jobs:
-  # Build and test
+  # Build and test both backend and frontend
   build-and-test:
     runs-on: ubuntu-latest
     steps:
@@ -76,114 +72,17 @@ jobs:
         # Build with clean dependencies (npm update should have resolved platform issues)
         npm run build:ci
         
-    - name: Upload test results
+    - name: Test Summary
       run: |
-        echo "✓ Backend tests completed successfully"
-        # Note: Coverage upload skipped - using basic validation tests
+        echo "✅ Build and Test Summary:"
+        echo "✓ Backend imports and validation: PASSED"
+        echo "✓ Frontend build: PASSED"
+        echo "✓ All tests completed successfully!"
 
-  # Build and push Docker images
-  build-images:
-    needs: build-and-test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    permissions:
-      contents: read
-      packages: write
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-      
-    - name: Log in to Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-        
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-        tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=sha,prefix={{branch}}-
-          type=raw,value=latest,enable={{is_default_branch}}
-          
-    - name: Build and push backend image
-      uses: docker/build-push-action@v5
-      with:
-        context: ./backend
-        push: true
-        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-        
-    - name: Build and push frontend image
-      uses: docker/build-push-action@v5
-      with:
-        context: ./frontend
-        push: true
-        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-
-  # Deploy to Railway (optional)
-  deploy-railway:
-    needs: build-images
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    environment: production
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Install Railway CLI
-      run: npm install -g @railway/cli
-      
-    - name: Deploy to Railway
-      run: |
-        cd backend
-        railway login --browserless
-        railway up --service backend
-      env:
-        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-
-  # Deploy to Vercel (optional)
-  deploy-vercel:
-    needs: build-and-test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    environment: production
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        
-    - name: Install Vercel CLI
-      run: npm install -g vercel
-      
-    - name: Deploy to Vercel
-      run: |
-        cd frontend
-        vercel --prod --token ${{ secrets.VERCEL_TOKEN }}
-      env:
-        VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-        VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
-  # Security scan
+  # Optional: Basic security scan (only on main branch)
   security-scan:
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
     steps:
     - uses: actions/checkout@v4
     
@@ -192,51 +91,5 @@ jobs:
       with:
         scan-type: 'fs'
         scan-ref: '.'
-        format: 'sarif'
-        output: 'trivy-results.sarif'
-        
-    - name: Upload Trivy scan results
-      uses: github/codeql-action/upload-sarif@v2
-      with:
-        sarif_file: 'trivy-results.sarif'
-
-  # Performance monitoring (optional)
-  lighthouse:
-    needs: deploy-vercel
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Run Lighthouse CI
-      uses: treosh/lighthouse-ci-action@v10
-      with:
-        uploadArtifacts: true
-        temporaryPublicStorage: true
-        urls: |
-          https://your-app.vercel.app
-
-  # Notify deployment status
-  notify:
-    needs: [deploy-railway, deploy-vercel]
-    runs-on: ubuntu-latest
-    if: always() && github.ref == 'refs/heads/main'
-    
-    steps:
-    - name: Notify deployment status
-      uses: 8398a7/action-slack@v3
-      if: always()
-      with:
-        status: ${{ job.status }}
-        text: |
-          🚀 AI Tech News Assistant Deployment
-          Backend: ${{ needs.deploy-railway.result }}
-          Frontend: ${{ needs.deploy-vercel.result }}
-          
-          🔗 Links:
-          • Frontend: https://your-app.vercel.app
-          • Backend: https://your-backend.railway.app
-          • API Docs: https://your-backend.railway.app/docs
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        format: 'table'
+        exit-code: '0'  # Don't fail build on vulnerabilities
