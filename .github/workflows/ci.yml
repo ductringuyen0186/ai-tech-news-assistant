@@ -100,11 +100,10 @@ jobs:
         working-directory: frontend
         run: |
           echo "📦 Installing frontend dependencies..."
-          npm ci --prefer-offline --no-audit
+          npm install --prefer-offline --no-audit
           
-          echo "🔧 Fixing Rollup native binary issue (npm/cli#4828)..."
-          rm -rf node_modules/@rollup/rollup-linux-x64-gnu node_modules/@rollup/rollup-linux-x64-musl
-          npm install --save-dev @rollup/rollup-linux-x64-gnu || echo "Rollup binaries installed"
+          echo "🔧 Installing platform-specific Rollup binary for CI..."
+          npm install --save-dev @rollup/rollup-linux-x64-gnu || echo "Rollup binary installation skipped"
           
           echo "🔍 Running ESLint..."
           npm run lint
