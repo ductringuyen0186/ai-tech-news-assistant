@@ -102,8 +102,9 @@ jobs:
           echo "📦 Installing frontend dependencies..."
           npm install --prefer-offline --no-audit
           
-          echo "🔧 Installing platform-specific Rollup binary for CI..."
+          echo "🔧 Installing platform-specific native binaries for CI..."
           npm install --save-dev @rollup/rollup-linux-x64-gnu || echo "Rollup binary installation skipped"
+          npm install --save-dev @swc/core-linux-x64-gnu || echo "SWC binary installation skipped"
           
           echo "🔍 Running ESLint..."
           npm run lint
