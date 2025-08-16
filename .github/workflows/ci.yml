@@ -104,7 +104,7 @@ jobs:
           
           echo "🔧 Fixing Rollup native binary issue (npm/cli#4828)..."
           rm -rf node_modules/@rollup/rollup-linux-x64-gnu node_modules/@rollup/rollup-linux-x64-musl
-          npm install --save-dev @rollup/rollup-linux-x64-gnu @rollup/rollup-linux-x64-musl || echo "Rollup binaries installed"
+          npm install --save-dev @rollup/rollup-linux-x64-gnu || echo "Rollup binaries installed"
           
           echo "🔍 Running ESLint..."
           npm run lint
