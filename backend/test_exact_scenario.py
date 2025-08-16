@@ -5,23 +5,22 @@ import sys
 import os
 import asyncio
 import tempfile
+import importlib
 
 # Add the backend directory to the path
 backend_path = os.path.join(os.getcwd())
 sys.path.insert(0, backend_path)
 
-from src.repositories.article_repository import ArticleRepository
-from src.models.article import ArticleCreate
-import importlib
+# Import after path setup
+from src.repositories.article_repository import ArticleRepository  # noqa: E402
+from src.models.article import ArticleCreate  # noqa: E402
 
 # Force reload the modules to clear any cache
-import src.repositories.article_repository
-import src.models.article
+import src.repositories.article_repository  # noqa: E402
+import src.models.article  # noqa: E402
 importlib.reload(src.repositories.article_repository)
 importlib.reload(src.models.article)
 
-from src.repositories.article_repository import ArticleRepository
-from src.models.article import ArticleCreate
 
 async def test_exact_scenario():
     print("Testing exact test scenario...")
@@ -46,7 +45,7 @@ async def test_exact_scenario():
         
         # Create ArticleCreate exactly like the test
         article_data = ArticleCreate(**sample_article_data)
-        print(f"ArticleCreate fields:")
+        print("ArticleCreate fields:")
         print(f"  title: {article_data.title}")
         print(f"  author: {article_data.author}")
         print(f"  categories: {article_data.categories}")
@@ -55,7 +54,7 @@ async def test_exact_scenario():
         # Call create exactly like the test
         result = await repo.create(article_data)
         
-        print(f"\nResult fields:")
+        print("\nResult fields:")
         print(f"  id: {result.id}")
         print(f"  title: {result.title}")
         print(f"  author: {result.author}")
@@ -63,7 +62,7 @@ async def test_exact_scenario():
         print(f"  metadata: {result.metadata}")
         
         # Check the assertions that are failing
-        print(f"\nAssertion checks:")
+        print("\nAssertion checks:")
         print(f"  result.id is not None: {result.id is not None}")
         print(f"  result.title == sample_data['title']: {result.title == sample_article_data['title']}")
         print(f"  result.author == sample_data['author']: {result.author == sample_article_data['author']}")
@@ -71,7 +70,7 @@ async def test_exact_scenario():
         if result.author != sample_article_data["author"]:
             print(f"  FAILURE: Expected '{sample_article_data['author']}', got '{result.author}'")
         else:
-            print(f"  SUCCESS: Author field matches!")
+            print("  SUCCESS: Author field matches!")
         
     except Exception as e:
         print(f"Exception: {e}")
@@ -81,7 +80,7 @@ async def test_exact_scenario():
         if os.path.exists(db_path):
             try:
                 os.unlink(db_path)
-            except:
+            except Exception:
                 pass
 
 if __name__ == "__main__":

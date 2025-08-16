@@ -5,7 +5,6 @@ Core Configuration and Exception Tests
 Tests for core configuration and exception handling to boost coverage.
 """
 
-import pytest
 from src.core.config import get_settings
 from src.core.exceptions import (
     NewsAssistantError,

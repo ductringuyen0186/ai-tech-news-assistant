@@ -6,8 +6,6 @@ Tests for article repository data access operations.
 """
 
 import pytest
-from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.repositories.article_repository import ArticleRepository
 from src.models.article import ArticleCreate, ArticleUpdate, ArticleSearchRequest
@@ -177,7 +175,7 @@ class TestArticleRepository:
             )
             await repository.create(article_data)
         
-        filter_params = ArticleSearchRequest(source="source1.com")
+        ArticleSearchRequest(source="source1.com")
         articles, total_count = await repository.list_articles(source="source1.com")
         
         assert len(articles) == 2

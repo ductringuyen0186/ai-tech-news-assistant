@@ -43,7 +43,7 @@ async def test_provider_status():
     summarizer = ArticleSummarizer()
     status = await summarizer.get_provider_status()
     
-    print(f"📊 Provider Status:")
+    print("📊 Provider Status:")
     print(f"   Available providers: {status['available_count']}")
     print(f"   Default provider: {status['default_provider']}")
     
@@ -68,13 +68,13 @@ async def test_summarization():
             provider=LLMProviderType.AUTO
         )
         
-        print(f"✅ Summarization successful!")
+        print("✅ Summarization successful!")
         print(f"   Provider used: {result.get('provider', 'unknown')}")
         print(f"   Model: {result.get('model', 'unknown')}")
         print(f"   Original length: {result.get('original_length', 0)} chars")
         print(f"   Summary length: {result.get('summary_length', 0)} chars")
         print(f"   Compression ratio: {result.get('compression_ratio', 0)}")
-        print(f"\n📄 Summary:")
+        print("\n📄 Summary:")
         print(f"   {result.get('summary', 'No summary generated')}")
         print(f"\n🏷️  Keywords: {result.get('keywords', [])}")
         

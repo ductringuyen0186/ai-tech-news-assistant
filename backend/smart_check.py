@@ -3,8 +3,6 @@
 Smart Test Analyzer - No execution, just static analysis!
 ========================================================
 """
-import os
-import re
 from pathlib import Path
 
 def analyze_file_imports(file_path):

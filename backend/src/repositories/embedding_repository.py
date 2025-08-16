@@ -13,10 +13,10 @@ import json
 import numpy as np
 
 from ..core.config import get_settings
-
-settings = get_settings()
 from ..core.exceptions import DatabaseError, NotFoundError
 from ..models.embedding import SimilarityResult
+
+settings = get_settings()
 
 logger = logging.getLogger(__name__)
 
@@ -628,7 +628,7 @@ class EmbeddingRepository:
             
             from ..core.exceptions import NotFoundError
             raise NotFoundError(f"Embedding {embedding_id} not found")
-        except Exception as e:
+        except Exception:
             from ..core.exceptions import NotFoundError
             raise NotFoundError(f"Embedding {embedding_id} not found")
 
@@ -655,7 +655,6 @@ class EmbeddingRepository:
                 return embedding
         
         # If not found, return None or raise error based on test expectations
-        from ..core.exceptions import NotFoundError
         raise NotFoundError(f"Embedding {embedding_id} not found")
 
     def delete(self, embedding_id: int) -> bool:
@@ -666,7 +665,6 @@ class EmbeddingRepository:
                 del self._mock_embeddings[i]
                 return True
         
-        from ..core.exceptions import NotFoundError
         raise NotFoundError(f"Embedding {embedding_id} not found")
 
     def list_embeddings(self, limit: int = 10, offset: int = 0, content_type: str = None, model_name: str = None) -> tuple:
@@ -725,7 +723,7 @@ class EmbeddingRepository:
             try:
                 self.delete(embedding_id)
                 deleted_count += 1
-            except:
+            except Exception:
                 continue  # Continue deleting others even if one fails
         return deleted_count
 

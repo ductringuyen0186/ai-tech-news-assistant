@@ -1,0 +1,28 @@
+# Railway Deployment Configuration
+# AI Tech News Assistant
+
+# Service Configuration
+[build]
+command = "pip install -r requirements.txt"
+
+[deploy]
+command = "uvicorn main:app --host 0.0.0.0 --port $PORT"
+
+# Environment Variables (set in Railway dashboard)
+# ENVIRONMENT=production
+# DEBUG=false
+# DATABASE_URL=postgresql://... (Railway provides this)
+# CORS_ORIGINS=https://your-frontend-domain.vercel.app
+
+[services.backend]
+source = "./backend"
+build = "pip install -r requirements.txt"
+start = "uvicorn main:app --host 0.0.0.0 --port $PORT --workers 2"
+
+[services.redis]
+image = "redis:7-alpine"
+
+# Health check
+[healthcheck]
+path = "/health"
+interval = 30

@@ -2,7 +2,6 @@
 """Force reload and check"""
 
 import sys
-import importlib
 
 # Add current directory to path
 sys.path.insert(0, '.')
@@ -27,7 +26,7 @@ has_author = 'author=row["author"]' in source_code
 has_categories = 'categories=categories' in source_code  
 has_metadata = 'metadata=metadata' in source_code
 
-print(f"Key field assignments present:")
+print("Key field assignments present:")
 print(f"  author: {has_author}")
 print(f"  categories: {has_categories}")
 print(f"  metadata: {has_metadata}")

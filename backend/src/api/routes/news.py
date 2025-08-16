@@ -13,14 +13,13 @@ from ...services import NewsService
 from ...repositories import ArticleRepository
 from ...models.article import (
     Article, 
-    ArticleCreate, 
     ArticleSearchRequest,
     ArticleStats,
     IngestRequest,
     IngestResponse
 )
 from ...models.api import BaseResponse, PaginatedResponse, PaginationInfo
-from ...core.exceptions import NewsIngestionError, ValidationError
+from ...core.exceptions import NewsIngestionError
 
 router = APIRouter(prefix="/news", tags=["News"])
 
@@ -64,7 +63,7 @@ async def get_articles(
     """
     try:
         # Create filter object
-        filter_params = ArticleSearchRequest(
+        ArticleSearchRequest(
             source=source,
             author=author,
             has_summary=has_summary,

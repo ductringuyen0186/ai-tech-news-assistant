@@ -13,7 +13,6 @@ from datetime import datetime
 
 from src.api.routes.search import router
 from src.models.article import Article
-from src.models.embedding import Embedding
 
 
 class TestSearchRoutes:
@@ -46,7 +45,6 @@ class TestSearchRoutes:
     @pytest.fixture
     def mock_dependencies(self):
         """Mock all dependencies."""
-        from unittest.mock import MagicMock, AsyncMock
         
         return {
             'article_repo': MagicMock(),
@@ -88,7 +86,6 @@ class TestSearchRoutes:
     
     def test_text_search_success(self, client, mock_dependencies, sample_articles):
         """Test successful text search."""
-        from unittest.mock import AsyncMock
         mock_dependencies['article_repo'].search_articles = AsyncMock(return_value=sample_articles)
         
         response = client.get("/search/text?query=artificial intelligence&limit=10")
@@ -118,7 +115,6 @@ class TestSearchRoutes:
     
     def test_text_search_no_results(self, client, mock_dependencies):
         """Test text search with no results."""
-        from unittest.mock import AsyncMock
         mock_dependencies['article_repo'].search_articles = AsyncMock(return_value=[])
         
         response = client.get("/search/text?query=nonexistent topic")
@@ -133,7 +129,6 @@ class TestSearchRoutes:
     def test_text_search_with_pagination(self, client, mock_dependencies, sample_articles):
         """Test text search with pagination parameters."""
         # Set up async mock for search_articles
-        from unittest.mock import AsyncMock
         mock_dependencies['article_repo'].search_articles = AsyncMock(return_value=sample_articles)
         
         response = client.get("/search/text?query=AI&limit=5&offset=10")
@@ -186,7 +181,6 @@ class TestSearchRoutes:
         """Test semantic search with no similar results found."""
         # Mock embedding generation
         from src.models.embedding import EmbeddingResponse
-        import asyncio
         
         query_embedding = [0.1, 0.2, 0.3] * 100
         

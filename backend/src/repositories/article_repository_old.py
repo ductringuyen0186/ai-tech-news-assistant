@@ -1,6 +1,6 @@
 import sqlite3
 import json
-from src.models.article import Article, ArticleCreate, ArticleUpdate
+from src.models.article import Article
 from src.core.exceptions import DatabaseError
 
 

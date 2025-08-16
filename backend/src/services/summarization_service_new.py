@@ -10,19 +10,18 @@ import asyncio
 import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
-import json
 import re
 import time
 
 from ..core.config import get_settings
-
-settings = get_settings()
 from ..core.exceptions import LLMError, ValidationError
 from ..models.article import (
     SummarizationRequest,
     BatchSummarizationRequest,
     ArticleSummary
 )
+
+settings = get_settings()
 
 logger = logging.getLogger(__name__)
 

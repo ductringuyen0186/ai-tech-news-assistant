@@ -9,7 +9,6 @@ Author: ductringuyen0186
 Repository: https://github.com/ductringuyen0186/ai-tech-news-assistant
 """
 
-import os
 from datetime import datetime
 from typing import Dict, Any
 

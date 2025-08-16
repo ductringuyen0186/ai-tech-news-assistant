@@ -8,9 +8,7 @@ Tests for logging configuration and functionality.
 import pytest
 import logging
 import io
-import sys
-from unittest.mock import patch, MagicMock
-from contextlib import redirect_stderr
+from unittest.mock import patch
 
 from src.core.logging import setup_logging, get_logger
 

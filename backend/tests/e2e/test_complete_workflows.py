@@ -8,7 +8,7 @@ from ingestion to search.
 
 import pytest
 import asyncio
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import patch
 
 
 class TestCompleteWorkflows:
@@ -46,7 +46,6 @@ class TestCompleteWorkflows:
         # Step 3: Generate summary (mocked)
         with patch.object(SummarizationService, 'summarize_content') as mock_summarize:
             from src.models.article import AISummary
-            from datetime import datetime, timezone
             
             mock_summary = AISummary(
                 summary="This is a test summary of the article content.",
@@ -230,7 +229,7 @@ class TestCompleteWorkflows:
         
         # Store embedding
         embedding_vector = [0.1] * 384
-        embedding_id = await embedding_repo.store_embedding(
+        await embedding_repo.store_embedding(
             content_id=str(article.id),
             content_type="article",
             embedding_vector=embedding_vector,

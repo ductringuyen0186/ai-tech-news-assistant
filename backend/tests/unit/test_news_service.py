@@ -8,13 +8,9 @@ Tests for news service RSS processing and article management.
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timezone
-import asyncio
-import feedparser
-from io import StringIO
 
 from src.services.news_service import NewsService
-from src.models.article import Article, ArticleCreate
-from src.core.exceptions import NewsIngestionError, ValidationError
+from src.models.article import ArticleCreate
 
 
 class TestNewsService:

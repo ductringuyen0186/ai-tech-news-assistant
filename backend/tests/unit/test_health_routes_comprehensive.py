@@ -7,7 +7,7 @@ Tests for health check and API info endpoints.
 
 import pytest
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch, Mock
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 from fastapi import status
 
@@ -160,7 +160,6 @@ class TestHealthRoutes:
     def test_multiple_concurrent_health_checks(self, client):
         """Test multiple concurrent health check requests."""
         import concurrent.futures
-        import threading
         
         def make_request():
             return client.get("/health")

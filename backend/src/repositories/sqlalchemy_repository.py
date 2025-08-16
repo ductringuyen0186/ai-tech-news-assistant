@@ -8,18 +8,14 @@ Provides type-safe database operations with proper relationship handling.
 
 from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime, timezone
-from sqlalchemy.orm import Session, selectinload, joinedload
-from sqlalchemy import and_, or_, desc, asc, func, text
+from sqlalchemy.orm import joinedload
+from sqlalchemy import and_, or_, desc, asc, func
 from sqlalchemy.exc import IntegrityError
 
 from ..database.models import (
     Article as ArticleModel, 
     Source as SourceModel, 
-    Category as CategoryModel,
-    Embedding as EmbeddingModel,
-    User as UserModel,
-    serialize_embedding,
-    deserialize_embedding
+    Category as CategoryModel
 )
 from ..database.session import get_db_session, get_db_transaction
 from ..models.article import Article, ArticleCreate, ArticleUpdate
@@ -185,7 +181,7 @@ class SQLAlchemyArticleRepository:
                     joinedload(ArticleModel.categories)
                 ).filter(
                     ArticleModel.id == article_id,
-                    ArticleModel.is_archived == False
+                    not ArticleModel.is_archived
                 )
                 
                 article_model = query.first()
@@ -348,7 +344,7 @@ class SQLAlchemyArticleRepository:
                 # Filters
                 filters = []
                 if not archived:
-                    filters.append(ArticleModel.is_archived == False)
+                    filters.append(not ArticleModel.is_archived)
                 
                 if source:
                     query = query.join(SourceModel)
@@ -404,7 +400,7 @@ class SQLAlchemyArticleRepository:
                 ).filter(
                     and_(
                         search_filter,
-                        ArticleModel.is_archived == False
+                        not ArticleModel.is_archived
                     )
                 ).order_by(desc(ArticleModel.created_at)).offset(offset).limit(limit).all()
                 
@@ -431,8 +427,8 @@ class SQLAlchemyArticleRepository:
                     joinedload(ArticleModel.categories)
                 ).filter(
                     and_(
-                        ArticleModel.embedding_generated == False,
-                        ArticleModel.is_archived == False
+                        not ArticleModel.embedding_generated,
+                        not ArticleModel.is_archived
                     )
                 ).order_by(asc(ArticleModel.created_at)).limit(limit).all()
                 
@@ -477,20 +473,20 @@ class SQLAlchemyArticleRepository:
         try:
             with get_db_session() as session:
                 total_articles = session.query(ArticleModel).filter(
-                    ArticleModel.is_archived == False
+                    not ArticleModel.is_archived
                 ).count()
                 
                 articles_with_embeddings = session.query(ArticleModel).filter(
                     and_(
-                        ArticleModel.embedding_generated == True,
-                        ArticleModel.is_archived == False
+                        ArticleModel.embedding_generated,
+                        not ArticleModel.is_archived
                     )
                 ).count()
                 
                 articles_with_summaries = session.query(ArticleModel).filter(
                     and_(
-                        ArticleModel.summary_generated == True,
-                        ArticleModel.is_archived == False
+                        ArticleModel.summary_generated,
+                        not ArticleModel.is_archived
                     )
                 ).count()
                 
@@ -499,7 +495,7 @@ class SQLAlchemyArticleRepository:
                     SourceModel.name,
                     func.count(ArticleModel.id).label('count')
                 ).join(ArticleModel).filter(
-                    ArticleModel.is_archived == False
+                    not ArticleModel.is_archived
                 ).group_by(SourceModel.name).order_by(desc('count')).limit(5).all()
                 
                 return {

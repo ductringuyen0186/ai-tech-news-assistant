@@ -20,9 +20,9 @@ if str(backend_dir) not in sys.path:
 def test_import_main_modules():
     """Test that main application modules can be imported."""
     try:
-        from src.core.config import Settings
-        from src.models.article import Article
-        from src.repositories.article_repository import ArticleRepository
+        from src.core.config import Settings  # noqa: F401
+        from src.models.article import Article  # noqa: F401
+        from src.repositories.article_repository import ArticleRepository  # noqa: F401
         assert True
     except ImportError as e:
         pytest.fail(f"Failed to import main modules: {e}")
@@ -55,7 +55,6 @@ def test_database_repository_init(mock_connect):
 def test_article_model_creation():
     """Test that article models can be created."""
     from src.models.article import Article, ArticleCreate
-    from datetime import datetime
     
     # Test ArticleCreate
     article_create = ArticleCreate(

@@ -10,11 +10,10 @@ import asyncio
 import tempfile
 import os
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch, Mock
-from typing import List, Dict, Any
+from unittest.mock import patch, Mock
 
 # Core functionality tests
-from src.core.config import get_settings, Settings
+from src.core.config import get_settings
 from src.core.exceptions import (
     NewsAssistantError, DatabaseError, NotFoundError, ValidationError,
     NewsIngestionError, LLMError

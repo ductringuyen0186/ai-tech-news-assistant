@@ -1,0 +1,103 @@
+# AI Tech News Assistant - Production Deployment
+version: '3.8'
+
+services:
+  # Backend API Service
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ai-news-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - DEBUG=false
+      - HOST=0.0.0.0
+      - PORT=8000
+      - CORS_ORIGINS=https://ai-tech-news.vercel.app,http://localhost:3000
+      - DATABASE_URL=sqlite:///app/data/news.db
+    volumes:
+      - backend_data:/app/data
+      - backend_logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - ai-news-network
+
+  # Frontend Service (for local testing)
+  frontend:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ai-news-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
+      - NODE_ENV=production
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - ai-news-network
+
+  # Redis for caching (optional but recommended)
+  redis:
+    image: redis:7-alpine
+    container_name: ai-news-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - ai-news-network
+    command: redis-server --appendonly yes
+
+  # Database backup service
+  backup:
+    image: alpine:latest
+    container_name: ai-news-backup
+    volumes:
+      - backend_data:/data:ro
+      - ./backups:/backups
+    command: |
+      sh -c "
+        apk add --no-cache sqlite
+        while true; do
+          timestamp=$$(date +%Y%m%d_%H%M%S)
+          sqlite3 /data/news.db \".backup /backups/news_backup_$$timestamp.db\"
+          echo \"Backup created: news_backup_$$timestamp.db\"
+          # Keep only last 7 days of backups
+          find /backups -name '*.db' -mtime +7 -delete
+          sleep 86400  # Run daily
+        done
+      "
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - ai-news-network
+
+volumes:
+  backend_data:
+    driver: local
+  backend_logs:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  ai-news-network:
+    driver: bridge
+
+# Production deployment commands:
+# docker-compose up -d                    # Start all services
+# docker-compose logs -f backend          # View backend logs
+# docker-compose down                     # Stop all services
+# docker-compose pull && docker-compose up -d  # Update to latest images

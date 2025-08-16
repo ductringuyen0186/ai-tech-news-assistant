@@ -5,7 +5,7 @@ Health Models
 Pydantic models for health check endpoints and responses.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Dict, Any, Optional
 from datetime import datetime
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 

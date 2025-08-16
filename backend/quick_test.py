@@ -14,7 +14,7 @@ def test_models():
         from datetime import datetime, timezone
         
         # Test ArticleSummary
-        summary = ArticleSummary(
+        ArticleSummary(
             id=1, 
             title='Test', 
             summary='Test summary', 
@@ -25,7 +25,7 @@ def test_models():
         print("✓ ArticleSummary works")
         
         # Test AISummary
-        ai_summary = AISummary(summary='AI generated summary')
+        AISummary(summary='AI generated summary')
         print("✓ AISummary works")
         
         return True
@@ -52,14 +52,13 @@ def test_health_routes():
     """Test health route models"""
     try:
         from src.models.api import HealthResponse, ComponentHealth
-        from datetime import datetime, timezone
         
         # Test ComponentHealth with required name field
-        component = ComponentHealth(name="database", status="healthy")
+        ComponentHealth(name="database", status="healthy")
         print("✓ ComponentHealth works")
         
         # Test HealthResponse with components
-        health = HealthResponse(
+        HealthResponse(
             status="healthy",
             components={"database": {"status": "healthy"}}
         )

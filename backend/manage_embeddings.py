@@ -304,7 +304,7 @@ async def main():
         print(f"\n🔄 Processing {stats['pending_articles']} articles...")
         summary = await manager.process_all_articles(batch_size=5)
         
-        print(f"\n✅ Processing complete!")
+        print("\n✅ Processing complete!")
         print(f"   Processed: {summary['processed_articles']} articles")
         print(f"   Success rate: {summary['success_rate']}%")
         print(f"   Final completion rate: {summary['final_stats']['completion_rate']}%")

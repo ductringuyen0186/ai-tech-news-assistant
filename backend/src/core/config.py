@@ -7,14 +7,12 @@ It supports environment variables, multiple environments (dev/staging/prod),
 secure secrets management, and configuration validation.
 """
 
-import os
 import secrets
 from enum import Enum
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Dict, Any
 from functools import lru_cache
-from pathlib import Path
 
-from pydantic import Field, field_validator, model_validator, SecretStr, AnyHttpUrl
+from pydantic import Field, field_validator, model_validator, SecretStr
 from pydantic_settings import BaseSettings
 
 

@@ -6,11 +6,7 @@ Tests for summarization service LLM operations.
 """
 
 import pytest
-import asyncio
-from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch, Mock
-import json
-from typing import Dict, Any
+from unittest.mock import AsyncMock, patch, Mock
 
 import httpx
 

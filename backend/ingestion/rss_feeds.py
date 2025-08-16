@@ -19,7 +19,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urlparse
 
 import feedparser
 import httpx
@@ -398,24 +398,26 @@ class RSSFeedIngester:
                                 logger.warning(f"Failed to parse content for {article.title}")
                                 content_metadata = json.dumps(metadata) if metadata else None
                         
-                        # Insert or update article with enhanced schema
+                        # Map to existing database schema - use INSERT OR IGNORE since URL is unique
                         conn.execute("""
-                            INSERT OR REPLACE INTO articles 
-                            (id, title, url, description, published_date, source, source_url, 
-                             author, tags, content, content_length, content_parsed_at, 
+                            INSERT OR IGNORE INTO articles 
+                            (title, url, content, summary, author, published_at, source, 
+                             categories, metadata, content_length, content_parsed_at, 
                              content_parser_method, content_metadata, updated_at)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                         """, (
-                            article_data['id'],
                             article_data['title'],
                             str(article_data['url']),
-                            article_data['description'],
-                            article_data['published_date'],
-                            article_data['source'],
-                            article_data['source_url'],
-                            article_data['author'],
-                            article_data['tags'],
                             article_data['content'],
+                            article_data['description'],  # Use description as summary
+                            article_data['author'],
+                            article_data['published_date'],  # This maps to published_at
+                            article_data['source'],
+                            article_data['tags'],  # This maps to categories
+                            json.dumps({
+                                'source_url': article_data['source_url'],
+                                'original_metadata': content_metadata
+                            }) if content_metadata else json.dumps({'source_url': article_data['source_url']}),
                             content_length,
                             content_parsed_at,
                             content_parser_method,

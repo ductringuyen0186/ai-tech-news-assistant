@@ -15,8 +15,7 @@ import os
 import sys
 import argparse
 from pathlib import Path
-from typing import List, Dict, Any, Optional
-import json
+from typing import List, Optional
 import requests
 from urllib.parse import urlparse
 
@@ -57,7 +56,7 @@ class ConfigValidator:
                 os.environ["ENV_FILE"] = self.env_file
             
             self.settings = Settings()
-            print(f"✅ Configuration loaded successfully")
+            print("✅ Configuration loaded successfully")
             print(f"   Environment: {self.settings.environment}")
             print(f"   Debug mode: {self.settings.debug}")
             print(f"   Database type: {self.settings.database_type}")

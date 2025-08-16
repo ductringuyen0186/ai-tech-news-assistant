@@ -2,6 +2,8 @@
 """Check get_by_id method"""
 
 import sys
+import inspect
+
 sys.path.insert(0, '.')
 
 # Force remove from cache
@@ -9,8 +11,8 @@ for module in list(sys.modules.keys()):
     if 'src.repositories' in module:
         del sys.modules[module]
 
-from src.repositories.article_repository import ArticleRepository
-import inspect
+# Import after path setup and cache clearing
+from src.repositories.article_repository import ArticleRepository  # noqa: E402
 
 # Check the get_by_id method
 method = ArticleRepository.get_by_id

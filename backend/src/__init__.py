@@ -18,9 +18,6 @@ __author__ = "AI Tech News Assistant Team"
 __description__ = "AI-powered tech news aggregation and analysis"
 
 from .core.config import get_settings
-
-# Create settings instance for backwards compatibility
-settings = get_settings()
 from .core.exceptions import (
     DatabaseError,
     NewsIngestionError,
@@ -28,6 +25,9 @@ from .core.exceptions import (
     EmbeddingError,
     ValidationError
 )
+
+# Create settings instance for backwards compatibility
+settings = get_settings()
 
 __all__ = [
     "settings",

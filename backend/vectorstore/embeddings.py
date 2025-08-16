@@ -7,9 +7,8 @@ It provides efficient embedding generation for article content to enable
 semantic search and retrieval-augmented generation (RAG).
 """
 
-import os
 import asyncio
-from typing import List, Dict, Any, Optional, Union, Tuple, TYPE_CHECKING
+from typing import List, Dict, Any, Optional, Union, TYPE_CHECKING
 from pathlib import Path
 
 # Handle optional dependencies

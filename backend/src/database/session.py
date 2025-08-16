@@ -8,11 +8,11 @@ transaction handling, connection pooling, and error recovery.
 
 import logging
 from contextlib import contextmanager
-from typing import Generator, Optional, Any
+from typing import Generator, Any
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError, OperationalError
+from sqlalchemy.exc import IntegrityError, OperationalError
 
-from .base import SessionLocal, create_session_factory
+from .base import create_session_factory
 
 logger = logging.getLogger(__name__)
 

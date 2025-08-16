@@ -10,7 +10,6 @@ import sys
 import os
 import tempfile
 import sqlite3
-from pathlib import Path
 
 # Add backend to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -210,7 +209,7 @@ async def test_database_integration():
         # Clean up temporary database
         try:
             os.unlink(temp_db_path)
-        except:
+        except Exception:
             pass
 
 

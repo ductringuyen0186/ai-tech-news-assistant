@@ -7,17 +7,12 @@ Tests for embedding repository data access operations.
 
 import pytest
 import sqlite3
-import json
 import tempfile
 import os
-from datetime import datetime
-from unittest.mock import patch, Mock
-import numpy as np
-from typing import List, Dict, Any
 
 from src.repositories.embedding_repository import EmbeddingRepository
 from src.models.embedding import SimilarityResult
-from src.core.exceptions import DatabaseError, NotFoundError
+from src.core.exceptions import DatabaseError
 
 
 class TestEmbeddingRepository:
@@ -64,7 +59,7 @@ class TestEmbeddingRepository:
 
     def test_repository_initialization(self, temp_db_path):
         """Test repository initialization and table creation."""
-        repo = EmbeddingRepository(db_path=temp_db_path)
+        EmbeddingRepository(db_path=temp_db_path)
         
         # Verify database file exists
         assert os.path.exists(temp_db_path)

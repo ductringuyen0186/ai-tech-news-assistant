@@ -5,40 +5,29 @@ Model Tests
 Tests for Pydantic models to boost coverage.
 """
 
-import pytest
 from datetime import datetime
 from src.models.api import (
     BaseResponse,
     ErrorDetail,
     ErrorResponse,
-    PaginatedResponse,
     PaginationInfo,
-    HealthCheck,
-    AsyncTaskResponse
+    HealthCheck
 )
 from src.models.article import (
-    ArticleBase,
     ArticleCreate,
-    ArticleUpdate,
-    Article,
     ArticleSummary,
-    ArticleStats,
     ArticleSearchRequest,
-    ArticleSearchResult,
     SummarizationRequest
 )
 from src.models.embedding import (
-    EmbeddingBase,
     EmbeddingRequest,
     EmbeddingResponse,
-    EmbeddingStats,
     SimilarityRequest,
     SimilarityResult
 )
 from src.models.database import (
     DatabaseHealth,
-    DatabaseStats,
-    QueryResult
+    DatabaseStats
 )
 
 
