@@ -1,0 +1,21 @@
+# Code owners for the AI Tech News Assistant project
+# These users will be automatically requested for review when PRs are opened
+
+# Global ownership - require review for all changes
+* @ductringuyen0186
+
+# Backend specific
+/backend/ @ductringuyen0186
+/tests/ @ductringuyen0186
+
+# Frontend specific  
+/frontend/ @ductringuyen0186
+
+# Infrastructure and CI/CD
+/.github/ @ductringuyen0186
+/docker/ @ductringuyen0186
+/scripts/ @ductringuyen0186
+
+# Documentation
+README.md @ductringuyen0186
+/docs/ @ductringuyen0186
