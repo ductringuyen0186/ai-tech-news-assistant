@@ -91,5 +91,5 @@ class TestSimpleEmbeddingRepository:
     async def test_delete_embedding(self, repository):
         """Test deleting an embedding."""
         # This should not raise an error even if embedding doesn't exist
-        result = await repository.delete_embedding("nonexistent")
+        await repository.delete_embedding("nonexistent")
         # Should return False or None for non-existent embeddings
