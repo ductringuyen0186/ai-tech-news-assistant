@@ -1,0 +1,30 @@
+# Render Deployment Configuration
+# AI Tech News Assistant Backend
+
+# Build configuration
+build:
+  - command: pip install -r requirements.txt
+
+# Runtime configuration
+start: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 2
+
+# Environment
+env:
+  - ENVIRONMENT=production
+  - DEBUG=false
+  - CORS_ORIGINS=https://your-frontend-domain.vercel.app
+
+# Health check
+healthcheck:
+  path: /health
+  interval: 30s
+
+# Scaling
+scaling:
+  minInstances: 1
+  maxInstances: 3
+
+# Static files (if any)
+staticFiles:
+  - path: /static
+    directory: ./static
