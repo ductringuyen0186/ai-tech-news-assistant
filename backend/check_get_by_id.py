@@ -12,7 +12,7 @@ for module in list(sys.modules.keys()):
         del sys.modules[module]
 
 # Import after path setup and cache clearing
-from src.repositories.article_repository import ArticleRepository  # ruff: noqa: E402
+from src.repositories.article_repository import ArticleRepository  # noqa: E402
 
 # Check the get_by_id method
 method = ArticleRepository.get_by_id

@@ -12,12 +12,12 @@ backend_path = os.path.join(os.getcwd())
 sys.path.insert(0, backend_path)
 
 # Import after path setup
-from src.repositories.article_repository import ArticleRepository  # ruff: noqa: E402
-from src.models.article import ArticleCreate  # ruff: noqa: E402
+from src.repositories.article_repository import ArticleRepository  # noqa: E402
+from src.models.article import ArticleCreate  # noqa: E402
 
 # Force reload the modules to clear any cache
-import src.repositories.article_repository  # ruff: noqa: E402
-import src.models.article  # ruff: noqa: E402
+import src.repositories.article_repository  # noqa: E402
+import src.models.article  # noqa: E402
 importlib.reload(src.repositories.article_repository)
 importlib.reload(src.models.article)
 
