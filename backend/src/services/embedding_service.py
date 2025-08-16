@@ -8,7 +8,7 @@ Handles the core embedding operations with proper error handling and performance
 
 import asyncio
 import logging
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any
 from datetime import datetime, timezone
 
 from ..core.config import get_settings
@@ -17,10 +17,7 @@ settings = get_settings()
 from ..core.exceptions import EmbeddingError, ValidationError
 from ..models.embedding import (
     EmbeddingRequest,
-    EmbeddingResponse,
-    SimilarityRequest,
-    SimilarityResult,
-    EmbeddingStats
+    EmbeddingResponse
 )
 
 # Import at module level for testing purposes

@@ -8,13 +8,13 @@ patterns for handling transient failures and external service unavailability.
 
 import asyncio
 import time
-from typing import Any, Callable, Optional, Type, Union, Tuple, List
+from typing import Any, Callable, Optional, Type, Tuple
 from functools import wraps
 from dataclasses import dataclass
 from enum import Enum
 import random
 
-from src.core.logging import get_logger, log_exception
+from src.core.logging import get_logger
 from src.core.exceptions import (
     ExternalServiceError, 
     TimeoutError as CustomTimeoutError, 
@@ -95,7 +95,7 @@ class CircuitBreaker:
             await self._on_success()
             return result
             
-        except self.config.expected_exception as e:
+        except self.config.expected_exception:
             await self._on_failure()
             raise
     

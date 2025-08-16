@@ -19,7 +19,7 @@ except ImportError:
 from ...core.config import get_settings
 
 settings = get_settings()
-from ...models.health import HealthCheck, HealthResponse, ComponentHealth, PingResponse, MetricsResponse
+from ...models.health import HealthResponse, ComponentHealth, PingResponse
 
 # Global start time for uptime calculation
 _start_time = time.time()
@@ -97,7 +97,7 @@ async def health_check() -> Dict[str, Any]:
                 }
             }
         }
-    except Exception as e:
+    except Exception:
         uptime_seconds = time.time() - _start_time
         return {
             "status": "unhealthy",
@@ -211,7 +211,7 @@ async def detailed_health_check() -> HealthResponse:
             components=components_dict
         )
         
-    except Exception as e:
+    except Exception:
         return HealthResponse(
             status="unhealthy",
             timestamp=datetime.now(timezone.utc),

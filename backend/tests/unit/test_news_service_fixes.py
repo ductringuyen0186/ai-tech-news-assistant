@@ -1,4 +1,3 @@
-import pytest
 from backend.services.news_service import NewsService
 from backend.tests.fixtures.news_service_fixtures import valid_news_data
 

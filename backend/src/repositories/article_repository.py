@@ -7,10 +7,8 @@ Repository for managing article data in SQLite database.
 
 import sqlite3
 import json
-from typing import List, Optional, Tuple
-from datetime import datetime
 
-from ..models.article import Article, ArticleCreate, ArticleUpdate
+from ..models.article import Article, ArticleUpdate
 from ..core.exceptions import DatabaseError, NotFoundError
 
 

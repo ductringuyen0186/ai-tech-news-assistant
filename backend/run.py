@@ -3,7 +3,6 @@
 Run script for the AI Tech News Assistant
 """
 import sys
-import os
 from pathlib import Path
 
 # Add the current directory to Python path

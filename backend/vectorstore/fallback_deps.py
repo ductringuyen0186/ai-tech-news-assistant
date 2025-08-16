@@ -7,7 +7,7 @@ like sentence-transformers, torch, numpy, etc. are not available.
 """
 
 import logging
-from typing import List, Union, Any
+from typing import List, Union
 
 logger = logging.getLogger(__name__)
 

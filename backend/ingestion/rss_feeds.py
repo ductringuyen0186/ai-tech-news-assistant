@@ -19,7 +19,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urlparse
 
 import feedparser
 import httpx

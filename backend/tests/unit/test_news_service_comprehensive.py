@@ -7,17 +7,14 @@ Tests for news service business logic operations.
 
 import pytest
 import asyncio
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch, Mock
+from datetime import datetime
+from unittest.mock import AsyncMock, patch, Mock
 import xml.etree.ElementTree as ET
-from typing import List, Dict, Any
 
 import httpx
-from bs4 import BeautifulSoup
 
 from src.services.news_service import NewsService
 from src.models.article import ArticleCreate, ArticleStats
-from src.core.exceptions import NewsIngestionError, ValidationError
 
 
 class TestNewsService:

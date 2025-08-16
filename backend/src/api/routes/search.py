@@ -12,7 +12,7 @@ from enum import Enum
 from ...services import EmbeddingService
 from ...repositories import ArticleRepository, EmbeddingRepository
 from ...models.article import Article
-from ...models.embedding import SimilarityResult, SimilarityRequest
+from ...models.embedding import SimilarityResult
 from ...models.api import BaseResponse
 from pydantic import BaseModel, Field
 
@@ -301,7 +301,7 @@ async def find_similar_articles(
     """
     try:
         # Check if article exists
-        article = await article_repo.get_by_id(article_id)
+        await article_repo.get_by_id(article_id)
         
         # Get model info
         model_info = await embedding_service.get_model_info()
@@ -489,7 +489,7 @@ async def hybrid_search(
         
         return BaseResponse(
             success=True,
-            message=f"Hybrid search completed",
+            message="Hybrid search completed",
             data={
                 "query": request.query,
                 "text_results": text_articles,
@@ -608,7 +608,7 @@ async def advanced_search(
         
         return BaseResponse(
             success=True,
-            message=f"Advanced search completed",
+            message="Advanced search completed",
             data=articles
         )
         

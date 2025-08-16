@@ -6,13 +6,13 @@ Tests for summarization service functionality.
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 from datetime import datetime
 import asyncio
 from pydantic import ValidationError as PydanticValidationError
 
 from src.services.summarization_service import SummarizationService
-from src.models.article import SummarizationRequest, ArticleSummary, BatchSummarizationRequest
+from src.models.article import SummarizationRequest, ArticleSummary
 from src.core.exceptions import LLMError, ValidationError
 
 

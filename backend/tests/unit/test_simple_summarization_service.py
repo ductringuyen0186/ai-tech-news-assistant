@@ -6,11 +6,11 @@ Basic working tests for SummarizationService to improve coverage.
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 from src.services.summarization_service import SummarizationService
 from src.models.article import SummarizationRequest, ArticleSummary
-from src.core.exceptions import LLMError, ValidationError
+from src.core.exceptions import ValidationError
 
 
 class TestSimpleSummarizationService:

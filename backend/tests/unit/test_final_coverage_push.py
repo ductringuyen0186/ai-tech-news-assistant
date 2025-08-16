@@ -3,7 +3,7 @@ Final coverage push targeting API routes and main application components.
 """
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch
 
 
 class TestAPIRoutesCoverage:
@@ -177,7 +177,7 @@ class TestModelValidationCoverage:
     
     def test_article_models_validation(self):
         """Test Article model validation patterns."""
-        from src.models.article import Article, ArticleCreate
+        from src.models.article import ArticleCreate
         from datetime import datetime
         
         # Test valid article creation
@@ -290,7 +290,6 @@ class TestDateTimeCoverage:
     
     def test_datetime_parsing_patterns(self):
         """Test datetime parsing patterns."""
-        from datetime import datetime, timezone
         import dateutil.parser
         
         date_strings = [
@@ -303,7 +302,7 @@ class TestDateTimeCoverage:
             try:
                 parsed = dateutil.parser.parse(date_str)
                 assert parsed is not None
-            except:
+            except Exception:
                 # Even failed parsing covers code paths
                 assert True
     

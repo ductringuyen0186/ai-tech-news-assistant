@@ -9,7 +9,7 @@ Handles RSS feed processing, article extraction, and news data operations.
 import asyncio
 import logging
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import xml.etree.ElementTree as ET
 
 import httpx
@@ -19,13 +19,8 @@ from bs4 import BeautifulSoup
 from ..core.config import get_settings
 
 settings = get_settings()
-from ..core.exceptions import NewsIngestionError, ValidationError
 from ..models.article import (
-    Article,
-    ArticleCreate,
-    ArticleUpdate,
-    ArticleSearchRequest,
-    ArticleStats
+    ArticleCreate
 )
 
 # Import for test compatibility
@@ -147,7 +142,6 @@ class NewsService:
                 # Retry logic for HTTP client
                 max_retries = 3
                 retry_delay = 1.0
-                last_exception = None
                 
                 for attempt in range(max_retries):
                     try:
@@ -160,7 +154,6 @@ class NewsService:
                         feed = await loop.run_in_executor(None, feedparser.parse, xml_content)
                         break  # Success, exit retry loop
                     except Exception as e:
-                        last_exception = e
                         if attempt < max_retries - 1:
                             logger.debug(f"HTTP client attempt {attempt + 1} failed for {feed_url}: {e}, retrying...")
                             await asyncio.sleep(retry_delay * (attempt + 1))

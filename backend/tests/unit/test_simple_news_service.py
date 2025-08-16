@@ -6,11 +6,8 @@ Basic working tests for NewsService to improve coverage.
 """
 
 import pytest
-from unittest.mock import MagicMock, patch
 
 from src.services.news_service import NewsService
-from src.models.article import Article, ArticleCreate
-from src.core.exceptions import NewsIngestionError
 
 
 class TestSimpleNewsService:

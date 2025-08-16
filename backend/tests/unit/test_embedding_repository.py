@@ -6,9 +6,6 @@ Tests for embedding repository data access operations.
 """
 
 import pytest
-from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
-import json
 
 from src.repositories.embedding_repository import EmbeddingRepository
 from src.core.exceptions import DatabaseError, NotFoundError, ValidationError

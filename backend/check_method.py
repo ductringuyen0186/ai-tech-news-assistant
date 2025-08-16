@@ -2,7 +2,6 @@
 """Fresh test with no cache issues"""
 
 import sys
-import os
 
 # Add current directory to path for imports
 sys.path.insert(0, '.')
@@ -24,7 +23,7 @@ has_author = 'author=row["author"]' in source_code
 has_categories = 'categories=categories' in source_code  
 has_metadata = 'metadata=metadata' in source_code
 
-print(f"\nKey field assignments present:")
+print("\nKey field assignments present:")
 print(f"  author: {has_author}")
 print(f"  categories: {has_categories}")
 print(f"  metadata: {has_metadata}")

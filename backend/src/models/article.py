@@ -7,7 +7,7 @@ Pydantic models for article data structures.
 
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 
 
 class ArticleBase(BaseModel):

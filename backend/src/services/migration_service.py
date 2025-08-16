@@ -16,13 +16,9 @@ from ..database.models import (
     Article as ArticleModel,
     Source as SourceModel, 
     Category as CategoryModel,
-    Embedding as EmbeddingModel,
-    serialize_embedding,
-    deserialize_embedding
+    Embedding as EmbeddingModel
 )
 from ..repositories.sqlalchemy_repository import SQLAlchemyArticleRepository
-from ..models.article import ArticleCreate
-from ..core.config import get_settings
 
 logger = logging.getLogger(__name__)
 

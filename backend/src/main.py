@@ -19,11 +19,6 @@ from src.core.middleware import (
     HealthCheckMiddleware,
     create_custom_error_handlers
 )
-from src.core.exceptions import (
-    ValidationError,
-    NotFoundError,
-    RateLimitError
-)
 from src.api import api_router, root_router
 
 # Setup logging first

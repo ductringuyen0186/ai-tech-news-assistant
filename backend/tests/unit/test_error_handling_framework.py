@@ -7,10 +7,8 @@ and middleware components.
 """
 
 import pytest
-import asyncio
 import json
-import time
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import patch
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
@@ -36,7 +34,6 @@ from src.core.retry import (
     CircuitBreakerConfig,
     CircuitBreaker,
     retry,
-    with_circuit_breaker,
     should_retry,
     calculate_delay
 )
@@ -352,7 +349,6 @@ class TestMiddleware:
     def test_error_handling_middleware_integration(self):
         """Test error handling middleware with FastAPI."""
         from fastapi import FastAPI
-        from fastapi.testclient import TestClient
         
         app = FastAPI()
         app.add_middleware(ErrorHandlingMiddleware)
@@ -384,7 +380,6 @@ class TestMiddleware:
     def test_health_check_middleware_metrics(self):
         """Test health check middleware metrics collection."""
         from fastapi import FastAPI
-        from fastapi.testclient import TestClient
         
         app = FastAPI()
         health_middleware = HealthCheckMiddleware(app)

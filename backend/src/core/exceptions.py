@@ -7,7 +7,7 @@ and debugging throughout the application.
 """
 
 import traceback
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 from datetime import datetime, timezone
 from enum import Enum
 

@@ -7,7 +7,6 @@ including structured error responses, logging, and monitoring integration.
 """
 
 import time
-import traceback
 from typing import Dict, Any, Optional
 from uuid import uuid4
 
@@ -342,7 +341,7 @@ class HealthCheckMiddleware(BaseHTTPMiddleware):
             
             return response
             
-        except Exception as exc:
+        except Exception:
             self.error_count += 1
             raise
     

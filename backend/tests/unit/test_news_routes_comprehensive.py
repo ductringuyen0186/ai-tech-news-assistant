@@ -7,14 +7,12 @@ Tests for news API endpoints.
 
 import pytest
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch, Mock
+from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 from fastapi import status
-from typing import List, Dict, Any
 
 from src.api.routes.news import router
 from src.models.article import Article, ArticleCreate, ArticleStats
-from src.models.api import PaginatedResponse, BaseResponse
 
 
 @pytest.fixture

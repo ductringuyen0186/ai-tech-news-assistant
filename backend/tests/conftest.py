@@ -9,10 +9,9 @@ import asyncio
 import pytest
 import tempfile
 import os
-from typing import Generator, AsyncGenerator
+from typing import Generator
 from unittest.mock import AsyncMock, MagicMock
 
-from fastapi.testclient import TestClient
 
 # Test database configuration
 TEST_DB_PATH = ":memory:"  # Use in-memory SQLite for tests

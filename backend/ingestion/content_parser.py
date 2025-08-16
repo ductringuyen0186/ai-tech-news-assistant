@@ -13,14 +13,11 @@ Features:
 """
 
 import re
-import asyncio
 from typing import Optional, Dict, Any, Tuple
-from urllib.parse import urljoin, urlparse
 
 import httpx
 from bs4 import BeautifulSoup, Comment
 from newspaper import Article as NewspaperArticle
-from newspaper.utils import BeautifulSoup as NewspaperSoup
 
 from utils.logger import get_logger
 

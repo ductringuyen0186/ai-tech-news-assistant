@@ -10,8 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime, timedelta
 import uvicorn
-from typing import List, Dict, Any
-import random
+from typing import Dict, Any
 
 # Create FastAPI app
 app = FastAPI(

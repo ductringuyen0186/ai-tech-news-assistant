@@ -7,7 +7,6 @@ run migrations, and handle data migration from old SQLite database.
 """
 
 import logging
-import asyncio
 from pathlib import Path
 
 from ..core.config import get_settings

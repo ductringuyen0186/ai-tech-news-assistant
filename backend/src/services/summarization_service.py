@@ -10,10 +10,8 @@ import asyncio
 import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
-import json
 import re
 import time
-from unittest.mock import MagicMock
 
 from ..core.config import get_settings
 
@@ -21,7 +19,6 @@ settings = get_settings()
 from ..core.exceptions import LLMError, ValidationError
 from ..models.article import (
     SummarizationRequest,
-    BatchSummarizationRequest,
     ArticleSummary
 )
 
@@ -72,7 +69,7 @@ class SummarizationService:
             client.chat.completions.create = MagicMock()
             
             return client
-        except:
+        except Exception:
             # In production, would create actual OpenAI client
             return None
     

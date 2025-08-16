@@ -7,7 +7,7 @@ Routes are organized by functionality and follow RESTful conventions.
 """
 
 from fastapi import APIRouter, HTTPException, Query
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 import sqlite3
 
 from ingestion.rss_feeds import RSSFeedIngester, ingest_tech_news, parse_missing_content

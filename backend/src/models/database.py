@@ -5,7 +5,7 @@ Database Data Models
 Pydantic models for database operations and responses.
 """
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict
 from datetime import datetime
 from pydantic import BaseModel, Field
 

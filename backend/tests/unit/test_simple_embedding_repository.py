@@ -6,8 +6,6 @@ Basic working tests for EmbeddingRepository to improve coverage.
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-import sqlite3
 import tempfile
 import os
 

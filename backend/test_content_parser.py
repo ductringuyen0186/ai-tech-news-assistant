@@ -47,13 +47,13 @@ async def test_content_parser():
                 content, metadata = await parser.extract_content(url)
                 
                 if content:
-                    print(f"✅ Success!")
+                    print("✅ Success!")
                     print(f"   Method: {metadata.get('method', 'unknown')}")
                     print(f"   Content length: {len(content)} characters")
                     print(f"   Title: {metadata.get('title', 'N/A')}")
                     print(f"   Preview: {content[:200]}...")
                 else:
-                    print(f"❌ Failed to extract content")
+                    print("❌ Failed to extract content")
                     print(f"   Error: {metadata.get('error', 'Unknown error')}")
                     
             except Exception as e:
@@ -91,12 +91,12 @@ async def test_rss_with_content_parsing():
                     content, metadata = await parser.extract_content(str(article.url))
                     
                     if content:
-                        print(f"✅ Content parsing successful!")
+                        print("✅ Content parsing successful!")
                         print(f"   Method: {metadata.get('method', 'unknown')}")
                         print(f"   Content length: {len(content)} characters")
                         print(f"   Preview: {content[:300]}...")
                     else:
-                        print(f"❌ Content parsing failed")
+                        print("❌ Content parsing failed")
                         print(f"   Error: {metadata.get('error', 'Unknown error')}")
         else:
             print("❌ No articles found")
@@ -118,14 +118,14 @@ async def test_database_operations():
         
         try:
             summary = await ingester.ingest_all_feeds(parse_content=True)
-            print(f"✅ Ingestion completed!")
+            print("✅ Ingestion completed!")
             print(f"   Total fetched: {summary['total_fetched']}")
             print(f"   Total stored: {summary['total_stored']}")
             print(f"   Content parsed: {summary['content_parsed']}")
             
             # Show article statistics
             articles = ingester.get_articles(limit=5)
-            print(f"\n📊 Sample articles:")
+            print("\n📊 Sample articles:")
             for i, article in enumerate(articles, 1):
                 content_len = len(article.get('content', '')) if article.get('content') else 0
                 print(f"   {i}. {article['title'][:50]}...")

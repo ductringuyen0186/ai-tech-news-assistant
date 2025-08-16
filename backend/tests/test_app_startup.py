@@ -55,7 +55,6 @@ def test_database_repository_init(mock_connect):
 def test_article_model_creation():
     """Test that article models can be created."""
     from src.models.article import Article, ArticleCreate
-    from datetime import datetime
     
     # Test ArticleCreate
     article_create = ArticleCreate(

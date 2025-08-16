@@ -20,8 +20,6 @@ import src.models.article
 importlib.reload(src.repositories.article_repository)
 importlib.reload(src.models.article)
 
-from src.repositories.article_repository import ArticleRepository
-from src.models.article import ArticleCreate
 
 async def test_exact_scenario():
     print("Testing exact test scenario...")
@@ -46,7 +44,7 @@ async def test_exact_scenario():
         
         # Create ArticleCreate exactly like the test
         article_data = ArticleCreate(**sample_article_data)
-        print(f"ArticleCreate fields:")
+        print("ArticleCreate fields:")
         print(f"  title: {article_data.title}")
         print(f"  author: {article_data.author}")
         print(f"  categories: {article_data.categories}")
@@ -55,7 +53,7 @@ async def test_exact_scenario():
         # Call create exactly like the test
         result = await repo.create(article_data)
         
-        print(f"\nResult fields:")
+        print("\nResult fields:")
         print(f"  id: {result.id}")
         print(f"  title: {result.title}")
         print(f"  author: {result.author}")
@@ -63,7 +61,7 @@ async def test_exact_scenario():
         print(f"  metadata: {result.metadata}")
         
         # Check the assertions that are failing
-        print(f"\nAssertion checks:")
+        print("\nAssertion checks:")
         print(f"  result.id is not None: {result.id is not None}")
         print(f"  result.title == sample_data['title']: {result.title == sample_article_data['title']}")
         print(f"  result.author == sample_data['author']: {result.author == sample_article_data['author']}")
@@ -71,7 +69,7 @@ async def test_exact_scenario():
         if result.author != sample_article_data["author"]:
             print(f"  FAILURE: Expected '{sample_article_data['author']}', got '{result.author}'")
         else:
-            print(f"  SUCCESS: Author field matches!")
+            print("  SUCCESS: Author field matches!")
         
     except Exception as e:
         print(f"Exception: {e}")
