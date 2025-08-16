@@ -103,7 +103,8 @@ jobs:
           npm ci --prefer-offline --no-audit
           
           echo "🔧 Fixing Rollup native binary issue (npm/cli#4828)..."
-          npm update --save-dev @rollup/rollup-linux-x64-gnu @rollup/rollup-linux-x64-musl || echo "Rollup binaries updated"
+          rm -rf node_modules/@rollup/rollup-linux-x64-gnu node_modules/@rollup/rollup-linux-x64-musl
+          npm install --save-dev @rollup/rollup-linux-x64-gnu @rollup/rollup-linux-x64-musl || echo "Rollup binaries installed"
           
           echo "🔍 Running ESLint..."
           npm run lint
