@@ -38,8 +38,10 @@ jobs:
     - name: Install Node dependencies
       run: |
         cd frontend
-        npm cache clean --force
-        npm ci
+        # Follow Rollup error suggestion: remove both files and reinstall
+        rm -rf node_modules package-lock.json
+        # Install with specific options for CI compatibility
+        npm install --omit=optional --no-audit --no-fund
         
     - name: Run backend tests
       run: |
@@ -68,6 +70,8 @@ jobs:
     - name: Build frontend
       run: |
         cd frontend
+        # Set environment for better compatibility
+        export NODE_ENV=production
         npm run build:ci
         
     - name: Upload test results
