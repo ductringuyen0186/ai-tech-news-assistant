@@ -22,6 +22,7 @@ if config.config_file_name is not None:
 # target_metadata = mymodel.Base.metadata
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
+# Import after path modification to allow finding src.database.models  
 from src.database.models import Base
 target_metadata = Base.metadata
 

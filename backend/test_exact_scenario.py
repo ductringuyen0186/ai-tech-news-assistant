@@ -11,6 +11,7 @@ import importlib
 backend_path = os.path.join(os.getcwd())
 sys.path.insert(0, backend_path)
 
+# Import after path setup
 from src.repositories.article_repository import ArticleRepository
 from src.models.article import ArticleCreate
 

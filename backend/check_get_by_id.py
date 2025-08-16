@@ -11,6 +11,7 @@ for module in list(sys.modules.keys()):
     if 'src.repositories' in module:
         del sys.modules[module]
 
+# Import after path setup and cache clearing
 from src.repositories.article_repository import ArticleRepository
 
 # Check the get_by_id method
