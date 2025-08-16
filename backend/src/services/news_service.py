@@ -537,6 +537,98 @@ class NewsService:
         
         return base_stats
     
+    async def add_source(self, name: str, url: str, rss_url: str, description: str = "") -> Dict[str, Any]:
+        """
+        Add a new RSS source for ingestion.
+        
+        Args:
+            name: Human-readable name of the source
+            url: Main website URL
+            rss_url: RSS feed URL
+            description: Optional description
+            
+        Returns:
+            Dictionary with source information
+        """
+        try:
+            # Validate RSS URL by testing it
+            if not self.client:
+                await self.initialize()
+            
+            # Test the RSS feed
+            try:
+                response = await self.client.get(rss_url, timeout=10.0)
+                response.raise_for_status()
+                
+                # Parse to validate it's a valid RSS feed
+                import feedparser
+                feed = feedparser.parse(response.text)
+                if feed.bozo and hasattr(feed, 'bozo_exception'):
+                    logger.warning(f"RSS feed has parsing issues: {feed.bozo_exception}")
+                
+            except Exception as e:
+                logger.warning(f"Could not validate RSS feed {rss_url}: {e}")
+            
+            # Add to internal list
+            if not hasattr(self, '_dynamic_sources'):
+                self._dynamic_sources = []
+            
+            source_info = {
+                "name": name,
+                "url": url,
+                "rss_url": rss_url,
+                "description": description,
+                "added_at": datetime.now(timezone.utc).isoformat()
+            }
+            
+            self._dynamic_sources.append(source_info)
+            
+            # Add RSS URL to feeds list for fetching
+            if rss_url not in self.rss_feeds:
+                self.rss_feeds.append(rss_url)
+            
+            logger.info(f"Added news source: {name} ({rss_url})")
+            
+            return {
+                "status": "success",
+                "source": source_info,
+                "total_sources": len(self._dynamic_sources)
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to add source {name}: {e}")
+            return {
+                "status": "error",
+                "error": str(e),
+                "source_name": name
+            }
+    
+    async def list_sources(self) -> List[Dict[str, Any]]:
+        """
+        List all configured RSS sources.
+        
+        Returns:
+            List of source dictionaries
+        """
+        sources = []
+        
+        # Add dynamic sources (added via add_source)
+        if hasattr(self, '_dynamic_sources'):
+            sources.extend(self._dynamic_sources)
+        
+        # Add configured sources from settings
+        for i, rss_url in enumerate(self.rss_feeds):
+            if not any(s.get('rss_url') == rss_url for s in sources):
+                sources.append({
+                    "name": f"Feed {i+1}",
+                    "url": "unknown",
+                    "rss_url": rss_url,
+                    "description": "Configured RSS feed",
+                    "added_at": "unknown"
+                })
+        
+        return sources
+
     async def health_check(self) -> Dict[str, Any]:
         """
         Perform a health check on the news service.

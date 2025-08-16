@@ -33,6 +33,120 @@ logger = get_logger(__name__)
 settings = get_settings()
 
 
+class RSSFeedManager:
+    """
+    RSS Feed Manager for handling multiple news sources.
+    
+    This class provides a unified interface for fetching articles
+    from various RSS feeds with proper error handling and rate limiting.
+    """
+    
+    def __init__(self):
+        """Initialize the RSS feed manager."""
+        self.session = None
+        self.timeout = 30.0
+        self.max_articles_per_feed = 20
+        
+        # Default tech news sources
+        self.default_sources = [
+            {
+                "name": "Hacker News",
+                "url": "https://hnrss.org/frontpage?limit=20",
+                "source_type": "rss"
+            },
+            {
+                "name": "TechCrunch", 
+                "url": "https://techcrunch.com/feed/",
+                "source_type": "rss"
+            },
+            {
+                "name": "The Verge",
+                "url": "https://www.theverge.com/rss/index.xml",
+                "source_type": "rss"
+            }
+        ]
+    
+    async def init_session(self):
+        """Initialize HTTP session."""
+        if not self.session:
+            self.session = httpx.AsyncClient(timeout=self.timeout)
+    
+    async def fetch_articles(self, feed_url: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Fetch articles from a single RSS feed.
+        
+        Args:
+            feed_url: URL of the RSS feed
+            limit: Maximum number of articles to fetch
+            
+        Returns:
+            List of article dictionaries
+        """
+        await self.init_session()
+        
+        try:
+            logger.info(f"Fetching RSS feed: {feed_url}")
+            response = await self.session.get(feed_url)
+            response.raise_for_status()
+            
+            # Parse RSS feed
+            feed = feedparser.parse(response.content)
+            articles = []
+            
+            for entry in feed.entries[:limit]:
+                article = {
+                    "title": entry.get("title", ""),
+                    "url": entry.get("link", ""),
+                    "description": entry.get("summary", ""),
+                    "published_date": self._parse_date(entry.get("published")),
+                    "source": feed.feed.get("title", "Unknown"),
+                    "source_url": feed_url,
+                    "author": entry.get("author", ""),
+                    "content": entry.get("summary", "")
+                }
+                articles.append(article)
+            
+            logger.info(f"Successfully fetched {len(articles)} articles from {feed_url}")
+            return articles
+            
+        except Exception as e:
+            logger.error(f"Failed to fetch RSS feed {feed_url}: {e}")
+            return []
+    
+    async def fetch_all_sources(self, limit_per_source: int = 5) -> List[Dict[str, Any]]:
+        """
+        Fetch articles from all default sources.
+        
+        Args:
+            limit_per_source: Maximum articles per source
+            
+        Returns:
+            Combined list of articles from all sources
+        """
+        all_articles = []
+        
+        for source in self.default_sources:
+            articles = await self.fetch_articles(source["url"], limit_per_source)
+            all_articles.extend(articles)
+        
+        return all_articles
+    
+    def _parse_date(self, date_str: str) -> Optional[datetime]:
+        """Parse date string to datetime object."""
+        if not date_str:
+            return None
+        try:
+            import dateutil.parser
+            return dateutil.parser.parse(date_str)
+        except:
+            return datetime.now()
+    
+    async def cleanup(self):
+        """Cleanup resources."""
+        if self.session:
+            await self.session.aclose()
+
+
 class Article(BaseModel):
     """Article metadata model."""
     
