@@ -36,7 +36,7 @@ jobs:
     - name: Install Node dependencies
       run: |
         cd frontend
-        npm ci
+        npm ci --prefer-offline
         
     - name: Run backend tests
       run: |
@@ -65,7 +65,7 @@ jobs:
     - name: Build frontend
       run: |
         cd frontend
-        npm run build
+        npm run build:ci
         
     - name: Upload test results
       run: |
