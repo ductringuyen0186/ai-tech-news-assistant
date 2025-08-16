@@ -14,7 +14,7 @@ from .embeddings import EmbeddingGenerator, generate_article_embeddings
 
 __all__ = ["EmbeddingGenerator", "generate_article_embeddings", "VectorStore"]
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from utils.logger import get_logger
 
 logger = get_logger(__name__)

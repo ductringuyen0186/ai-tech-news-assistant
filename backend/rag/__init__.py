@@ -15,7 +15,7 @@ Future implementation will include:
 - Performance optimization
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from utils.logger import get_logger
 
 logger = get_logger(__name__)

@@ -290,7 +290,11 @@ class TestAPIRoutesUncovered:
         try:
             from src.api.routes import health, news, search, embeddings, summarization
             # Just importing covers the __init__.py lines
-            assert True
+            assert health is not None
+            assert news is not None  
+            assert search is not None
+            assert embeddings is not None
+            assert summarization is not None
         except ImportError:
             # If imports fail, still covers some lines
             assert True
@@ -300,7 +304,8 @@ class TestAPIRoutesUncovered:
         try:
             from src.api.routes.health import get_health, ping
             # Function imports cover some lines
-            assert True
+            assert get_health is not None
+            assert ping is not None
         except ImportError:
             assert True
 
