@@ -50,8 +50,14 @@ class AIMLDemo:
         """Initialize demo components."""
         self.news_service = NewsService()
         self.embedding_service = EmbeddingService()
-        self.article_repo = ArticleRepository(db_path=settings.get_database_path())
-        self.embedding_repo = EmbeddingRepository()
+        # Extract path from SQLite URL or use default
+        db_url = settings.database_url or "sqlite:///./data/news.db"
+        if db_url.startswith("sqlite:///"):
+            db_path = db_url.replace("sqlite:///", "")
+        else:
+            db_path = "./data/news.db"
+        self.article_repo = ArticleRepository(db_path=db_path)
+        self.embedding_repo = EmbeddingRepository(db_path=db_path)
         self.rss_manager = RSSFeedManager()
         self.content_parser = ContentParser()
         self.embedding_generator = EmbeddingGenerator()
@@ -120,8 +126,8 @@ class AIMLDemo:
         """Step 1: Setup database and sources."""
         print("\n📋 Step 1: Setting up database and sources...")
         
-        # Initialize database
-        await self.article_repo.init_db()
+        # Database tables are already initialized in repository constructors
+        print("✅ Database tables initialized")
         
         # Add demo sources
         for source_data in self.demo_sources:
@@ -163,7 +169,7 @@ class AIMLDemo:
             
             try:
                 # Extract full content from URL
-                content = await self.content_parser.extract_content(article['url'])
+                content, metadata = await self.content_parser.extract_content(article['url'])
                 article['content'] = content
                 article['word_count'] = len(content.split()) if content else 0
                 
@@ -239,14 +245,26 @@ class AIMLDemo:
                 )
                 
                 if embed_text:
-                    # Generate embedding
-                    embedding = await self.embedding_generator.generate_embedding(embed_text)
+                    # Generate embedding using the correct method name
+                    embeddings = await self.embedding_generator.generate_embeddings([embed_text])
+                    embedding = embeddings[0] if embeddings and len(embeddings) > 0 else None
                     
-                    article['embedding'] = embedding.tolist()  # Convert numpy to list
-                    article['embedding_model'] = self.embedding_generator.current_model
-                    article['embedding_dim'] = len(embedding)
-                    
-                    print(f"  ✅ Generated {len(embedding)}-dim embedding")
+                    if embedding is not None:
+                        # Convert numpy array to list if needed
+                        if hasattr(embedding, 'tolist'):
+                            embedding_list = embedding.tolist()
+                        elif isinstance(embedding, list):
+                            embedding_list = embedding
+                        else:
+                            embedding_list = list(embedding)
+                            
+                        article['embedding'] = embedding_list
+                        article['embedding_model'] = self.embedding_generator.model_name
+                        article['embedding_dim'] = len(embedding_list)
+                        
+                        print(f"  ✅ Generated {len(embedding_list)}-dim embedding")
+                    else:
+                        print(f"  ⚠️ No embedding generated")
                 
                 embedded_articles.append(article)
             
@@ -277,8 +295,19 @@ class AIMLDemo:
             print(f"\n  🔎 Searching for: '{query}'")
             
             try:
-                # Generate query embedding
-                query_embedding = await self.embedding_generator.generate_embedding(query)
+                # Generate query embedding using the correct method
+                query_embeddings = await self.embedding_generator.generate_embeddings([query])
+                query_embedding = query_embeddings[0] if query_embeddings and len(query_embeddings) > 0 else None
+                
+                if query_embedding is None:
+                    print(f"  ⚠️ Failed to generate query embedding")
+                    continue
+                
+                # Convert to list if needed
+                if hasattr(query_embedding, 'tolist'):
+                    query_embedding = query_embedding.tolist()
+                elif not isinstance(query_embedding, list):
+                    query_embedding = list(query_embedding)
                 
                 # Find similar articles
                 similarities = []
@@ -328,7 +357,12 @@ class AIMLDemo:
         """Fallback extractive summarization when LLM is not available."""
         for article in articles:
             content = article.get('content', article.get('description', ''))
-            if content:
+            
+            # Handle case where content might be a tuple (content, metadata)
+            if isinstance(content, tuple):
+                content = content[0] if content[0] else ""
+            
+            if content and isinstance(content, str):
                 # Simple extractive summary (first 2 sentences)
                 sentences = content.split('. ')
                 summary = '. '.join(sentences[:2])
@@ -336,6 +370,11 @@ class AIMLDemo:
                     summary = summary[:200] + "..."
                 article['ai_summary'] = summary
                 article['summary_model'] = 'extractive'
+            else:
+                # Fallback to title or description
+                fallback = article.get('title', 'No summary available')
+                article['ai_summary'] = fallback[:200] + "..." if len(fallback) > 200 else fallback
+                article['summary_model'] = 'title_fallback'
         return articles
 
     def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:

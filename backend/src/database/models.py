@@ -87,7 +87,7 @@ class Source(Base):
     last_scraped: Mapped[Optional[datetime]] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
-    metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONEncodedDict)
+    meta_data: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONEncodedDict)
     
     # Relationships
     articles: Mapped[List["Article"]] = relationship("Article", back_populates="source")
@@ -162,7 +162,7 @@ class Article(Base):
     source_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey('sources.id'))
     
     # Additional metadata (JSON)
-    metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONEncodedDict)
+    meta_data: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONEncodedDict)
     
     # Relationships
     source: Mapped[Optional["Source"]] = relationship("Source", back_populates="articles")
@@ -213,7 +213,7 @@ class Embedding(Base):
     model_version: Mapped[Optional[str]] = mapped_column(String(50))
     
     # Additional metadata
-    metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONEncodedDict)
+    meta_data: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONEncodedDict)
     
     # Relationships
     article: Mapped["Article"] = relationship("Article", back_populates="embeddings")
