@@ -23,7 +23,7 @@ if config.config_file_name is not None:
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 # Import after path modification to allow finding src.database.models  
-from src.database.models import Base
+from src.database.models import Base  # ruff: noqa: E402
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
