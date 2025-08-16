@@ -23,6 +23,18 @@ defaults:
     shell: bash
 
 jobs:
+  # 🎯 Always runs to show CI status
+  ci-status:
+    name: 🎯 CI Status
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📋 CI Status Check
+        run: |
+          echo "🚀 AI Tech News Assistant CI/CD Pipeline"
+          echo "✅ CI is running on: ${{ github.event_name }}"
+          echo "🔀 Branch: ${{ github.ref_name }}"
+          echo "📝 Commit: ${{ github.sha }}"
+
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
@@ -54,7 +66,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: detect-changes
-    if: needs.detect-changes.outputs.backend-changed == 'true'
+    if: needs.detect-changes.outputs.backend-changed == 'true' || needs.detect-changes.outputs.workflows-changed == 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -84,7 +96,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: detect-changes
-    if: needs.detect-changes.outputs.frontend-changed == 'true'
+    if: needs.detect-changes.outputs.frontend-changed == 'true' || needs.detect-changes.outputs.workflows-changed == 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
