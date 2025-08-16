@@ -1,8 +1,8 @@
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { articlesApi } from '@/lib/api.ts'
-import { formatDate, truncateText } from '@/lib/utils.ts'
-import { ExternalLink, Calendar, User, Tag } from 'lucide-react'
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { articlesApi } from '@/lib/api.ts';
+import { formatDate, truncateText } from '@/lib/utils.ts';
+import { ExternalLink, Calendar, User, Tag } from 'lucide-react';
 
 export default function Articles() {
   const [searchParams, setSearchParams] = useState({
@@ -10,22 +10,22 @@ export default function Articles() {
     offset: 0,
     source: '',
     category: '',
-  })
+  });
 
   const { data: articles, isLoading } = useQuery({
     queryKey: ['articles', searchParams],
     queryFn: () => articlesApi.getArticles(searchParams),
-  })
+  });
 
   const { data: sourcesData, isLoading: isSourcesLoading } = useQuery({
     queryKey: ['sources'],
     queryFn: articlesApi.getSources,
-  })
+  });
 
   const { data: categoriesData, isLoading: isCategoriesLoading } = useQuery({
     queryKey: ['categories'],
     queryFn: articlesApi.getCategories,
-  })
+  });
 
   return (
     <div className="space-y-6">
@@ -41,39 +41,47 @@ export default function Articles() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Source
             </label>
-            <select 
+            <select
               className="input"
               value={searchParams.source}
-              onChange={(e) => setSearchParams(prev => ({ ...prev, source: e.target.value }))}
+              onChange={e =>
+                setSearchParams(prev => ({ ...prev, source: e.target.value }))
+              }
               disabled={isSourcesLoading}
             >
               <option value="">All Sources</option>
               {isSourcesLoading && <option disabled>Loading sources...</option>}
-              {sourcesData?.sources && Object.keys(sourcesData.sources).map((sourceKey) => (
-                <option key={sourceKey} value={sourceKey}>
-                  {(sourcesData.sources[sourceKey] as any)?.name || sourceKey}
-                </option>
-              ))}
+              {sourcesData?.sources &&
+                Object.keys(sourcesData.sources).map(sourceKey => (
+                  <option key={sourceKey} value={sourceKey}>
+                    {(sourcesData.sources[sourceKey] as any)?.name || sourceKey}
+                  </option>
+                ))}
             </select>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Category
             </label>
-            <select 
+            <select
               className="input"
               value={searchParams.category}
-              onChange={(e) => setSearchParams(prev => ({ ...prev, category: e.target.value }))}
+              onChange={e =>
+                setSearchParams(prev => ({ ...prev, category: e.target.value }))
+              }
               disabled={isCategoriesLoading}
             >
               <option value="">All Categories</option>
-              {isCategoriesLoading && <option disabled>Loading categories...</option>}
-              {categoriesData?.categories && categoriesData.categories.map((category) => (
-                <option key={category} value={category}>
-                  {category}
-                </option>
-              ))}
+              {isCategoriesLoading && (
+                <option disabled>Loading categories...</option>
+              )}
+              {categoriesData?.categories &&
+                categoriesData.categories.map(category => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
             </select>
           </div>
 
@@ -81,10 +89,15 @@ export default function Articles() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Limit
             </label>
-            <select 
+            <select
               className="input"
               value={searchParams.limit}
-              onChange={(e) => setSearchParams(prev => ({ ...prev, limit: Number(e.target.value) }))}
+              onChange={e =>
+                setSearchParams(prev => ({
+                  ...prev,
+                  limit: Number(e.target.value),
+                }))
+              }
             >
               <option value={10}>10</option>
               <option value={20}>20</option>
@@ -102,8 +115,11 @@ export default function Articles() {
             <p className="text-gray-500 mt-4">Loading articles...</p>
           </div>
         ) : articles?.articles.length ? (
-          articles.articles.map((article) => (
-            <div key={article.id} className="card hover:shadow-md transition-shadow">
+          articles.articles.map(article => (
+            <div
+              key={article.id}
+              className="card hover:shadow-md transition-shadow"
+            >
               <div className="flex justify-between items-start mb-3">
                 <h3 className="text-lg font-semibold text-gray-900 leading-tight">
                   {article.title}
@@ -136,7 +152,7 @@ export default function Articles() {
                 <div className="flex items-center mb-3">
                   <Tag className="h-4 w-4 mr-2 text-gray-400" />
                   <div className="flex space-x-2">
-                    {article.categories.slice(0, 3).map((category) => (
+                    {article.categories.slice(0, 3).map(category => (
                       <span
                         key={category}
                         className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800"
@@ -154,7 +170,9 @@ export default function Articles() {
 
               {article.summary && (
                 <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <p className="text-sm font-medium text-green-800 mb-1">AI Summary:</p>
+                  <p className="text-sm font-medium text-green-800 mb-1">
+                    AI Summary:
+                  </p>
                   <p className="text-green-700 text-sm">{article.summary}</p>
                 </div>
               )}
@@ -174,20 +192,26 @@ export default function Articles() {
             <button
               className="btn-secondary"
               disabled={searchParams.offset === 0}
-              onClick={() => setSearchParams(prev => ({ 
-                ...prev, 
-                offset: Math.max(0, prev.offset - prev.limit) 
-              }))}
+              onClick={() =>
+                setSearchParams(prev => ({
+                  ...prev,
+                  offset: Math.max(0, prev.offset - prev.limit),
+                }))
+              }
             >
               Previous
             </button>
             <button
               className="btn-secondary"
-              disabled={searchParams.offset + searchParams.limit >= articles.total}
-              onClick={() => setSearchParams(prev => ({ 
-                ...prev, 
-                offset: prev.offset + prev.limit 
-              }))}
+              disabled={
+                searchParams.offset + searchParams.limit >= articles.total
+              }
+              onClick={() =>
+                setSearchParams(prev => ({
+                  ...prev,
+                  offset: prev.offset + prev.limit,
+                }))
+              }
             >
               Next
             </button>
@@ -195,5 +219,5 @@ export default function Articles() {
         </div>
       )}
     </div>
-  )
+  );
 }

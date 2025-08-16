@@ -1,38 +1,44 @@
-import React, { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { searchApi } from '@/lib/api.ts'
-import { formatDate, truncateText } from '@/lib/utils.ts'
-import { Search as SearchIcon, ExternalLink } from 'lucide-react'
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { searchApi } from '@/lib/api.ts';
+import { formatDate, truncateText } from '@/lib/utils.ts';
+import { Search as SearchIcon, ExternalLink } from 'lucide-react';
 
 export default function Search() {
-  const [query, setQuery] = useState('')
-  const [searchType, setSearchType] = useState<'text' | 'semantic'>('text')
-  const [submitted, setSubmitted] = useState(false)
+  const [query, setQuery] = useState('');
+  const [searchType, setSearchType] = useState<'text' | 'semantic'>('text');
+  const [submitted, setSubmitted] = useState(false);
 
-  const { data: results, isLoading, error } = useQuery({
+  const {
+    data: results,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ['search', searchType, query],
     queryFn: () => {
       if (searchType === 'semantic') {
-        return searchApi.semanticSearch({ query, limit: 20 })
+        return searchApi.semanticSearch({ query, limit: 20 });
       } else {
-        return searchApi.textSearch({ query, limit: 20 })
+        return searchApi.textSearch({ query, limit: 20 });
       }
     },
     enabled: !!query && submitted,
-  })
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     if (query.trim()) {
-      setSubmitted(true)
+      setSubmitted(true);
     }
-  }
+  };
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-gray-900">Search</h1>
-        <p className="text-gray-600 mt-1">Search through articles using text or semantic search</p>
+        <p className="text-gray-600 mt-1">
+          Search through articles using text or semantic search
+        </p>
       </div>
 
       {/* Search Form */}
@@ -49,7 +55,7 @@ export default function Search() {
                 className="input pl-10"
                 placeholder="Enter your search query..."
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={e => setQuery(e.target.value)}
               />
             </div>
           </div>
@@ -66,7 +72,9 @@ export default function Search() {
                   name="searchType"
                   value="text"
                   checked={searchType === 'text'}
-                  onChange={(e) => setSearchType(e.target.value as 'text' | 'semantic')}
+                  onChange={e =>
+                    setSearchType(e.target.value as 'text' | 'semantic')
+                  }
                 />
                 <span className="ml-2 text-sm text-gray-700">Text Search</span>
               </label>
@@ -77,9 +85,13 @@ export default function Search() {
                   name="searchType"
                   value="semantic"
                   checked={searchType === 'semantic'}
-                  onChange={(e) => setSearchType(e.target.value as 'text' | 'semantic')}
+                  onChange={e =>
+                    setSearchType(e.target.value as 'text' | 'semantic')
+                  }
                 />
-                <span className="ml-2 text-sm text-gray-700">Semantic Search</span>
+                <span className="ml-2 text-sm text-gray-700">
+                  Semantic Search
+                </span>
               </label>
             </div>
           </div>
@@ -116,8 +128,11 @@ export default function Search() {
           </div>
 
           {results.articles.length ? (
-            results.articles.map((article) => (
-              <div key={article.id} className="card hover:shadow-md transition-shadow">
+            results.articles.map(article => (
+              <div
+                key={article.id}
+                className="card hover:shadow-md transition-shadow"
+              >
                 <div className="flex justify-between items-start mb-3">
                   <h3 className="text-lg font-semibold text-gray-900 leading-tight">
                     {article.title}
@@ -150,7 +165,7 @@ export default function Search() {
 
                 {article.categories.length > 0 && (
                   <div className="mt-3 flex space-x-2">
-                    {article.categories.slice(0, 3).map((category) => (
+                    {article.categories.slice(0, 3).map(category => (
                       <span
                         key={category}
                         className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800"
@@ -170,5 +185,5 @@ export default function Search() {
         </div>
       )}
     </div>
-  )
+  );
 }

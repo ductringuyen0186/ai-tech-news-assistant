@@ -1,17 +1,17 @@
-import { ReactNode } from 'react'
-import { Link, useLocation } from 'react-router-dom'
-import { 
-  BarChart3, 
-  FileText, 
-  Search, 
-  Settings, 
+import { ReactNode } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import {
+  BarChart3,
+  FileText,
+  Search,
+  Settings,
   Activity,
   Brain,
-  Database
-} from 'lucide-react'
+  Database,
+} from 'lucide-react';
 
 interface LayoutProps {
-  children: ReactNode
+  children: ReactNode;
 }
 
 const navigation = [
@@ -19,10 +19,10 @@ const navigation = [
   { name: 'Articles', href: '/articles', icon: FileText },
   { name: 'Search', href: '/search', icon: Search },
   { name: 'Settings', href: '/settings', icon: Settings },
-]
+];
 
 export default function Layout({ children }: LayoutProps) {
-  const location = useLocation()
+  const location = useLocation();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -39,24 +39,25 @@ export default function Layout({ children }: LayoutProps) {
 
           {/* Navigation */}
           <nav className="flex-1 px-4 py-6 space-y-2">
-            {navigation.map((item) => {
-              const isActive = location.pathname === item.href
+            {navigation.map(item => {
+              const isActive = location.pathname === item.href;
               return (
                 <Link
                   key={item.name}
                   to={item.href}
                   className={`
                     flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors
-                    ${isActive 
-                      ? 'bg-primary-50 text-primary-700 border-r-2 border-primary-600' 
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    ${
+                      isActive
+                        ? 'bg-primary-50 text-primary-700 border-r-2 border-primary-600'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                     }
                   `}
                 >
                   <item.icon className="h-5 w-5 mr-3" />
                   {item.name}
                 </Link>
-              )
+              );
             })}
           </nav>
 
@@ -80,10 +81,8 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Main content */}
       <div className="pl-64">
-        <main className="py-6 px-8">
-          {children}
-        </main>
+        <main className="py-6 px-8">{children}</main>
       </div>
     </div>
-  )
+  );
 }

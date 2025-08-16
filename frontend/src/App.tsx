@@ -1,9 +1,9 @@
-import { Routes, Route } from 'react-router-dom'
-import Layout from './components/Layout'
-import Dashboard from './pages/Dashboard'
-import Articles from './pages/Articles'
-import Search from './pages/Search'
-import Settings from './pages/Settings'
+import { Routes, Route } from 'react-router-dom';
+import Layout from './components/Layout';
+import Dashboard from './pages/Dashboard';
+import Articles from './pages/Articles';
+import Search from './pages/Search';
+import Settings from './pages/Settings';
 
 function App() {
   return (
@@ -15,7 +15,7 @@ function App() {
         <Route path="/settings" element={<Settings />} />
       </Routes>
     </Layout>
-  )
+  );
 }
 
-export default App
+export default App;

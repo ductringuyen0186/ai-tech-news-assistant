@@ -3,7 +3,9 @@ export default function Settings() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-gray-900">Settings</h1>
-        <p className="text-gray-600 mt-1">Configure your AI Tech News Assistant</p>
+        <p className="text-gray-600 mt-1">
+          Configure your AI Tech News Assistant
+        </p>
       </div>
 
       <div className="card">
@@ -20,5 +22,5 @@ export default function Settings() {
         </ul>
       </div>
     </div>
-  )
+  );
 }
