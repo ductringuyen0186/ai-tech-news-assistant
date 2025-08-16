@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { articlesApi } from '@/lib/api'
-import { formatDate, truncateText } from '@/lib/utils'
+import { articlesApi } from '@/lib/api.js'
+import { formatDate, truncateText } from '@/lib/utils.js'
 import { ExternalLink, Calendar, User, Tag } from 'lucide-react'
 
 export default function Articles() {
