@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { articlesApi, healthApi } from '@/lib/api.js'
+import { articlesApi, healthApi } from '@/lib/api.ts'
 import { BarChart, TrendingUp, FileText, Activity } from 'lucide-react'
 
 export default function Dashboard() {

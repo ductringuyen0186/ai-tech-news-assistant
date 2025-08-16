@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { searchApi, articlesApi } from '@/lib/api.js'
-import { formatDate, truncateText } from '@/lib/utils.js'
+import { searchApi, articlesApi } from '@/lib/api.ts'
+import { formatDate, truncateText } from '@/lib/utils.ts'
 import { Search as SearchIcon, ExternalLink } from 'lucide-react'
 
 export default function Search() {
