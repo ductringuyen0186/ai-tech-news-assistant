@@ -12,7 +12,7 @@ class TestAPIRoutesCoverage:
     def test_health_routes_imports(self):
         """Test health route imports and basic functionality."""
         try:
-            from src.api.routes.health import router, get_health, ping
+            from src.api.routes.health import router, get_health, ping  # noqa: F401
             # Just importing covers a lot of lines
             assert router is not None
         except ImportError:

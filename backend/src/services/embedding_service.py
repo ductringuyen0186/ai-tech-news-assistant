@@ -12,13 +12,13 @@ from typing import List, Dict, Any
 from datetime import datetime, timezone
 
 from ..core.config import get_settings
-
-settings = get_settings()
 from ..core.exceptions import EmbeddingError, ValidationError
 from ..models.embedding import (
     EmbeddingRequest,
     EmbeddingResponse
 )
+
+settings = get_settings()
 
 # Import at module level for testing purposes
 try:

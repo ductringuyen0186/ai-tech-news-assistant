@@ -17,9 +17,9 @@ except ImportError:
     psutil = None
 
 from ...core.config import get_settings
+from ...models.health import HealthResponse, ComponentHealth, PingResponse
 
 settings = get_settings()
-from ...models.health import HealthResponse, ComponentHealth, PingResponse
 
 # Global start time for uptime calculation
 _start_time = time.time()
@@ -409,54 +409,3 @@ def get_article_repository():
     from ...core.config import get_settings
     settings = get_settings()
     return ArticleRepository(settings.get_database_path())
-
-
-def get_system_metrics() -> Dict[str, Any]:
-    """Get system metrics including CPU, memory, disk usage."""
-    try:
-        if psutil is None:
-            raise ImportError("psutil not available")
-            
-        return {
-            "cpu_usage": psutil.cpu_percent(interval=1),
-            "memory_usage": psutil.virtual_memory().percent,
-            "disk_usage": psutil.disk_usage('/').percent if hasattr(psutil.disk_usage('/'), 'percent') else 0,
-            "active_connections": len(psutil.net_connections()),
-        }
-    except ImportError:
-        # If psutil is not available, return mock data
-        return {
-            "cpu_usage": 0.0,
-            "memory_usage": 0.0,
-            "disk_usage": 0.0,
-            "active_connections": 0,
-        }
-    except Exception:
-        return {
-            "cpu_usage": 0.0,
-            "memory_usage": 0.0,
-            "disk_usage": 0.0,
-            "active_connections": 0,
-        }
-
-
-def determine_overall_status(components: Dict[str, Any]) -> str:
-    """Determine overall status based on component statuses."""
-    if not components:
-        return "healthy"
-    
-    statuses = []
-    for comp in components.values():
-        if hasattr(comp, 'status'):
-            statuses.append(comp.status)
-        elif isinstance(comp, str):
-            statuses.append(comp)
-        elif isinstance(comp, dict) and 'status' in comp:
-            statuses.append(comp['status'])
-    
-    if all(status == "healthy" for status in statuses):
-        return "healthy"
-    elif any(status == "unhealthy" for status in statuses):
-        return "unhealthy"
-    else:
-        return "degraded"

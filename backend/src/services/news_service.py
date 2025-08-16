@@ -17,11 +17,11 @@ import feedparser
 from bs4 import BeautifulSoup
 
 from ..core.config import get_settings
-
-settings = get_settings()
 from ..models.article import (
     ArticleCreate
 )
+
+settings = get_settings()
 
 # Import for test compatibility
 try:

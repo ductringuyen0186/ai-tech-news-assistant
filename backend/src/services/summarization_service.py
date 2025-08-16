@@ -14,13 +14,13 @@ import re
 import time
 
 from ..core.config import get_settings
-
-settings = get_settings()
 from ..core.exceptions import LLMError, ValidationError
 from ..models.article import (
     SummarizationRequest,
     ArticleSummary
 )
+
+settings = get_settings()
 
 logger = logging.getLogger(__name__)
 

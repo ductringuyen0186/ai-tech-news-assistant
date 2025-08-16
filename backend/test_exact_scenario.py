@@ -5,6 +5,7 @@ import sys
 import os
 import asyncio
 import tempfile
+import importlib
 
 # Add the backend directory to the path
 backend_path = os.path.join(os.getcwd())
@@ -12,7 +13,6 @@ sys.path.insert(0, backend_path)
 
 from src.repositories.article_repository import ArticleRepository
 from src.models.article import ArticleCreate
-import importlib
 
 # Force reload the modules to clear any cache
 import src.repositories.article_repository
@@ -79,7 +79,7 @@ async def test_exact_scenario():
         if os.path.exists(db_path):
             try:
                 os.unlink(db_path)
-            except:
+            except Exception:
                 pass
 
 if __name__ == "__main__":

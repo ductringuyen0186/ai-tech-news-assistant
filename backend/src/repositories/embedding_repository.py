@@ -13,10 +13,10 @@ import json
 import numpy as np
 
 from ..core.config import get_settings
-
-settings = get_settings()
 from ..core.exceptions import DatabaseError, NotFoundError
 from ..models.embedding import SimilarityResult
+
+settings = get_settings()
 
 logger = logging.getLogger(__name__)
 

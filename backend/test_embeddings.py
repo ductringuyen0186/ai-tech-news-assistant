@@ -209,7 +209,7 @@ async def test_database_integration():
         # Clean up temporary database
         try:
             os.unlink(temp_db_path)
-        except:
+        except Exception:
             pass
 
 
