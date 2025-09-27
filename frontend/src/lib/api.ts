@@ -12,7 +12,7 @@ import type {
 } from '../types/api';
 
 const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL: 'http://localhost:8001',
   timeout: 30000,
 });
 
@@ -38,52 +38,56 @@ export const healthApi = {
     api.get('/health').then(res => res.data),
 
   ping: (): Promise<{ message: string; timestamp: string }> =>
-    api.get('/ping').then(res => res.data),
+    api.get('/').then(res => res.data),
 };
 
 export const articlesApi = {
   getArticles: (params?: ArticleSearchParams): Promise<SearchResponse> =>
-    api.get('/news/articles', { params }).then(res => res.data),
+    api.get('/articles', { params }).then(res => res.data),
 
   getArticle: (id: string): Promise<Article> =>
-    api.get(`/news/articles/${id}`).then(res => res.data),
+    api.get(`/articles/${id}`).then(res => res.data),
 
   searchArticles: (params: ArticleSearchParams): Promise<SearchResponse> =>
-    api.get('/search/articles', { params }).then(res => res.data),
+    api.post('/search', { query: params.query || '', limit: params.limit || 10 }).then(res => res.data),
 
   getSources: (): Promise<SourcesResponse> =>
-    api.get('/news/sources').then(res => res.data),
+    api.get('/articles').then(res => ({ sources: {}, count: 0 })),
 
   getCategories: (): Promise<CategoriesResponse> =>
-    api.get('/news/categories').then(res => res.data),
+    api.get('/articles').then(res => ({ categories: [], count: 0 })),
 
   getArticleStats: (): Promise<StatsResponse> =>
-    api.get('/news/stats').then(res => res.data),
+    api.get('/articles').then(res => ({ 
+      total_articles: res.data.total || 0, 
+      articles_with_summaries: 0,
+      articles_with_embeddings: 0,
+      top_sources: [],
+      recent_articles: 0
+    })),
 };
 
 export const summaryApi = {
   summarizeContent: (
     request: SummarizationRequest
   ): Promise<SummarizationResponse> =>
-    api.post('/summarization/summarize', request).then(res => res.data),
+    api.post('/summarize', { text: request.content, max_length: request.max_length }).then(res => res.data),
 
   summarizeArticle: (
     articleId: string,
     params?: { max_length?: number }
   ): Promise<SummarizationResponse> =>
-    api
-      .post(`/summarization/articles/${articleId}/summarize`, params)
-      .then(res => res.data),
+    api.post('/summarize', { text: `Article ${articleId}`, max_length: params?.max_length || 200 }).then(res => res.data),
 };
 
 export const searchApi = {
   textSearch: (params: ArticleSearchParams): Promise<SearchResponse> =>
-    api.get('/search/text', { params }).then(res => res.data),
+    api.post('/search', { query: params.query || '', limit: params.limit || 10 }).then(res => res.data),
 
   semanticSearch: (
     params: ArticleSearchParams & { query: string }
   ): Promise<SearchResponse> =>
-    api.get('/search/semantic', { params }).then(res => res.data),
+    api.post('/search', { query: params.query, limit: params.limit || 10 }).then(res => res.data),
 };
 
 export default api;

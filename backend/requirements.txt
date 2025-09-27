@@ -6,13 +6,34 @@ pydantic-settings==2.1.0
 
 # Environment and Configuration
 python-dotenv==1.0.0
+python-decouple==3.8
+
+# Database
+sqlalchemy==2.0.23
+alembic==1.13.0
+psycopg2-binary==2.9.9
 
 # HTTP and API
 httpx==0.25.2
-requests==2.31.0
+aiohttp==3.9.0
+
+# HTML/XML Parsing
+beautifulsoup4==4.12.2
+lxml==4.9.3
+html5lib==1.1
+
+# Retry Logic and Resilience
+tenacity==8.2.3
 
 # CORS and Middleware
 python-multipart==0.0.6
+
+# Date/Time Handling
+python-dateutil==2.8.2
+
+# Text Processing and NLP (Optional)
+nltk==3.8.1
+textblob==0.17.1
 
 # Data Processing
 pandas==2.1.4
