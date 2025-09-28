@@ -4,7 +4,7 @@ Write-Host "Testing builds..." -ForegroundColor Green
 # Test backend
 Write-Host "Backend test..."
 Set-Location backend
-$result = C:/Users/Tri/AppData/Local/Programs/Python/Python313/python.exe -c "import simple_main; print('OK')"
+$result = C:/Users/Tri/AppData/Local/Programs/Python/Python313/python.exe -c "import production_main; print('OK')"
 if ($LASTEXITCODE -eq 0) { Write-Host "Backend: PASS" -ForegroundColor Green } else { exit 1 }
 Set-Location ..
 
