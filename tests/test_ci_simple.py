@@ -14,10 +14,12 @@ def test_backend_imports():
         sys.path.insert(0, backend_path)
     
     try:
-        # Test simple_main import
-        print("PASS: simple_main imported successfully")
+        # Test production_main import
+        import production_main
+        print("PASS: production_main imported successfully")
         
         # Test FastAPI app creation
+        from production_main import app
         print("PASS: FastAPI app accessible")
         
         return True
