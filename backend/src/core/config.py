@@ -58,8 +58,11 @@ class Settings(BaseSettings):
     
     # Application settings
     app_name: str = Field(default="AI Tech News Assistant", alias="APP_NAME")
+    version: str = Field(default="2.0.0", alias="VERSION")
+    app_mode: str = Field(default="development", alias="APP_MODE")
     environment: Environment = Field(default=Environment.DEVELOPMENT, alias="ENVIRONMENT")
     debug: bool = Field(default=True, alias="DEBUG")
+    use_mock_data: bool = Field(default=False, alias="USE_MOCK_DATA")
     secret_key: SecretStr = Field(default_factory=lambda: SecretStr(secrets.token_urlsafe(32)), alias="SECRET_KEY")
     
     # Server settings
@@ -143,6 +146,14 @@ class Settings(BaseSettings):
         description="Whether to use mock clients for development/testing",
         alias="USE_MOCK_CLIENTS"
     )
+    
+    # Scraping settings
+    scraping_rate_limit: float = Field(default=2.0, alias="SCRAPING_RATE_LIMIT", ge=0.1, le=10.0)
+    scraping_max_retries: int = Field(default=3, alias="SCRAPING_MAX_RETRIES", ge=0, le=10)
+    scraping_timeout: int = Field(default=30, alias="SCRAPING_TIMEOUT", ge=5, le=300)
+    
+    # Cache settings
+    cache_expiry_hours: int = Field(default=6, alias="CACHE_EXPIRY_HOURS", ge=1, le=168)
     
     # News sources settings
     rss_sources: List[Dict[str, str]] = Field(
