@@ -21,7 +21,7 @@ ai-tech-news-assistant/
 
 ### `/backend/` - FastAPI Application
 - **Purpose**: Python FastAPI server with news aggregation
-- **Key Files**: `production_main.py`, `requirements.txt`, `Dockerfile`
+- **Key Files**: `simple_main.py`, `requirements.txt`, `Dockerfile`
 - **Structure**: Organized src/ directory with models, repositories, services
 
 ### `/frontend/` - React Dashboard  

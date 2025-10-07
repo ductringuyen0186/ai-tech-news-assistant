@@ -86,8 +86,8 @@ jobs:
           python -c "
           import sys
           try:
-              import production_main
-              from production_main import app
+              import simple_main
+              from simple_main import app
               print('✅ Backend imports and FastAPI app creation successful')
           except Exception as e:
               print(f'❌ Backend test failed: {e}')
