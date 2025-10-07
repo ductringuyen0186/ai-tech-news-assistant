@@ -17,7 +17,7 @@ This document outlines our comprehensive testing strategy to ensure CI/CD builds
 ```
 
 **What it tests**:
-- ✅ Backend imports (`simple_main.py`)
+- ✅ Backend imports (`production_main.py`)
 - ✅ FastAPI app creation
 - ✅ Validation test script
 - ✅ Frontend build (Vite)
@@ -35,7 +35,7 @@ This document outlines our comprehensive testing strategy to ensure CI/CD builds
 ### Backend Testing
 ```python
 # tests/test_ci_simple.py
-- Import validation for simple_main module
+- Import validation for production_main module
 - FastAPI app creation test
 - Basic Python functionality validation
 ```
@@ -77,7 +77,7 @@ npm run type-check # TypeScript validation only
 
 #### Backend Import Errors
 - **Check**: Python environment and dependencies
-- **Fix**: Run from project root, verify `backend/simple_main.py` exists
+- **Fix**: Run from project root, verify `backend/production_main.py` exists
 
 #### Node.js Version Issues
 - **CI uses**: Node 18 with npm cache
@@ -110,7 +110,7 @@ npm run type-check # TypeScript validation only
 
 # Test just backend
 cd backend
-C:/Users/Tri/AppData/Local/Programs/Python/Python313/python.exe -c "import simple_main"
+C:/Users/Tri/AppData/Local/Programs/Python/Python313/python.exe -c "import production_main"
 
 # Test just frontend
 cd frontend
