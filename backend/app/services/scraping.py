@@ -10,8 +10,14 @@ from datetime import datetime, timedelta
 from ..scrapers.hackernews import HackerNewsScraper
 from ..scrapers.reddit import RedditScraper
 from ..scrapers.github import GitHubTrendingScraper
+from ..scrapers.rss_scraper import (
+    TechCrunchScraper, TheVergeScraper, ArsTechnicaScraper,
+    WiredScraper, VentureBeatScraper, MITTechReviewScraper,
+    OpenAIBlogScraper, GoogleAIBlogScraper
+)
 from ..models import ArticleCreate
 from ..services.database import db_service
+from ..services.ai_service import ai_service
 from ..core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -22,14 +28,26 @@ class ScrapingManager:
     
     def __init__(self):
         self.scrapers = {
+            # Original scrapers
             "hackernews": HackerNewsScraper(),
             "reddit": RedditScraper(),
-            "github": GitHubTrendingScraper()
+            "github": GitHubTrendingScraper(),
+            # Major tech news sites
+            "techcrunch": TechCrunchScraper(),
+            "theverge": TheVergeScraper(),
+            "arstechnica": ArsTechnicaScraper(),
+            "wired": WiredScraper(),
+            "venturebeat": VentureBeatScraper(),
+            "mittr": MITTechReviewScraper(),
+            # AI/ML specific sources
+            "openai": OpenAIBlogScraper(),
+            "googleai": GoogleAIBlogScraper(),
         }
-        
+
         self.last_successful_fetch = None
         self.total_articles_fetched = 0
         self.scraping_in_progress = False
+        self.enable_ai_enrichment = True  # Toggle AI enrichment
     
     async def fetch_all_news(self) -> Dict[str, Any]:
         """Fetch news from all sources concurrently"""
@@ -119,18 +137,38 @@ class ScrapingManager:
                     logger.warning(f"No articles from {scraper_name}")
                     return [], 0
                 
-                # Save articles to database
+                # Save articles to database with AI enrichment
                 new_articles_count = 0
-                
+
                 for article in articles:
                     try:
-                        saved_article = db_service.create_article(article)
+                        # AI enrichment if enabled
+                        if self.enable_ai_enrichment:
+                            enrichment = await ai_service.enrich_article(
+                                article.title,
+                                article.content
+                            )
+
+                            # Create enriched article data
+                            article_dict = article.dict()
+                            article_dict.update({
+                                'ai_summary': enrichment.get('ai_summary'),
+                                'categories': enrichment.get('categories', []),
+                                'keywords': enrichment.get('keywords', []),
+                                'sentiment': enrichment.get('sentiment')
+                            })
+
+                            saved_article = db_service.create_article_enriched(article_dict)
+                        else:
+                            saved_article = db_service.create_article(article)
+
                         if saved_article:
                             new_articles_count += 1
+
                     except Exception as e:
                         logger.warning(f"Error saving article from {scraper_name}: {e}")
                         continue
-                
+
                 logger.info(f"{scraper_name}: {new_articles_count}/{len(articles)} new articles saved")
                 return articles, new_articles_count
                 

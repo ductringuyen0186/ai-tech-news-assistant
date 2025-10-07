@@ -5,17 +5,26 @@ Data Models
 from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, HttpUrl, validator
-from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean
+from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
 
 Base = declarative_base()
 
+# Import user models
+from .user import (
+    UserDB, UserPreferenceDB, TechCategory,
+    UserCreate, UserLogin, UserUpdate, User,
+    UserPreferenceUpdate, UserPreference,
+    Token, TokenData,
+    user_bookmarks, reading_history
+)
+
 
 class ArticleDB(Base):
     """SQLAlchemy model for articles"""
     __tablename__ = "articles"
-    
+
     id = Column(String, primary_key=True)
     title = Column(String(500), nullable=False, index=True)
     content = Column(Text, nullable=False)
@@ -23,15 +32,21 @@ class ArticleDB(Base):
     published_at = Column(DateTime, nullable=False, index=True)
     source = Column(String(100), nullable=False, index=True)
     source_id = Column(String(100), nullable=True, index=True)
-    
+
+    # AI-generated metadata
+    categories = Column(JSON, default=list)  # List of TechCategory values
+    keywords = Column(JSON, default=list)  # Extracted keywords
+    ai_summary = Column(Text, nullable=True)  # AI-generated summary
+    sentiment = Column(String(20), nullable=True)  # positive, neutral, negative
+
     # Metadata
     created_at = Column(DateTime, default=func.now(), nullable=False)
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    
+
     # Analytics
     view_count = Column(Integer, default=0)
     summary_count = Column(Integer, default=0)
-    
+
     # Quality scores
     relevance_score = Column(Float, default=0.0)
     engagement_score = Column(Float, default=0.0)
@@ -79,13 +94,17 @@ class ArticleUpdate(BaseModel):
 class Article(ArticleBase):
     """Full article model with metadata"""
     id: str
+    categories: List[str] = []
+    keywords: List[str] = []
+    ai_summary: Optional[str] = None
+    sentiment: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
     view_count: int = 0
     summary_count: int = 0
     relevance_score: float = 0.0
     engagement_score: float = 0.0
-    
+
     class Config:
         from_attributes = True
 

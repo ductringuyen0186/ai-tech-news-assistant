@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Search as SearchIcon, ExternalLink, Zap, MessageSquare, Heart } from 'lucide-react';
+import api from '../lib/api';
 
 interface SearchResult {
   id: number;
@@ -48,23 +49,13 @@ export default function Search() {
     setError(null);
 
     try {
-      const response = await fetch('http://localhost:8001/search', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: query.trim(),
-          limit: 10
-        }),
+      const response = await api.post('/search', {
+        query: query.trim(),
+        limit: 10
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      const data: SearchResponse = response.data;
 
-      const data: SearchResponse = await response.json();
-      
       if (data.success) {
         setResults(data.results);
         setTotalResults(data.total);
@@ -86,23 +77,13 @@ export default function Search() {
     setSelectedText(text);
 
     try {
-      const response = await fetch('http://localhost:8001/summarize', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text: text,
-          max_length: 100
-        }),
+      const response = await api.post('/summarize', {
+        text: text,
+        max_length: 100
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      const data: SummaryResponse = response.data;
 
-      const data: SummaryResponse = await response.json();
-      
       if (data.success) {
         setSummary(data.summary);
       } else {

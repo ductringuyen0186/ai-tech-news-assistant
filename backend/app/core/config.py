@@ -3,8 +3,8 @@ Production Configuration
 =======================
 """
 import os
-from typing import List, Optional
-from pydantic import validator
+from typing import List, Optional, Union
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 import logging
 
@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     RATE_LIMIT_WINDOW: int = 3600  # 1 hour
     
     # CORS Settings
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173", "http://localhost:8080"]
+    ALLOWED_ORIGINS: Union[List[str], str] = ["http://localhost:3000", "http://localhost:5173", "http://localhost:8080"]
     
     # Logging
     LOG_LEVEL: str = "INFO"
@@ -60,33 +60,30 @@ class Settings(BaseSettings):
     OLLAMA_HOST: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "llama3.2:1b"
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
-    
-    class Config:
-        env_file = ".env"
-        extra = "ignore"  # Ignore extra variables in .env
-    OLLAMA_MODEL: str = "llama3.2:1b"
-    
+
     # News Sources
     HACKER_NEWS_API_BASE: str = "https://hacker-news.firebaseio.com/v0"
     REDDIT_API_BASE: str = "https://www.reddit.com/r"
     GITHUB_TRENDING_URL: str = "https://github.com/trending"
-    
+
     # Security
     SECRET_KEY: str = "your-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    
-    @validator("ALLOWED_ORIGINS", pre=True)
+
+    @field_validator("ALLOWED_ORIGINS", mode="before")
+    @classmethod
     def assemble_cors_origins(cls, v):
         if isinstance(v, str):
             return [i.strip() for i in v.split(",")]
         elif isinstance(v, list):
             return v
         raise ValueError("ALLOWED_ORIGINS must be a string or list")
-    
+
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"
 
 
 class LoggingConfig:

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ExternalLink, Calendar, User, Tag, Search, Zap, RefreshCw, Globe, TrendingUp } from 'lucide-react';
+import api from '../lib/api';
 
 interface Article {
   id: string | number;
@@ -41,9 +42,9 @@ export default function Articles() {
     try {
       setIsLoading(true);
       setError(null);
-      const response = await fetch('http://localhost:8001/articles');
-      const data: ArticlesResponse = await response.json();
-      
+      const response = await api.get('/articles');
+      const data: ArticlesResponse = response.data;
+
       if (data.success) {
         setArticles(data.articles);
         setLastFetch(data.last_fetch || null);
@@ -61,23 +62,13 @@ export default function Articles() {
     try {
       setIsFetching(true);
       setError(null);
-      const response = await fetch('http://localhost:8001/fetch-news', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (response.ok) {
-        // Wait a bit then refresh articles
-        setTimeout(() => {
-          fetchArticles();
-          setIsFetching(false);
-        }, 3000);
-      } else {
-        setError('Failed to fetch fresh news');
+      await api.post('/fetch-news');
+
+      // Wait a bit then refresh articles
+      setTimeout(() => {
+        fetchArticles();
         setIsFetching(false);
-      }
+      }, 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch fresh news');
       setIsFetching(false);
@@ -87,22 +78,16 @@ export default function Articles() {
   const handleSummarize = async (article: Article) => {
     const articleId = String(article.id);
     setLoadingSummary(prev => new Set([...prev, articleId]));
-    
+
     try {
-      const response = await fetch('http://localhost:8001/summarize', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text: `${article.title}. ${article.content}`,
-          max_length: 150,
-          use_context: true
-        }),
+      const response = await api.post('/summarize', {
+        text: `${article.title}. ${article.content}`,
+        max_length: 150,
+        use_context: true
       });
-      
-      if (response.ok) {
-        const result: SummaryResponse = await response.json();
+
+      if (response.data.success) {
+        const result: SummaryResponse = response.data;
         setSummaries(prev => new Map(prev.set(articleId, result.summary)));
       } else {
         console.error('Failed to generate summary');
@@ -326,7 +311,7 @@ export default function Articles() {
             <p className="text-sm text-blue-700 mb-2">
               Click "Summarize" on any article to test AI features
             </p>
-            <span className="text-xs text-blue-600">Backend: http://localhost:8001</span>
+            <span className="text-xs text-blue-600">Using centralized API configuration</span>
           </div>
         </div>
       </div>

@@ -97,7 +97,55 @@ class DatabaseService:
             return None
         finally:
             session.close()
-    
+
+    def create_article_enriched(self, article_dict: dict) -> Optional[Article]:
+        """Create article with AI enrichment data"""
+        session = self.get_session()
+
+        try:
+            # Generate unique ID from URL
+            article_id = hashlib.sha256(str(article_dict['url']).encode()).hexdigest()[:16]
+
+            # Check if article already exists
+            existing = session.query(ArticleDB).filter(ArticleDB.id == article_id).first()
+            if existing:
+                logger.debug(f"Article already exists: {article_id}")
+                return self._db_to_pydantic(existing)
+
+            # Create new enriched article
+            db_article = ArticleDB(
+                id=article_id,
+                title=article_dict['title'],
+                content=article_dict['content'],
+                url=str(article_dict['url']),
+                published_at=article_dict['published_at'],
+                source=article_dict['source'],
+                source_id=article_dict.get('source_id'),
+                # AI enrichment fields
+                categories=article_dict.get('categories', []),
+                keywords=article_dict.get('keywords', []),
+                ai_summary=article_dict.get('ai_summary'),
+                sentiment=article_dict.get('sentiment')
+            )
+
+            session.add(db_article)
+            session.commit()
+            session.refresh(db_article)
+
+            logger.debug(f"Created enriched article: {article_id}")
+            return self._db_to_pydantic(db_article)
+
+        except IntegrityError as e:
+            session.rollback()
+            logger.warning(f"Enriched article creation failed (duplicate): {e}")
+            return None
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Error creating enriched article: {e}")
+            return None
+        finally:
+            session.close()
+
     def get_articles(
         self,
         limit: int = 20,

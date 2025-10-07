@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Activity, Server, Brain, Database, CheckCircle, XCircle, AlertCircle, Search, Zap } from 'lucide-react';
+import api from '../lib/api';
 
 interface HealthResponse {
   status: string;
@@ -23,11 +24,13 @@ export default function Dashboard() {
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Get API base URL from environment
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
   const fetchHealth = async () => {
     try {
-      const response = await fetch('http://localhost:8001/health');
-      const data = await response.json();
-      setHealth(data);
+      const response = await api.get('/health');
+      setHealth(response.data);
     } catch (error) {
       console.error('Health check failed:', error);
       setHealth(null);
@@ -54,14 +57,13 @@ export default function Dashboard() {
 
     for (const endpoint of endpoints) {
       try {
-        const response = await fetch(`http://localhost:8001${endpoint.url}`);
-        const data = await response.json();
-        
+        const response = await api.get(endpoint.url);
+
         tests.push({
           endpoint: endpoint.name,
-          status: response.ok ? 'success' : 'error',
-          message: response.ok ? 'OK' : `HTTP ${response.status}`,
-          response: data
+          status: 'success',
+          message: 'OK',
+          response: response.data
         });
       } catch (error) {
         tests.push({
@@ -74,18 +76,13 @@ export default function Dashboard() {
 
     // Test Search
     try {
-      const response = await fetch('http://localhost:8001/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: 'AI', limit: 3 })
-      });
-      const data = await response.json();
-      
+      const response = await api.post('/search', { query: 'AI', limit: 3 });
+
       tests.push({
         endpoint: 'Search',
-        status: response.ok && data.success ? 'success' : 'error',
-        message: response.ok ? `Found ${data.total} results` : 'Search failed',
-        response: data
+        status: response.data.success ? 'success' : 'error',
+        message: `Found ${response.data.total} results`,
+        response: response.data
       });
     } catch (error) {
       tests.push({
@@ -97,21 +94,16 @@ export default function Dashboard() {
 
     // Test Summarization
     try {
-      const response = await fetch('http://localhost:8001/summarize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          text: 'Artificial intelligence is revolutionizing technology. Machine learning algorithms process data to make predictions. Deep learning uses neural networks for complex tasks.',
-          max_length: 50 
-        })
+      const response = await api.post('/summarize', {
+        text: 'Artificial intelligence is revolutionizing technology. Machine learning algorithms process data to make predictions. Deep learning uses neural networks for complex tasks.',
+        max_length: 50
       });
-      const data = await response.json();
-      
+
       tests.push({
         endpoint: 'Summarization',
-        status: response.ok && data.success ? 'success' : 'error',
-        message: response.ok ? `Summary generated (${data.method})` : 'Summarization failed',
-        response: data
+        status: response.data.success ? 'success' : 'error',
+        message: `Summary generated (${response.data.method})`,
+        response: response.data
       });
     } catch (error) {
       tests.push({
@@ -210,7 +202,7 @@ export default function Dashboard() {
           <div className="text-center py-8">
             <XCircle className="w-12 h-12 text-red-500 mx-auto mb-2" />
             <p className="text-gray-600">Unable to connect to backend</p>
-            <p className="text-sm text-gray-500">Make sure the backend server is running on port 8000</p>
+            <p className="text-sm text-gray-500">Make sure the backend server is running</p>
           </div>
         )}
       </div>
@@ -247,7 +239,7 @@ export default function Dashboard() {
           </button>
 
           <a
-            href="http://localhost:8001/docs"
+            href={`${apiBaseUrl}/docs`}
             target="_blank"
             rel="noopener noreferrer"
             className="p-4 border border-gray-200 rounded-lg hover:border-purple-300 hover:shadow-sm transition-all group"
@@ -297,10 +289,10 @@ export default function Dashboard() {
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
         <h2 className="text-lg font-semibold text-blue-900 mb-3">Getting Started</h2>
         <div className="space-y-2 text-blue-800">
-          <p>✅ <strong>Backend:</strong> http://localhost:8001 (FastAPI)</p>
+          <p>✅ <strong>Backend:</strong> {apiBaseUrl} (FastAPI)</p>
           <p>✅ <strong>Frontend:</strong> http://localhost:5173 (React + Vite)</p>
           <p>🤖 <strong>AI Features:</strong> Search, Summarization, Mock Data</p>
-          <p>📚 <strong>API Docs:</strong> http://localhost:8001/docs</p>
+          <p>📚 <strong>API Docs:</strong> {apiBaseUrl}/docs</p>
         </div>
         
         <div className="mt-4 p-3 bg-blue-100 rounded">

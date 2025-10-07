@@ -12,7 +12,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
 from app.core.config import settings, LoggingConfig
-from app.api.endpoints import router
+from app.api.endpoints import router as api_router
+from app.api.auth import router as auth_router
+from app.api.preferences import router as preferences_router
 from app.services.database import db_service
 from app.services.scraping import scraping_manager
 
@@ -72,7 +74,9 @@ app.add_middleware(
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Include API routes
-app.include_router(router, prefix="/api/v1" if not settings.DEBUG else "")
+app.include_router(api_router, prefix="/api/v1" if not settings.DEBUG else "")
+app.include_router(auth_router, prefix="/api/v1" if not settings.DEBUG else "")
+app.include_router(preferences_router, prefix="/api/v1" if not settings.DEBUG else "")
 
 # Health check at root level
 @app.get("/ping")
