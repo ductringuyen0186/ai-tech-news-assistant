@@ -1,0 +1,2432 @@
+# GitHub Copilot Instructions for AI Tech News Assistant
+
+> **Project Context**: Advanced AI-powered tech news aggregation platform with RAG (Retrieval-Augmented Generation), vector search, and multi-LLM support.
+
+## 🎯 Project Overview
+
+This is a **full-stack AI/ML application** with:
+- **Backend**: FastAPI (Python 3.11+) with SQLAlchemy, async operations, RAG pipeline, and vector embeddings
+- **Frontend**: React 18 + TypeScript + Vite with TanStack Query and Tailwind CSS
+- **AI/ML**: Multi-LLM support (Ollama, OpenAI, Anthropic), Sentence Transformers embeddings, Chroma vector DB
+- **Architecture**: Clean Architecture, Repository Pattern, RAG pipeline, microservices-ready
+- **Focus**: Intelligent news aggregation, semantic search, AI summarization, personalized recommendations
+
+---
+
+## 📐 Architecture & Design Principles
+
+### Core Principles
+1. **SOLID Principles**: Single Responsibility, Open/Closed, Liskov Substitution, Interface Segregation, Dependency Inversion
+2. **Separation of Concerns**: Clear boundaries between layers (API, Service, Repository, Models)
+3. **Dependency Injection**: Use FastAPI's dependency injection system extensively
+4. **Async-First**: All I/O operations must be async (database, HTTP, file operations)
+5. **Type Safety**: Full type hints in Python, strict TypeScript in frontend
+6. **Error Handling**: Comprehensive error handling with proper logging and user feedback
+7. **Security First**: Input validation, sanitization, authentication, CORS configuration
+8. **Performance**: Caching, connection pooling, lazy loading, pagination
+
+---
+
+## 🔧 Backend Development (FastAPI)
+
+### Project Structure Convention
+```
+backend/
+├── src/                     # Main source code (Clean Architecture)
+│   ├── api/                 # API layer
+│   │   └── routes/          # API route modules
+│   │       ├── health.py    # Health check endpoints
+│   │       ├── news.py      # News article endpoints
+│   │       ├── search.py    # Search and retrieval endpoints
+│   │       ├── summarization.py  # AI summarization endpoints
+│   │       └── embeddings.py     # Vector embedding endpoints
+│   ├── core/                # Core infrastructure
+│   │   ├── config.py        # Settings and configuration (Pydantic)
+│   │   ├── exceptions.py    # Custom exception classes
+│   │   ├── logging.py       # Structured logging setup
+│   │   ├── middleware.py    # FastAPI middleware
+│   │   └── retry.py         # Retry logic and resilience
+│   ├── database/            # Database layer
+│   │   ├── base.py          # SQLAlchemy base
+│   │   ├── models.py        # Database models
+│   │   ├── session.py       # Session management
+│   │   └── init_db.py       # Database initialization
+│   ├── models/              # Pydantic models for API
+│   │   ├── api.py           # Request/Response models
+│   │   ├── article.py       # Article domain models
+│   │   ├── embedding.py     # Embedding models
+│   │   └── health.py        # Health check models
+│   ├── repositories/        # Repository pattern (Data Access)
+│   │   ├── article_repository.py      # Article data access
+│   │   ├── embedding_repository.py    # Vector storage access
+│   │   ├── sqlalchemy_repository.py   # Base SQLAlchemy repo
+│   │   └── factory.py                 # Repository factory
+│   ├── services/            # Business logic layer
+│   │   ├── news_service.py           # News aggregation logic
+│   │   ├── embedding_service.py      # Embedding generation
+│   │   ├── summarization_service.py  # AI summarization
+│   │   └── migration_service.py      # Data migration utilities
+│   └── main.py              # FastAPI application entry
+├── llm/                     # LLM provider implementations
+│   ├── providers.py         # Multi-LLM provider interface
+│   │   ├── OllamaProvider   # Local LLM (Ollama)
+│   │   ├── ClaudeProvider   # Anthropic Claude API
+│   │   └── OpenAIProvider   # OpenAI API (future)
+│   └── summarizer.py        # LLM-powered summarization
+├── vectorstore/             # Vector database operations
+│   ├── embeddings.py        # Sentence Transformers interface
+│   ├── chroma_store.py      # ChromaDB implementation (future)
+│   └── fallback_deps.py     # Graceful fallbacks
+├── rag/                     # RAG pipeline (Retrieval-Augmented Generation)
+│   ├── __init__.py          # RAG orchestration
+│   ├── chunking.py          # Document chunking strategies
+│   ├── retrieval.py         # Semantic search and retrieval
+│   └── augmentation.py      # Context augmentation for LLM
+├── ingestion/               # Data ingestion pipeline
+│   ├── rss_feeds.py         # RSS feed parsing and scraping
+│   ├── content_parser.py    # Article content extraction
+│   └── pipeline.py          # Ingestion orchestration
+├── utils/                   # Shared utilities
+│   ├── config.py            # Configuration helpers
+│   └── logger.py            # Logging utilities
+├── tests/                   # Comprehensive test suite
+│   ├── unit/                # Unit tests
+│   ├── integration/         # Integration tests
+│   └── e2e/                 # End-to-end tests
+├── alembic/                 # Database migrations
+├── main.py                  # Application entry point
+├── requirements.txt         # Python dependencies
+└── pyproject.toml           # Project configuration
+```
+
+### Coding Standards
+
+#### 1. **API Endpoints** (`app/api/`)
+```python
+"""
+Module docstring explaining the purpose
+"""
+import logging
+from typing import Optional, List
+from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks
+from fastapi.responses import JSONResponse
+
+from ..models import Article, ArticleList, SearchRequest
+from ..services.database import db_service
+from ..core.dependencies import get_current_user
+
+logger = logging.getLogger(__name__)
+router = APIRouter(tags=["articles"])
+
+
+@router.get("/articles", response_model=ArticleList)
+async def get_articles(
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(20, ge=1, le=100, description="Items per page"),
+    source: Optional[str] = Query(None, description="Filter by source"),
+    category: Optional[str] = Query(None, description="Filter by category"),
+    current_user: dict = Depends(get_current_user),
+    background_tasks: BackgroundTasks = None
+) -> ArticleList:
+    """
+    Get paginated articles with optional filtering.
+    
+    Args:
+        page: Page number (1-indexed)
+        per_page: Items per page (max 100)
+        source: Filter by news source
+        category: Filter by tech category
+        current_user: Authenticated user from dependency
+        background_tasks: For async operations
+    
+    Returns:
+        ArticleList with paginated results
+        
+    Raises:
+        HTTPException: 400 for invalid parameters, 500 for server errors
+    """
+    try:
+        # Input validation
+        if page < 1 or per_page < 1:
+            raise HTTPException(400, "Invalid pagination parameters")
+        
+        # Business logic in service layer
+        articles = await db_service.get_articles_paginated(
+            page=page,
+            per_page=per_page,
+            filters={"source": source, "category": category}
+        )
+        
+        # Background task example
+        if background_tasks:
+            background_tasks.add_task(log_access, current_user.id, "articles")
+        
+        return ArticleList(
+            articles=articles.items,
+            total=articles.total,
+            page=page,
+            per_page=per_page
+        )
+    except ValueError as e:
+        logger.warning(f"Validation error: {e}")
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        logger.error(f"Error fetching articles: {e}", exc_info=True)
+        raise HTTPException(500, "Internal server error")
+```
+
+**Key Points**:
+- ✅ Use `async def` for all I/O operations
+- ✅ Comprehensive docstrings with Args, Returns, Raises
+- ✅ Type hints for all parameters and return types
+- ✅ Input validation at API layer
+- ✅ Business logic delegated to service layer
+- ✅ Structured error handling with appropriate HTTP status codes
+- ✅ Logging for debugging and monitoring
+- ✅ Use FastAPI's dependency injection (Depends)
+- ✅ Query parameters with validation and documentation
+- ✅ Background tasks for non-blocking operations
+
+#### 2. **Service Layer** (`app/services/`)
+```python
+"""
+Database Service
+===============
+Handles all database operations with connection pooling and error handling.
+"""
+import logging
+from typing import List, Optional, Dict
+from datetime import datetime
+from sqlalchemy import create_engine, select, and_, or_, func
+from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from contextlib import contextmanager
+
+from ..core.config import settings
+from ..models import Base, ArticleDB, Article
+
+logger = logging.getLogger(__name__)
+
+
+class DatabaseService:
+    """
+    Production database service with connection pooling.
+    
+    Features:
+    - Connection pooling for performance
+    - Automatic retry logic
+    - Comprehensive error handling
+    - Transaction management
+    """
+    
+    def __init__(self):
+        """Initialize database engine and session factory."""
+        self.engine = create_engine(
+            settings.DATABASE_URL,
+            echo=settings.DATABASE_ECHO,
+            pool_size=10,
+            max_overflow=20,
+            pool_pre_ping=True,
+            pool_recycle=300
+        )
+        
+        self.SessionLocal = sessionmaker(
+            autocommit=False,
+            autoflush=False,
+            bind=self.engine
+        )
+        
+        self._create_tables()
+    
+    @contextmanager
+    def get_session(self):
+        """
+        Context manager for database sessions.
+        
+        Yields:
+            Session: SQLAlchemy database session
+            
+        Example:
+            with db_service.get_session() as session:
+                article = session.query(ArticleDB).first()
+        """
+        session = self.SessionLocal()
+        try:
+            yield session
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+    
+    async def create_article(self, article_data: dict) -> Optional[Article]:
+        """
+        Create new article with duplicate detection.
+        
+        Args:
+            article_data: Article data dictionary
+            
+        Returns:
+            Created Article or None if duplicate
+            
+        Raises:
+            SQLAlchemyError: For database errors
+        """
+        try:
+            with self.get_session() as session:
+                # Generate unique ID
+                article_id = self._generate_article_id(article_data["url"])
+                
+                # Check for duplicates
+                existing = session.query(ArticleDB).filter(
+                    ArticleDB.id == article_id
+                ).first()
+                
+                if existing:
+                    logger.debug(f"Article already exists: {article_id}")
+                    return self._to_pydantic(existing)
+                
+                # Create new article
+                db_article = ArticleDB(
+                    id=article_id,
+                    **article_data
+                )
+                
+                session.add(db_article)
+                session.flush()
+                
+                logger.info(f"Created article: {article_id}")
+                return self._to_pydantic(db_article)
+                
+        except IntegrityError as e:
+            logger.warning(f"Duplicate article: {e}")
+            return None
+        except SQLAlchemyError as e:
+            logger.error(f"Database error: {e}", exc_info=True)
+            raise
+```
+
+**Key Points**:
+- ✅ Single Responsibility: Each service handles one domain
+- ✅ Context managers for resource management
+- ✅ Connection pooling for production performance
+- ✅ Comprehensive error handling with specific exception types
+- ✅ Logging at appropriate levels (debug, info, warning, error)
+- ✅ Separation of DB models and Pydantic models
+- ✅ Transaction management
+- ✅ Retry logic for transient failures
+
+#### 3. **Models** (`app/models/`)
+```python
+"""
+Data Models
+==========
+SQLAlchemy ORM models and Pydantic schemas.
+"""
+from datetime import datetime
+from typing import Optional, List
+from pydantic import BaseModel, HttpUrl, Field, validator
+from sqlalchemy import Column, Integer, String, Text, DateTime, JSON
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.sql import func
+
+Base = declarative_base()
+
+
+# SQLAlchemy Models (Database)
+class ArticleDB(Base):
+    """
+    Database model for articles.
+    
+    Attributes:
+        id: Unique article identifier (SHA256 of URL)
+        title: Article title (max 500 chars)
+        content: Full article content
+        url: Article URL (unique, indexed)
+        published_at: Publication timestamp (indexed)
+        source: Source identifier (indexed)
+        categories: JSON list of tech categories
+        ai_summary: AI-generated summary
+        created_at: Record creation timestamp
+    """
+    __tablename__ = "articles"
+
+    id = Column(String, primary_key=True)
+    title = Column(String(500), nullable=False, index=True)
+    content = Column(Text, nullable=False)
+    url = Column(String(1000), nullable=False, unique=True, index=True)
+    published_at = Column(DateTime, nullable=False, index=True)
+    source = Column(String(100), nullable=False, index=True)
+    
+    # AI-generated fields
+    categories = Column(JSON, default=list)
+    keywords = Column(JSON, default=list)
+    ai_summary = Column(Text, nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+
+# Pydantic Models (API)
+class ArticleBase(BaseModel):
+    """Base article schema with validation."""
+    
+    title: str = Field(..., min_length=1, max_length=500)
+    content: str = Field(..., min_length=1)
+    url: HttpUrl
+    published_at: datetime
+    source: str = Field(..., min_length=1, max_length=100)
+    
+    @validator('title', 'content')
+    def strip_whitespace(cls, v):
+        """Remove leading/trailing whitespace."""
+        return v.strip()
+    
+    @validator('source')
+    def validate_source(cls, v):
+        """Validate source is from allowed list."""
+        allowed_sources = {'hackernews', 'reddit', 'github', 'techcrunch'}
+        if v.lower() not in allowed_sources:
+            raise ValueError(f"Source must be one of: {allowed_sources}")
+        return v.lower()
+    
+    class Config:
+        """Pydantic configuration."""
+        json_schema_extra = {
+            "example": {
+                "title": "New AI Breakthrough in Language Models",
+                "content": "Researchers have developed...",
+                "url": "https://example.com/article",
+                "published_at": "2025-10-06T12:00:00Z",
+                "source": "techcrunch"
+            }
+        }
+
+
+class ArticleCreate(ArticleBase):
+    """Schema for creating articles."""
+    pass
+
+
+class Article(ArticleBase):
+    """Complete article schema with metadata."""
+    
+    id: str
+    categories: List[str] = []
+    keywords: List[str] = []
+    ai_summary: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        """Allow ORM mode for SQLAlchemy compatibility."""
+        from_attributes = True
+```
+
+**Key Points**:
+- ✅ Separate SQLAlchemy (DB) and Pydantic (API) models
+- ✅ Comprehensive field validation
+- ✅ Custom validators for business rules
+- ✅ Indexes on frequently queried fields
+- ✅ JSON fields for flexible data
+- ✅ Timestamps for auditing
+- ✅ Example schemas in Config
+- ✅ Proper type hints
+
+#### 4. **Configuration** (`app/core/config.py`)
+```python
+"""
+Application Configuration
+========================
+Environment-based settings using Pydantic Settings.
+"""
+from typing import List, Optional
+from pydantic import field_validator, Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    """
+    Application settings with environment variable support.
+    
+    Environment variables take precedence over .env file.
+    """
+    
+    # Application
+    APP_NAME: str = "AI Tech News Assistant"
+    VERSION: str = "2.0.0"
+    DEBUG: bool = False
+    
+    # Server
+    HOST: str = Field("0.0.0.0", description="Server bind address")
+    PORT: int = Field(8000, ge=1, le=65535, description="Server port")
+    
+    # Database
+    DATABASE_URL: str = Field(
+        "sqlite:///./news.db",
+        description="Database connection string"
+    )
+    DATABASE_ECHO: bool = Field(False, description="Log SQL queries")
+    
+    # Security
+    SECRET_KEY: str = Field(..., min_length=32, description="JWT secret key")
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    
+    # CORS
+    ALLOWED_ORIGINS: List[str] = Field(
+        default_factory=lambda: ["http://localhost:3000"]
+    )
+    
+    # API Configuration
+    MAX_ARTICLES_PER_REQUEST: int = Field(100, ge=1, le=500)
+    REQUEST_TIMEOUT: int = Field(30, ge=1, le=300)
+    
+    # AI/ML
+    OLLAMA_HOST: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "llama3.2:1b"
+    
+    @field_validator("ALLOWED_ORIGINS", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v):
+        """Parse CORS origins from comma-separated string or list."""
+        if isinstance(v, str):
+            return [origin.strip() for origin in v.split(",")]
+        return v
+    
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore"
+    )
+
+
+# Global settings instance
+settings = Settings()
+```
+
+**Key Points**:
+- ✅ Use Pydantic Settings for type-safe configuration
+- ✅ Environment variable support
+- ✅ Validation on all settings
+- ✅ Secure defaults
+- ✅ Custom validators for complex types
+- ✅ Comprehensive documentation
+
+#### 5. **LLM Providers** (`llm/providers.py`)
+```python
+"""
+LLM Provider Interface
+====================
+Multi-provider abstraction for LLM operations.
+"""
+import httpx
+from typing import Dict, Any, Optional
+from abc import ABC, abstractmethod
+
+from utils.logger import get_logger
+from utils.config import get_settings
+
+logger = get_logger(__name__)
+settings = get_settings()
+
+
+class LLMProvider(ABC):
+    """Abstract base class for LLM providers."""
+    
+    @abstractmethod
+    async def summarize(self, text: str, **kwargs) -> Dict[str, Any]:
+        """Summarize text and return structured response."""
+        pass
+    
+    @abstractmethod
+    async def is_available(self) -> bool:
+        """Check if the provider is available and configured."""
+        pass
+
+
+class OllamaProvider(LLMProvider):
+    """
+    Ollama provider for local LLM inference.
+    
+    Features:
+    - Local inference (no API costs)
+    - Multiple model support (Llama2, Mistral, etc.)
+    - Privacy-friendly (data stays local)
+    - Fast inference on GPU
+    """
+    
+    def __init__(self, 
+                 base_url: str = "http://localhost:11434",
+                 model: str = "llama2",
+                 timeout: int = 60):
+        """Initialize Ollama provider."""
+        self.base_url = base_url
+        self.model = model
+        self.timeout = timeout
+        self.client = httpx.AsyncClient(timeout=timeout)
+    
+    async def summarize(self, text: str, max_length: int = 200) -> Dict[str, Any]:
+        """
+        Summarize text using Ollama.
+        
+        Args:
+            text: Text to summarize
+            max_length: Maximum summary length
+            
+        Returns:
+            Dict with summary and metadata
+        """
+        try:
+            prompt = f"""Summarize the following tech article in {max_length} words or less.
+Focus on key technical points, innovations, and implications.
+
+Article:
+{text}
+
+Summary:"""
+            
+            response = await self.client.post(
+                f"{self.base_url}/api/generate",
+                json={
+                    "model": self.model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {"temperature": 0.7, "top_p": 0.9}
+                }
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                return {
+                    "summary": result["response"].strip(),
+                    "model": self.model,
+                    "provider": "ollama",
+                    "success": True
+                }
+            else:
+                logger.error(f"Ollama API error: {response.status_code}")
+                return {"success": False, "error": "API error"}
+                
+        except Exception as e:
+            logger.error(f"Ollama summarization failed: {e}")
+            return {"success": False, "error": str(e)}
+
+
+class ClaudeProvider(LLMProvider):
+    """Anthropic Claude API provider."""
+    
+    def __init__(self, api_key: str, model: str = "claude-3-haiku-20240307"):
+        """Initialize Claude provider."""
+        self.api_key = api_key
+        self.model = model
+        self.client = httpx.AsyncClient(
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json"
+            }
+        )
+    
+    async def summarize(self, text: str, max_length: int = 200) -> Dict[str, Any]:
+        """Summarize using Claude API."""
+        # Implementation here
+        pass
+```
+
+**Key Points**:
+- ✅ Abstract base class for provider-agnostic code
+- ✅ Multiple provider support (Ollama, Claude, OpenAI)
+- ✅ Graceful fallbacks and error handling
+- ✅ Provider availability checks
+- ✅ Configurable timeouts and parameters
+- ✅ Structured response format
+
+#### 6. **Vector Store & Embeddings** (`vectorstore/embeddings.py`)
+```python
+"""
+Embedding Generator
+==================
+High-performance text-to-vector conversion using Sentence Transformers.
+"""
+import asyncio
+from typing import List, Dict, Any, Optional
+from pathlib import Path
+
+try:
+    from sentence_transformers import SentenceTransformer
+    import torch
+    import numpy as np
+    EMBEDDINGS_AVAILABLE = True
+except ImportError:
+    EMBEDDINGS_AVAILABLE = False
+    from .fallback_deps import FallbackSentenceTransformer as SentenceTransformer
+
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
+
+class EmbeddingGenerator:
+    """
+    Efficient embedding generation for semantic search.
+    
+    Features:
+    - Multiple pre-trained models
+    - Batch processing
+    - GPU acceleration
+    - Async-friendly interface
+    - Model caching
+    """
+    
+    DEFAULT_MODELS = [
+        "all-MiniLM-L6-v2",      # Fast, 384 dims
+        "all-mpnet-base-v2",     # Quality, 768 dims
+        "paraphrase-multilingual-MiniLM-L12-v2"  # Multilingual
+    ]
+    
+    def __init__(self, model_name: Optional[str] = None):
+        """Initialize embedding generator."""
+        self.model_name = model_name or self.DEFAULT_MODELS[0]
+        self.model = None
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        logger.info(f"Embedding generator using device: {self.device}")
+    
+    async def initialize(self):
+        """Load the model asynchronously."""
+        if not EMBEDDINGS_AVAILABLE:
+            logger.warning("Sentence Transformers not available, using fallback")
+            return
+        
+        try:
+            loop = asyncio.get_event_loop()
+            self.model = await loop.run_in_executor(
+                None, 
+                lambda: SentenceTransformer(self.model_name, device=self.device)
+            )
+            logger.info(f"Loaded embedding model: {self.model_name}")
+        except Exception as e:
+            logger.error(f"Failed to load embedding model: {e}")
+            raise
+    
+    async def generate_embeddings(
+        self, 
+        texts: List[str],
+        batch_size: int = 32
+    ) -> np.ndarray:
+        """
+        Generate embeddings for texts.
+        
+        Args:
+            texts: List of texts to embed
+            batch_size: Batch size for processing
+            
+        Returns:
+            Array of embeddings
+        """
+        if not self.model:
+            await self.initialize()
+        
+        try:
+            loop = asyncio.get_event_loop()
+            embeddings = await loop.run_in_executor(
+                None,
+                lambda: self.model.encode(
+                    texts,
+                    batch_size=batch_size,
+                    show_progress_bar=False,
+                    convert_to_numpy=True
+                )
+            )
+            return embeddings
+        except Exception as e:
+            logger.error(f"Embedding generation failed: {e}")
+            raise
+```
+
+**Key Points**:
+- ✅ Async-friendly interface with asyncio
+- ✅ GPU acceleration when available
+- ✅ Batch processing for efficiency
+- ✅ Graceful fallbacks for missing dependencies
+- ✅ Multiple model support
+- ✅ Error handling and logging
+
+#### 7. **RAG Pipeline** (`rag/__init__.py`)
+```python
+"""
+RAG (Retrieval-Augmented Generation) Pipeline
+=============================================
+Orchestrates document retrieval and context augmentation for LLM queries.
+"""
+from typing import List, Dict, Any, Optional
+
+from utils.logger import get_logger
+from vectorstore.embeddings import EmbeddingGenerator
+
+logger = get_logger(__name__)
+
+
+class RAGPipeline:
+    """
+    RAG pipeline for intelligent document retrieval.
+    
+    Features:
+    - Document chunking and preprocessing
+    - Semantic search via embeddings
+    - Context ranking and filtering
+    - Metadata-based filtering
+    - Query augmentation
+    """
+    
+    def __init__(self, embedding_generator: EmbeddingGenerator):
+        """Initialize RAG pipeline."""
+        self.embedding_generator = embedding_generator
+        self.documents = []  # In-memory store (use Chroma in production)
+        logger.info("RAG Pipeline initialized")
+    
+    async def add_documents(
+        self, 
+        documents: List[Dict[str, Any]],
+        chunk_size: int = 500,
+        overlap: int = 50
+    ) -> bool:
+        """
+        Add documents to RAG system with chunking.
+        
+        Args:
+            documents: Documents to add
+            chunk_size: Characters per chunk
+            overlap: Overlap between chunks
+            
+        Returns:
+            Success status
+        """
+        try:
+            chunked_docs = []
+            for doc in documents:
+                chunks = self._chunk_document(doc, chunk_size, overlap)
+                chunked_docs.extend(chunks)
+            
+            # Generate embeddings
+            texts = [chunk["text"] for chunk in chunked_docs]
+            embeddings = await self.embedding_generator.generate_embeddings(texts)
+            
+            # Store with embeddings
+            for chunk, embedding in zip(chunked_docs, embeddings):
+                chunk["embedding"] = embedding
+                self.documents.append(chunk)
+            
+            logger.info(f"Added {len(chunked_docs)} document chunks")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to add documents: {e}")
+            return False
+    
+    async def search(
+        self, 
+        query: str, 
+        top_k: int = 5,
+        filters: Optional[Dict] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Semantic search for relevant documents.
+        
+        Args:
+            query: Search query
+            top_k: Number of results
+            filters: Metadata filters (source, date, etc.)
+            
+        Returns:
+            Ranked list of relevant documents
+        """
+        try:
+            # Generate query embedding
+            query_embedding = await self.embedding_generator.generate_embeddings([query])
+            
+            # Compute similarity scores
+            results = []
+            for doc in self.documents:
+                # Apply filters
+                if filters and not self._match_filters(doc, filters):
+                    continue
+                
+                # Compute cosine similarity
+                similarity = self._cosine_similarity(
+                    query_embedding[0], 
+                    doc["embedding"]
+                )
+                
+                results.append({
+                    "document": doc,
+                    "score": similarity
+                })
+            
+            # Sort by score and return top_k
+            results.sort(key=lambda x: x["score"], reverse=True)
+            return results[:top_k]
+            
+        except Exception as e:
+            logger.error(f"Search failed: {e}")
+            return []
+    
+    def _chunk_document(
+        self, 
+        doc: Dict[str, Any], 
+        chunk_size: int, 
+        overlap: int
+    ) -> List[Dict[str, Any]]:
+        """Chunk document with overlap."""
+        text = doc.get("content", "")
+        chunks = []
+        
+        for i in range(0, len(text), chunk_size - overlap):
+            chunk_text = text[i:i + chunk_size]
+            chunks.append({
+                "text": chunk_text,
+                "metadata": doc.get("metadata", {}),
+                "source_id": doc.get("id")
+            })
+        
+        return chunks
+    
+    @staticmethod
+    def _cosine_similarity(a, b):
+        """Compute cosine similarity between vectors."""
+        import numpy as np
+        return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+```
+
+**Key Points**:
+- ✅ Document chunking with overlap
+- ✅ Semantic search via embeddings
+- ✅ Metadata filtering
+- ✅ Similarity scoring
+- ✅ Ready for Chroma integration
+- ✅ Async throughout
+
+#### 8. **Repository Pattern** (`src/repositories/`)
+```python
+"""
+Repository Pattern Implementation
+================================
+Clean separation between business logic and data access.
+"""
+from typing import List, Optional, Dict, Any
+from abc import ABC, abstractmethod
+from sqlalchemy.orm import Session
+
+from src.database.models import Article
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
+
+class BaseRepository(ABC):
+    """Abstract base repository."""
+    
+    @abstractmethod
+    async def get_by_id(self, id: str) -> Optional[Any]:
+        """Get entity by ID."""
+        pass
+    
+    @abstractmethod
+    async def get_all(self, skip: int = 0, limit: int = 100) -> List[Any]:
+        """Get all entities with pagination."""
+        pass
+    
+    @abstractmethod
+    async def create(self, entity: Any) -> Any:
+        """Create new entity."""
+        pass
+    
+    @abstractmethod
+    async def update(self, id: str, updates: Dict) -> Optional[Any]:
+        """Update entity."""
+        pass
+    
+    @abstractmethod
+    async def delete(self, id: str) -> bool:
+        """Delete entity."""
+        pass
+
+
+class ArticleRepository(BaseRepository):
+    """
+    Article data access layer.
+    
+    Handles all database operations for articles with proper
+    error handling, transaction management, and query optimization.
+    """
+    
+    def __init__(self, db: Session):
+        """Initialize repository with database session."""
+        self.db = db
+    
+    async def get_by_id(self, id: str) -> Optional[Article]:
+        """Get article by ID."""
+        try:
+            return self.db.query(Article).filter(Article.id == id).first()
+        except Exception as e:
+            logger.error(f"Error fetching article {id}: {e}")
+            return None
+    
+    async def get_all(
+        self, 
+        skip: int = 0, 
+        limit: int = 100,
+        filters: Optional[Dict] = None
+    ) -> List[Article]:
+        """Get articles with pagination and filters."""
+        try:
+            query = self.db.query(Article)
+            
+            # Apply filters
+            if filters:
+                if filters.get("source"):
+                    query = query.filter(Article.source == filters["source"])
+                if filters.get("date_from"):
+                    query = query.filter(Article.published_date >= filters["date_from"])
+            
+            return query.offset(skip).limit(limit).all()
+            
+        except Exception as e:
+            logger.error(f"Error fetching articles: {e}")
+            return []
+    
+    async def create(self, article_data: Dict) -> Optional[Article]:
+        """Create new article."""
+        try:
+            article = Article(**article_data)
+            self.db.add(article)
+            self.db.commit()
+            self.db.refresh(article)
+            return article
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Error creating article: {e}")
+            return None
+    
+    async def search_by_embedding(
+        self, 
+        query_embedding: List[float],
+        top_k: int = 10
+    ) -> List[Article]:
+        """Semantic search using embeddings."""
+        # Implementation with vector similarity
+        pass
+```
+
+**Key Points**:
+- ✅ Repository pattern for clean architecture
+- ✅ Abstract base for consistency
+- ✅ Proper transaction management
+- ✅ Error handling and rollback
+- ✅ Query optimization
+- ✅ Support for semantic search
+
+### Testing Standards
+
+#### Backend Testing Structure
+```
+backend/tests/
+├── __init__.py
+├── conftest.py              # Pytest fixtures and test configuration
+├── unit/                    # Unit tests (fast, isolated)
+│   ├── __init__.py
+│   ├── test_article_repository.py
+│   ├── test_embedding_repository.py
+│   ├── test_embedding_service.py
+│   ├── test_news_service.py
+│   ├── test_summarization_service.py
+│   ├── test_health_routes.py
+│   ├── test_search_routes.py
+│   └── test_models.py
+├── integration/             # Integration tests (API + DB + Services)
+│   ├── __init__.py
+│   ├── test_news_api.py
+│   ├── test_rag_pipeline.py
+│   ├── test_embedding_flow.py
+│   └── test_llm_providers.py
+├── e2e/                     # End-to-end tests (full workflows)
+│   ├── __init__.py
+│   ├── test_complete_workflows.py
+│   ├── test_scraping_to_display.py
+│   └── test_semantic_search.py
+├── fixtures/                # Test data and fixtures
+│   ├── __init__.py
+│   ├── article_fixtures.py
+│   ├── test_data.py
+│   └── mock_embeddings.py
+└── helpers/                 # Test utilities
+    ├── __init__.py
+    ├── mock_helpers.py
+    └── test_helpers.py
+```
+
+#### Example Test
+```python
+"""
+Test Articles API Endpoints
+===========================
+"""
+import pytest
+from fastapi.testclient import TestClient
+from datetime import datetime
+
+from backend.production_main import app
+from backend.app.models import ArticleCreate
+
+
+@pytest.fixture
+def client():
+    """Create test client."""
+    return TestClient(app)
+
+
+@pytest.fixture
+def sample_article():
+    """Sample article data for testing."""
+    return {
+        "title": "Test Article",
+        "content": "Test content",
+        "url": "https://example.com/test",
+        "published_at": datetime.utcnow().isoformat(),
+        "source": "hackernews"
+    }
+
+
+class TestArticlesEndpoint:
+    """Test articles API endpoints."""
+    
+    def test_get_articles_success(self, client):
+        """Test successful article retrieval."""
+        response = client.get("/articles?page=1&per_page=10")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "articles" in data
+        assert "total" in data
+        assert isinstance(data["articles"], list)
+    
+    def test_get_articles_pagination(self, client):
+        """Test article pagination."""
+        response = client.get("/articles?page=1&per_page=5")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["articles"]) <= 5
+        assert data["per_page"] == 5
+    
+    def test_get_articles_invalid_page(self, client):
+        """Test invalid page parameter."""
+        response = client.get("/articles?page=-1")
+        
+        assert response.status_code == 400
+    
+    @pytest.mark.asyncio
+    async def test_create_article(self, client, sample_article):
+        """Test article creation."""
+        response = client.post("/articles", json=sample_article)
+        
+        assert response.status_code in [200, 201]
+        data = response.json()
+        assert data["title"] == sample_article["title"]
+        assert "id" in data
+```
+
+**Key Points**:
+- ✅ Use pytest for testing
+- ✅ Fixtures for reusable test data
+- ✅ Test success and failure cases
+- ✅ Test edge cases and validation
+- ✅ Use TestClient for API testing
+- ✅ Async tests with `@pytest.mark.asyncio`
+- ✅ Clear test names describing what's tested
+
+---
+
+## 🎨 Frontend Development (React + TypeScript)
+
+### Project Structure Convention
+```
+frontend/
+├── src/
+│   ├── components/          # Reusable components
+│   │   ├── ui/             # Base UI components
+│   │   │   ├── Button.tsx
+│   │   │   ├── Card.tsx
+│   │   │   └── Input.tsx
+│   │   ├── features/       # Feature-specific components
+│   │   │   ├── ArticleCard.tsx
+│   │   │   ├── SearchBar.tsx
+│   │   │   └── CategoryFilter.tsx
+│   │   └── Layout.tsx      # Main layout component
+│   ├── pages/              # Page components (routes)
+│   │   ├── Dashboard.tsx
+│   │   ├── Articles.tsx
+│   │   ├── Search.tsx
+│   │   └── Settings.tsx
+│   ├── hooks/              # Custom React hooks
+│   │   ├── useArticles.ts
+│   │   ├── useSearch.ts
+│   │   └── useAuth.ts
+│   ├── lib/                # Utilities and configurations
+│   │   ├── api.ts          # API client
+│   │   ├── utils.ts        # Helper functions
+│   │   └── constants.ts    # App constants
+│   ├── types/              # TypeScript type definitions
+│   │   ├── api.ts          # API types
+│   │   ├── models.ts       # Domain models
+│   │   └── global.d.ts     # Global type declarations
+│   ├── contexts/           # React contexts
+│   │   ├── AuthContext.tsx
+│   │   └── ThemeContext.tsx
+│   ├── services/           # Business logic
+│   │   └── articleService.ts
+│   ├── App.tsx             # Root component
+│   └── main.tsx            # Entry point
+├── public/                 # Static assets
+├── package.json
+└── tsconfig.json
+```
+
+### Coding Standards
+
+#### 1. **Components**
+```typescript
+/**
+ * ArticleCard Component
+ * 
+ * Displays a single article with title, source, summary, and actions.
+ * 
+ * @example
+ * <ArticleCard 
+ *   article={article} 
+ *   onRead={handleRead}
+ *   onSummarize={handleSummarize}
+ * />
+ */
+import React, { useState, useCallback } from 'react';
+import { ExternalLink, Bookmark, Clock } from 'lucide-react';
+import type { Article } from '../types/api';
+import { formatDate } from '../lib/utils';
+
+interface ArticleCardProps {
+  /** Article data to display */
+  article: Article;
+  /** Callback when article is marked as read */
+  onRead?: (articleId: string) => void;
+  /** Callback when summarize is requested */
+  onSummarize?: (articleId: string) => Promise<void>;
+  /** Whether the article is bookmarked */
+  isBookmarked?: boolean;
+  /** Custom className for styling */
+  className?: string;
+}
+
+export default function ArticleCard({
+  article,
+  onRead,
+  onSummarize,
+  isBookmarked = false,
+  className = ''
+}: ArticleCardProps) {
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Memoized handlers
+  const handleSummarize = useCallback(async () => {
+    if (!onSummarize) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      await onSummarize(article.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Summarization failed');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [article.id, onSummarize]);
+  
+  const handleRead = useCallback(() => {
+    if (onRead) {
+      onRead(article.id);
+    }
+    // Open in new tab
+    window.open(article.url, '_blank', 'noopener,noreferrer');
+  }, [article.id, article.url, onRead]);
+  
+  return (
+    <article 
+      className={`
+        bg-white rounded-lg shadow-md p-6 
+        hover:shadow-lg transition-shadow duration-200
+        ${className}
+      `}
+      aria-label={`Article: ${article.title}`}
+    >
+      {/* Header */}
+      <div className="flex justify-between items-start mb-3">
+        <div className="flex-1">
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">
+            {article.title}
+          </h3>
+          
+          <div className="flex items-center gap-4 text-sm text-gray-600">
+            <span className="font-medium">{article.source}</span>
+            <span className="flex items-center gap-1">
+              <Clock className="w-4 h-4" />
+              {formatDate(article.published_at)}
+            </span>
+          </div>
+        </div>
+        
+        <button
+          onClick={() => {/* handle bookmark */}}
+          className={`
+            p-2 rounded-full transition-colors
+            ${isBookmarked 
+              ? 'text-blue-600 bg-blue-50' 
+              : 'text-gray-400 hover:text-blue-600'
+            }
+          `}
+          aria-label={isBookmarked ? 'Remove bookmark' : 'Add bookmark'}
+        >
+          <Bookmark className="w-5 h-5" />
+        </button>
+      </div>
+      
+      {/* Content */}
+      <p className="text-gray-700 mb-4 line-clamp-3">
+        {article.summary || article.content}
+      </p>
+      
+      {/* Categories */}
+      {article.categories.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          {article.categories.map((category) => (
+            <span
+              key={category}
+              className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium"
+            >
+              {category}
+            </span>
+          ))}
+        </div>
+      )}
+      
+      {/* Actions */}
+      <div className="flex gap-3">
+        <button
+          onClick={handleRead}
+          className="
+            flex items-center gap-2 px-4 py-2 
+            bg-blue-600 text-white rounded-md
+            hover:bg-blue-700 transition-colors
+            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+          "
+        >
+          <ExternalLink className="w-4 h-4" />
+          Read Article
+        </button>
+        
+        {onSummarize && (
+          <button
+            onClick={handleSummarize}
+            disabled={isLoading}
+            className="
+              px-4 py-2 border border-gray-300 rounded-md
+              hover:bg-gray-50 transition-colors
+              disabled:opacity-50 disabled:cursor-not-allowed
+              focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+            "
+          >
+            {isLoading ? 'Summarizing...' : 'Summarize'}
+          </button>
+        )}
+      </div>
+      
+      {/* Error message */}
+      {error && (
+        <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-md">
+          <p className="text-sm text-red-600">{error}</p>
+        </div>
+      )}
+    </article>
+  );
+}
+```
+
+**Key Points**:
+- ✅ Comprehensive JSDoc comments
+- ✅ Full TypeScript types for props
+- ✅ Default props and optional props
+- ✅ Error handling and loading states
+- ✅ Accessibility (ARIA labels, keyboard navigation)
+- ✅ Memoized callbacks with `useCallback`
+- ✅ Semantic HTML
+- ✅ Tailwind CSS for styling
+- ✅ Proper event handling
+
+#### 2. **Custom Hooks**
+```typescript
+/**
+ * useArticles Hook
+ * 
+ * Manages article fetching, caching, and state.
+ * Uses TanStack Query for server state management.
+ */
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { articlesApi } from '../lib/api';
+import type { Article, ArticleSearchParams } from '../types/api';
+
+interface UseArticlesOptions {
+  /** Search parameters */
+  params?: ArticleSearchParams;
+  /** Enable/disable auto-fetching */
+  enabled?: boolean;
+  /** Refetch interval in milliseconds */
+  refetchInterval?: number;
+}
+
+interface UseArticlesReturn {
+  /** Article data */
+  articles: Article[];
+  /** Total article count */
+  total: number;
+  /** Loading state */
+  isLoading: boolean;
+  /** Error state */
+  error: Error | null;
+  /** Refetch function */
+  refetch: () => void;
+  /** Bookmark mutation */
+  bookmarkArticle: (articleId: string) => Promise<void>;
+  /** Remove bookmark mutation */
+  removeBookmark: (articleId: string) => Promise<void>;
+}
+
+export function useArticles({
+  params = {},
+  enabled = true,
+  refetchInterval
+}: UseArticlesOptions = {}): UseArticlesReturn {
+  const queryClient = useQueryClient();
+  
+  // Fetch articles query
+  const {
+    data,
+    isLoading,
+    error,
+    refetch
+  } = useQuery({
+    queryKey: ['articles', params],
+    queryFn: () => articlesApi.getArticles(params),
+    enabled,
+    refetchInterval,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000)
+  });
+  
+  // Bookmark mutation
+  const bookmarkMutation = useMutation({
+    mutationFn: (articleId: string) => 
+      articlesApi.bookmarkArticle(articleId),
+    onSuccess: () => {
+      // Invalidate and refetch
+      queryClient.invalidateQueries({ queryKey: ['articles'] });
+      queryClient.invalidateQueries({ queryKey: ['bookmarks'] });
+    },
+    onError: (error) => {
+      console.error('Bookmark failed:', error);
+      // Could add toast notification here
+    }
+  });
+  
+  // Remove bookmark mutation
+  const removeBookmarkMutation = useMutation({
+    mutationFn: (articleId: string) => 
+      articlesApi.removeBookmark(articleId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['articles'] });
+      queryClient.invalidateQueries({ queryKey: ['bookmarks'] });
+    }
+  });
+  
+  return {
+    articles: data?.articles || [],
+    total: data?.total || 0,
+    isLoading,
+    error: error as Error | null,
+    refetch,
+    bookmarkArticle: bookmarkMutation.mutateAsync,
+    removeBookmark: removeBookmarkMutation.mutateAsync
+  };
+}
+```
+
+**Key Points**:
+- ✅ Comprehensive TypeScript types
+- ✅ Use TanStack Query for server state
+- ✅ Proper caching and refetch strategies
+- ✅ Error handling with retry logic
+- ✅ Optimistic updates where appropriate
+- ✅ Query invalidation on mutations
+- ✅ Configurable options
+
+#### 3. **API Client**
+```typescript
+/**
+ * API Client
+ * 
+ * Centralized API communication with error handling and interceptors.
+ */
+import axios, { AxiosError, AxiosInstance } from 'axios';
+import type { 
+  Article, 
+  ArticleSearchParams, 
+  SearchResponse 
+} from '../types/api';
+
+// Create axios instance
+const api: AxiosInstance = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
+  timeout: 30000,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+// Request interceptor
+api.interceptors.request.use(
+  (config) => {
+    // Add auth token if available
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    
+    // Log in development
+    if (import.meta.env.DEV) {
+      console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`);
+    }
+    
+    return config;
+  },
+  (error) => {
+    console.error('[API] Request error:', error);
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor
+api.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError) => {
+    // Handle specific error codes
+    if (error.response?.status === 401) {
+      // Unauthorized - clear auth and redirect
+      localStorage.removeItem('auth_token');
+      window.location.href = '/login';
+    }
+    
+    if (error.response?.status === 429) {
+      // Rate limited
+      console.warn('[API] Rate limit exceeded');
+    }
+    
+    // Log error
+    console.error('[API] Response error:', {
+      status: error.response?.status,
+      message: error.message,
+      data: error.response?.data
+    });
+    
+    return Promise.reject(error);
+  }
+);
+
+// API methods
+export const articlesApi = {
+  /**
+   * Get paginated articles
+   */
+  getArticles: async (params?: ArticleSearchParams): Promise<SearchResponse> => {
+    const response = await api.get<SearchResponse>('/articles', { params });
+    return response.data;
+  },
+  
+  /**
+   * Get single article by ID
+   */
+  getArticle: async (id: string): Promise<Article> => {
+    const response = await api.get<Article>(`/articles/${id}`);
+    return response.data;
+  },
+  
+  /**
+   * Search articles
+   */
+  searchArticles: async (params: ArticleSearchParams): Promise<SearchResponse> => {
+    const response = await api.post<SearchResponse>('/search', params);
+    return response.data;
+  },
+  
+  /**
+   * Bookmark article
+   */
+  bookmarkArticle: async (articleId: string): Promise<void> => {
+    await api.post(`/articles/${articleId}/bookmark`);
+  },
+  
+  /**
+   * Remove bookmark
+   */
+  removeBookmark: async (articleId: string): Promise<void> => {
+    await api.delete(`/articles/${articleId}/bookmark`);
+  }
+};
+
+export default api;
+```
+
+**Key Points**:
+- ✅ Centralized API configuration
+- ✅ Request/response interceptors
+- ✅ Authentication token handling
+- ✅ Error handling by status code
+- ✅ TypeScript types for all responses
+- ✅ Environment-based configuration
+- ✅ Logging in development mode
+
+#### 4. **Type Definitions**
+```typescript
+/**
+ * API Type Definitions
+ * 
+ * Shared types between frontend and backend.
+ * Keep in sync with backend Pydantic models.
+ */
+
+/** Article model */
+export interface Article {
+  id: string;
+  title: string;
+  content: string;
+  url: string;
+  published_at: string;
+  source: string;
+  source_id?: string;
+  categories: string[];
+  keywords: string[];
+  ai_summary?: string;
+  sentiment?: 'positive' | 'neutral' | 'negative';
+  created_at: string;
+  updated_at: string;
+}
+
+/** Article search parameters */
+export interface ArticleSearchParams {
+  query?: string;
+  source?: string;
+  category?: string;
+  limit?: number;
+  offset?: number;
+  published_after?: string;
+  published_before?: string;
+}
+
+/** Search response */
+export interface SearchResponse {
+  articles: Article[];
+  total: number;
+  limit: number;
+  offset: number;
+  query?: string;
+}
+
+/** Health status */
+export interface HealthStatus {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  timestamp: string;
+  version: string;
+  components: {
+    database: string;
+    scrapers: string;
+    api: string;
+  };
+  uptime_seconds: number;
+}
+
+/** Error response */
+export interface ApiError {
+  detail: string;
+  status_code: number;
+  timestamp: string;
+}
+```
+
+**Key Points**:
+- ✅ Mirror backend models
+- ✅ Use strict types (no `any`)
+- ✅ Document all interfaces
+- ✅ Use union types for enums
+- ✅ Optional fields marked with `?`
+
+### Testing Standards
+
+#### Frontend Testing Structure
+```
+frontend/src/
+├── __tests__/
+│   ├── components/
+│   │   ├── ArticleCard.test.tsx
+│   │   └── SearchBar.test.tsx
+│   ├── hooks/
+│   │   └── useArticles.test.ts
+│   └── utils/
+│       └── utils.test.ts
+├── setupTests.ts
+└── testUtils.tsx
+```
+
+#### Example Test
+```typescript
+/**
+ * ArticleCard Component Tests
+ */
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import ArticleCard from '../components/ArticleCard';
+import type { Article } from '../types/api';
+
+const mockArticle: Article = {
+  id: '1',
+  title: 'Test Article',
+  content: 'Test content',
+  url: 'https://example.com',
+  published_at: '2025-10-06T12:00:00Z',
+  source: 'hackernews',
+  categories: ['AI', 'ML'],
+  keywords: ['test'],
+  created_at: '2025-10-06T12:00:00Z',
+  updated_at: '2025-10-06T12:00:00Z'
+};
+
+describe('ArticleCard', () => {
+  it('renders article information', () => {
+    render(<ArticleCard article={mockArticle} />);
+    
+    expect(screen.getByText('Test Article')).toBeInTheDocument();
+    expect(screen.getByText('hackernews')).toBeInTheDocument();
+    expect(screen.getByText('AI')).toBeInTheDocument();
+  });
+  
+  it('calls onRead when read button is clicked', () => {
+    const onRead = vi.fn();
+    render(<ArticleCard article={mockArticle} onRead={onRead} />);
+    
+    const readButton = screen.getByText('Read Article');
+    fireEvent.click(readButton);
+    
+    expect(onRead).toHaveBeenCalledWith('1');
+  });
+  
+  it('shows loading state when summarizing', async () => {
+    const onSummarize = vi.fn(() => 
+      new Promise(resolve => setTimeout(resolve, 100))
+    );
+    
+    render(<ArticleCard article={mockArticle} onSummarize={onSummarize} />);
+    
+    const summarizeButton = screen.getByText('Summarize');
+    fireEvent.click(summarizeButton);
+    
+    expect(screen.getByText('Summarizing...')).toBeInTheDocument();
+    
+    await waitFor(() => {
+      expect(screen.getByText('Summarize')).toBeInTheDocument();
+    });
+  });
+});
+```
+
+---
+
+## 🧪 Testing Strategy
+
+### Testing Pyramid
+```
+        /\
+       /E2E\       (Few) - Full user flows
+      /------\
+     /Integr-\    (Some) - API + DB + Services
+    /----------\
+   /   Unit    \  (Many) - Functions, components
+  /--------------\
+```
+
+### Coverage Requirements
+- **Unit Tests**: 80%+ coverage
+- **Integration Tests**: Critical paths
+- **E2E Tests**: Main user journeys
+
+### Test Types
+
+#### 1. Unit Tests
+- Individual functions
+- React components (isolated)
+- Service methods
+- Utility functions
+
+#### 2. Integration Tests
+- API endpoints + database
+- Frontend + API communication
+- Service orchestration
+
+#### 3. E2E Tests
+- User registration → login → browse → search → bookmark
+- Article scraping → display → summarization
+
+---
+
+## 🤖 AI/ML Specific Guidelines
+
+### Vector Embeddings Best Practices
+1. **Model Selection**: Choose appropriate embedding model based on use case
+   - `all-MiniLM-L6-v2`: Fast, lightweight (384 dims) for general search
+   - `all-mpnet-base-v2`: Higher quality (768 dims) for precise retrieval
+   - Multilingual models for multi-language support
+
+2. **Batch Processing**: Always process embeddings in batches for efficiency
+   ```python
+   # Good - Batch processing
+   embeddings = await generator.generate_embeddings(texts, batch_size=32)
+   
+   # Bad - Individual processing
+   for text in texts:
+       embedding = await generator.generate_embeddings([text])
+   ```
+
+3. **Caching**: Cache embeddings to avoid recomputation
+   - Store embeddings in vector database (Chroma)
+   - Use in-memory cache for frequently accessed items
+   - Set appropriate TTL based on content update frequency
+
+4. **Dimension Reduction**: Consider dimensionality reduction for large-scale deployments
+   - PCA for linear reduction
+   - t-SNE/UMAP for visualization
+   - Maintain 90%+ variance
+
+### RAG Pipeline Best Practices
+1. **Chunking Strategy**: 
+   - Semantic chunking (preserve meaning boundaries)
+   - Fixed-size chunks with overlap (50-100 chars)
+   - Metadata preservation for filtering
+
+2. **Retrieval Quality**:
+   - Hybrid search (vector + keyword)
+   - Reranking with cross-encoder models
+   - Metadata filtering for domain-specific queries
+
+3. **Context Window Management**:
+   - Respect LLM token limits (4k, 8k, 16k, etc.)
+   - Prioritize most relevant chunks
+   - Include source attribution
+
+4. **Performance Optimization**:
+   - Pre-compute embeddings during ingestion
+   - Use approximate nearest neighbor (ANN) for large datasets
+   - Implement caching at multiple levels
+
+### LLM Integration Best Practices
+1. **Provider Abstraction**: Always use provider abstraction layer
+   ```python
+   # Good - Provider agnostic
+   provider = get_llm_provider()  # Can be Ollama, Claude, OpenAI
+   result = await provider.summarize(text)
+   
+   # Bad - Direct provider coupling
+   response = openai.ChatCompletion.create(...)
+   ```
+
+2. **Error Handling & Fallbacks**:
+   ```python
+   async def get_summary(text: str) -> str:
+       providers = [OllamaProvider(), ClaudeProvider(), OpenAIProvider()]
+       
+       for provider in providers:
+           try:
+               if await provider.is_available():
+                   result = await provider.summarize(text)
+                   if result["success"]:
+                       return result["summary"]
+           except Exception as e:
+               logger.warning(f"Provider {provider} failed: {e}")
+               continue
+       
+       return "Summary unavailable"
+   ```
+
+3. **Prompt Engineering**:
+   - Use template-based prompts
+   - Include examples (few-shot learning)
+   - Specify output format clearly
+   - Handle edge cases in prompts
+
+4. **Cost & Performance Optimization**:
+   - Cache common queries
+   - Batch requests when possible
+   - Use cheaper models for simple tasks
+   - Implement rate limiting
+   - Monitor token usage
+
+### ChromaDB Integration (Vector Database)
+```python
+"""
+ChromaDB Integration for Production
+==================================
+"""
+import chromadb
+from chromadb.config import Settings
+
+class VectorStore:
+    """Production-ready vector store with ChromaDB."""
+    
+    def __init__(self, collection_name: str = "articles"):
+        self.client = chromadb.Client(Settings(
+            chroma_db_impl="duckdb+parquet",
+            persist_directory="./data/chroma"
+        ))
+        self.collection = self.client.get_or_create_collection(
+            name=collection_name,
+            metadata={"hnsw:space": "cosine"}  # Distance metric
+        )
+    
+    async def add_documents(
+        self, 
+        documents: List[str],
+        embeddings: List[List[float]],
+        metadatas: List[Dict],
+        ids: List[str]
+    ):
+        """Add documents with embeddings to vector store."""
+        self.collection.add(
+            documents=documents,
+            embeddings=embeddings,
+            metadatas=metadatas,
+            ids=ids
+        )
+    
+    async def search(
+        self, 
+        query_embedding: List[float],
+        n_results: int = 10,
+        where: Optional[Dict] = None
+    ) -> Dict[str, Any]:
+        """Search for similar documents."""
+        return self.collection.query(
+            query_embeddings=[query_embedding],
+            n_results=n_results,
+            where=where  # Metadata filtering
+        )
+```
+
+### Testing AI/ML Components
+1. **Unit Tests for ML Code**:
+   ```python
+   def test_embedding_generation():
+       """Test embedding generation produces correct dimensions."""
+       generator = EmbeddingGenerator("all-MiniLM-L6-v2")
+       texts = ["test article 1", "test article 2"]
+       
+       embeddings = await generator.generate_embeddings(texts)
+       
+       assert embeddings.shape == (2, 384)  # Correct dimensions
+       assert np.all(np.linalg.norm(embeddings, axis=1) > 0)  # Non-zero
+   ```
+
+2. **Integration Tests for RAG**:
+   ```python
+   @pytest.mark.integration
+   async def test_rag_pipeline_end_to_end():
+       """Test complete RAG pipeline."""
+       rag = RAGPipeline(embedding_generator)
+       
+       # Add documents
+       docs = [{"content": "AI news article", "id": "1"}]
+       await rag.add_documents(docs)
+       
+       # Search
+       results = await rag.search("artificial intelligence")
+       
+       assert len(results) > 0
+       assert results[0]["score"] > 0.5
+   ```
+
+3. **Mock LLM Responses**:
+   ```python
+   @pytest.fixture
+   def mock_llm_provider(monkeypatch):
+       """Mock LLM provider for testing."""
+       async def mock_summarize(self, text: str, **kwargs):
+           return {
+               "summary": "Test summary",
+               "success": True,
+               "model": "test-model"
+           }
+       
+       monkeypatch.setattr(OllamaProvider, "summarize", mock_summarize)
+   ```
+
+---
+
+## 🚀 Feature Implementation Guidelines
+
+### Adding New Features - Step by Step
+
+#### 1. **Planning Phase**
+```markdown
+Feature: Advanced Search with Filters
+
+Requirements:
+- Filter by date range
+- Filter by multiple categories
+- Sort by relevance/date
+- Save search preferences
+
+Technical Design:
+- Backend: New query parameters in /search endpoint
+- Frontend: SearchFilters component
+- State: useSearchFilters hook
+- Storage: Save to user preferences
+```
+
+#### 2. **Backend Implementation**
+```
+1. Update models (if needed)
+   - Add new Pydantic schemas
+   - Update SQLAlchemy models
+
+2. Create/update service layer
+   - Add business logic
+   - Database queries with new filters
+
+3. Create/update API endpoints
+   - Add new route or update existing
+   - Input validation
+   - Error handling
+
+4. Write tests
+   - Unit tests for service methods
+   - Integration tests for endpoints
+
+5. Update documentation
+   - API docs (automatic with FastAPI)
+   - README if needed
+```
+
+#### 3. **Frontend Implementation**
+```
+1. Define types
+   - Update types/api.ts
+   - Add new interfaces
+
+2. Update API client
+   - Add new API methods
+   - Type all requests/responses
+
+3. Create UI components
+   - Follow component structure
+   - Add accessibility
+   - Error states
+
+4. Create custom hooks (if needed)
+   - State management
+   - API integration
+
+5. Write tests
+   - Component tests
+   - Hook tests
+   - Integration tests
+
+6. Update documentation
+```
+
+### Example: Adding Comment System
+
+#### Backend
+```python
+# 1. Model (app/models/__init__.py)
+class CommentDB(Base):
+    __tablename__ = "comments"
+    
+    id = Column(String, primary_key=True)
+    article_id = Column(String, ForeignKey("articles.id"))
+    user_id = Column(String, ForeignKey("users.id"))
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=func.now())
+
+# 2. Service (app/services/comment_service.py)
+class CommentService:
+    async def create_comment(
+        self, 
+        article_id: str, 
+        user_id: str, 
+        content: str
+    ) -> Comment:
+        # Validation, business logic
+        pass
+    
+    async def get_comments(
+        self, 
+        article_id: str, 
+        limit: int = 50
+    ) -> List[Comment]:
+        # Fetch and return comments
+        pass
+
+# 3. API Endpoint (app/api/endpoints.py)
+@router.post("/articles/{article_id}/comments")
+async def create_comment(
+    article_id: str,
+    content: str = Body(...),
+    current_user: User = Depends(get_current_user)
+):
+    """Create a new comment on an article."""
+    return await comment_service.create_comment(
+        article_id, current_user.id, content
+    )
+
+# 4. Tests (tests/test_api/test_comments.py)
+def test_create_comment(client, auth_token):
+    response = client.post(
+        "/articles/123/comments",
+        json={"content": "Great article!"},
+        headers={"Authorization": f"Bearer {auth_token}"}
+    )
+    assert response.status_code == 201
+```
+
+#### Frontend
+```typescript
+// 1. Types (types/api.ts)
+export interface Comment {
+  id: string;
+  article_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+}
+
+// 2. API Client (lib/api.ts)
+export const commentsApi = {
+  getComments: async (articleId: string): Promise<Comment[]> => {
+    const response = await api.get(`/articles/${articleId}/comments`);
+    return response.data;
+  },
+  
+  createComment: async (
+    articleId: string, 
+    content: string
+  ): Promise<Comment> => {
+    const response = await api.post(
+      `/articles/${articleId}/comments`,
+      { content }
+    );
+    return response.data;
+  }
+};
+
+// 3. Hook (hooks/useComments.ts)
+export function useComments(articleId: string) {
+  return useQuery({
+    queryKey: ['comments', articleId],
+    queryFn: () => commentsApi.getComments(articleId)
+  });
+}
+
+// 4. Component (components/CommentSection.tsx)
+export default function CommentSection({ articleId }: Props) {
+  const { data: comments } = useComments(articleId);
+  const [content, setContent] = useState('');
+  
+  const createMutation = useMutation({
+    mutationFn: () => commentsApi.createComment(articleId, content),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['comments', articleId]);
+      setContent('');
+    }
+  });
+  
+  return (
+    <div>
+      {/* Comment list */}
+      {/* Comment form */}
+    </div>
+  );
+}
+```
+
+---
+
+## 🔒 Security Best Practices
+
+### Backend Security
+1. **Input Validation**: Use Pydantic models for all inputs
+2. **SQL Injection**: Use SQLAlchemy ORM, never raw SQL
+3. **Authentication**: JWT tokens with proper expiration
+4. **Password Hashing**: bcrypt with salt
+5. **CORS**: Strict origin whitelist
+6. **Rate Limiting**: Implement on all endpoints
+7. **HTTPS**: Always in production
+8. **Environment Variables**: Never commit secrets
+
+### Frontend Security
+1. **XSS Prevention**: React escapes by default, never use `dangerouslySetInnerHTML`
+2. **CSRF**: Include CSRF tokens for mutations
+3. **Token Storage**: Use httpOnly cookies (not localStorage for sensitive data)
+4. **Input Sanitization**: Validate all user inputs
+5. **Dependency Scanning**: Regular `npm audit`
+6. **Content Security Policy**: Configure CSP headers
+
+---
+
+## 📊 Performance Best Practices
+
+### Backend Performance
+1. **Database Indexing**: Index all foreign keys and frequently queried fields
+2. **Connection Pooling**: Configure pool size based on load
+3. **Caching**: Redis for frequently accessed data
+4. **Async Operations**: Use async/await for all I/O
+5. **Pagination**: Always paginate large result sets
+6. **Query Optimization**: Use `select_related` and `prefetch_related`
+7. **Background Tasks**: Use FastAPI BackgroundTasks for non-critical operations
+
+### Frontend Performance
+1. **Code Splitting**: Lazy load routes and heavy components
+2. **Memoization**: Use `useMemo` and `useCallback` appropriately
+3. **Virtual Scrolling**: For long lists
+4. **Image Optimization**: Lazy loading, modern formats
+5. **Bundle Size**: Monitor and optimize
+6. **Caching**: Use TanStack Query's caching effectively
+7. **Debouncing**: For search inputs
+
+---
+
+## 📝 Documentation Standards
+
+### Code Documentation
+- **Python**: Google-style docstrings
+- **TypeScript**: JSDoc comments
+- **API**: Automatic with FastAPI (OpenAPI/Swagger)
+
+### Project Documentation
+- **README.md**: Overview, quick start, features
+- **CONTRIBUTING.md**: How to contribute
+- **API_DOCS.md**: Detailed API documentation
+- **ARCHITECTURE.md**: System design and architecture
+
+---
+
+## 🔄 Git Workflow
+
+### Branch Naming
+- `feature/` - New features
+- `bugfix/` - Bug fixes
+- `hotfix/` - Critical production fixes
+- `refactor/` - Code refactoring
+- `docs/` - Documentation updates
+
+### Commit Messages
+```
+type(scope): Brief description
+
+Detailed explanation if needed.
+
+- Change 1
+- Change 2
+```
+
+Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
+
+### Pull Request Template
+```markdown
+## Description
+Brief description of changes
+
+## Type of Change
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Breaking change
+- [ ] Documentation update
+
+## Testing
+- [ ] Unit tests pass
+- [ ] Integration tests pass
+- [ ] Manual testing completed
+
+## Checklist
+- [ ] Code follows style guide
+- [ ] Self-review completed
+- [ ] Documentation updated
+- [ ] No console errors
+```
+
+---
+
+## ⚡ Quick Reference
+
+### Common Commands
+
+**Backend**
+```bash
+# Start server
+python backend/production_main.py
+
+# Run tests
+pytest tests/ -v
+
+# Database migration
+alembic upgrade head
+
+# Install dependencies
+pip install -r backend/requirements.txt
+```
+
+**Frontend**
+```bash
+# Start dev server
+npm run dev
+
+# Run tests
+npm test
+
+# Build for production
+npm run build
+
+# Install dependencies
+npm install
+```
+
+---
+
+## 🎓 Learning Resources
+
+### Backend (FastAPI)
+- [FastAPI Documentation](https://fastapi.tiangolo.com/)
+- [SQLAlchemy Documentation](https://docs.sqlalchemy.org/)
+- [Pydantic Documentation](https://docs.pydantic.dev/)
+
+### Frontend (React)
+- [React Documentation](https://react.dev/)
+- [TypeScript Handbook](https://www.typescriptlang.org/docs/)
+- [TanStack Query Documentation](https://tanstack.com/query/)
+
+### Best Practices
+- [12 Factor App](https://12factor.net/)
+- [Clean Code](https://github.com/ryanmcdermott/clean-code-javascript)
+- [API Design Guide](https://github.com/microsoft/api-guidelines)
+
+---
+
+## 🤖 AI Assistant Behavior
+
+When GitHub Copilot assists with this project:
+
+1. **Always follow these conventions** - Structure, naming, patterns
+2. **Generate complete, production-ready code** - No TODOs or placeholders
+3. **Include comprehensive error handling** - Try/catch, proper HTTP codes, fallbacks
+4. **Add proper types everywhere** - Python type hints, TypeScript types
+5. **Write meaningful comments** - Explain why, not what
+6. **Consider security implications** - Validate inputs, handle auth, sanitize data
+7. **Optimize for performance** - Async operations, caching, pagination, batch processing
+8. **Include tests** - Suggest tests for new features, especially AI/ML components
+9. **Follow accessibility standards** - ARIA labels, keyboard navigation
+10. **Be consistent** - Match existing code style and patterns
+11. **AI/ML specific**:
+    - Always use provider abstraction for LLM calls
+    - Implement graceful fallbacks for ML operations
+    - Cache embeddings and LLM responses appropriately
+    - Consider token limits and API costs
+    - Handle model loading errors gracefully
+    - Mock external AI services in tests
+    - Document model assumptions and limitations
+12. **RAG/Vector Search specific**:
+    - Use semantic chunking for documents
+    - Implement hybrid search (vector + keyword)
+    - Add metadata filtering capabilities
+    - Optimize for embedding generation performance
+    - Consider storage and retrieval scalability
+
+---
+
+## 📋 Checklists
+
+### New Feature Checklist
+- [ ] Requirements documented
+- [ ] Technical design reviewed
+- [ ] Backend models created/updated
+- [ ] Backend service layer implemented
+- [ ] Backend API endpoints created
+- [ ] Backend tests written (80%+ coverage)
+- [ ] Frontend types defined
+- [ ] Frontend API client updated
+- [ ] Frontend components created
+- [ ] Frontend hooks created (if needed)
+- [ ] Frontend tests written
+- [ ] Error handling implemented
+- [ ] Loading states implemented
+- [ ] Accessibility checked
+- [ ] Documentation updated
+- [ ] Code reviewed
+- [ ] CI/CD passing
+
+### AI/ML Feature Checklist
+- [ ] Model selection justified and documented
+- [ ] Provider abstraction implemented
+- [ ] Fallback mechanisms in place
+- [ ] Error handling for model failures
+- [ ] Response caching implemented
+- [ ] Token usage monitored
+- [ ] API rate limiting configured
+- [ ] Embedding dimensions validated
+- [ ] Vector search performance tested
+- [ ] RAG pipeline chunking optimized
+- [ ] Context window limits respected
+- [ ] Model loading tested (cold start)
+- [ ] ML operations properly mocked in tests
+- [ ] Cost implications documented
+- [ ] Performance benchmarks recorded
+
+### Pre-Deployment Checklist
+- [ ] All tests passing
+- [ ] No console errors/warnings
+- [ ] Environment variables configured
+- [ ] Database migrations run
+- [ ] Security headers configured
+- [ ] CORS properly configured
+- [ ] Rate limiting enabled
+- [ ] Logging configured
+- [ ] Error tracking setup (Sentry)
+- [ ] Performance monitoring enabled
+- [ ] Backup strategy in place
+- [ ] SSL/TLS configured
+- [ ] Documentation updated
+- [ ] Smoke tests passed
+
+---
+
+**Version**: 2.0.0  
+**Last Updated**: October 6, 2025  
+**Maintainer**: Project Team
+
