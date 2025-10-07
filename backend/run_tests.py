@@ -203,7 +203,7 @@ class TestRunner:
         self.print_header("📊 Test Summary")
         
         if exit_code == 0:
-            self.print_success(f"All tests passed! ✨")
+            self.print_success("All tests passed! ✨")
         else:
             self.print_error(f"Some tests failed (exit code: {exit_code})")
 
