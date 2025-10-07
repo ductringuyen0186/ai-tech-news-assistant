@@ -403,7 +403,7 @@ class SearchService:
             if last_indexed_str:
                 try:
                     last_indexed = datetime.fromisoformat(last_indexed_str)
-                except:
+                except (ValueError, TypeError):
                     pass
             
             return {

@@ -11,10 +11,9 @@ Comprehensive tests for the semantic search service including:
 """
 
 import pytest
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import Mock, AsyncMock, patch
 from datetime import datetime, timedelta
 import numpy as np
-from typing import List, Dict, Any
 
 from src.services.search_service import SearchService, get_search_service
 from src.models.search import (
@@ -135,8 +134,8 @@ class TestSearchServiceInitialization:
     def test_singleton_pattern(self):
         """Test that get_search_service returns the same instance."""
         with patch('src.services.search_service.SearchService') as MockService:
-            instance1 = get_search_service()
-            instance2 = get_search_service()
+            get_search_service()
+            get_search_service()
             
             # Should only create one instance
             assert MockService.call_count == 1
