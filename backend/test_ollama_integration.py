@@ -4,7 +4,10 @@ Test Ollama Integration
 Tests the OllamaProvider and fallback mechanisms.
 
 Usage:
-    python test                print(f"  ✅ Summary generated in {elapsed:.2f}s:")
+    python test                   print(f"  ✅ Summary generated in {elapsed:.2f}s:")
+                print(f"    {result['summary'][:200]}...")
+                print("\n   📊 Metadata:")
+                print(f"    - Model: {result.get('model', 'N/A')}")         print(f"  ✅ Summary generated in {elapsed:.2f}s:")
                 print(f"    {result['summary'][:200]}...")
                 print("\n   📊 Metadata:")
                 print(f"    - Model: {result.get('model', 'N/A')}")ama_integration.py
