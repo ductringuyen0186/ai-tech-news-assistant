@@ -4,9 +4,10 @@ A job-market-aligned AI Tech-News Assistant that aggregates, analyzes, and prese
 
 ## 🚀 Features
 
-- **News Ingestion**: Automated scraping from multiple tech news sources
-- **AI Summarization**: LLM-powered article summarization using Ollama/Claude/GPT
-- **Semantic Search**: RAG-based search through news archives using vector embeddings
+- **News Ingestion**: Automated scraping from multiple tech news sources (RSS feeds, web scraping)
+- **Local LLM Integration**: Free AI-powered summarization using Ollama (Llama 3.2, Mistral) with optional Claude fallback
+- **AI Summarization**: Intelligent article summarization with keyword extraction and sentiment analysis
+- **Semantic Search**: RAG-based search through news archives using vector embeddings (Sentence Transformers)
 - **Interactive Dashboard**: React-based frontend for browsing and filtering news
 - **Automated Pipeline**: Prefect-orchestrated daily news processing
 
@@ -70,13 +71,35 @@ ai-tech-news-assistant/
    pip install -r requirements.txt
    ```
 
-4. **Configure environment**
+4. **Install and Configure Ollama (Recommended)**
+   
+   For free local LLM inference:
+   
+   ```bash
+   # Download and install from https://ollama.com/download
+   
+   # Pull a model
+   ollama pull llama3.2:1b  # Fast, lightweight (1.3GB)
+   
+   # Verify installation
+   ollama list
+   curl http://localhost:11434/api/tags
+   ```
+   
+   📖 **Detailed Guide**: See [docs/OLLAMA_SETUP.md](docs/OLLAMA_SETUP.md) for:
+   - Model comparison and selection
+   - GPU acceleration setup
+   - Performance optimization
+   - Troubleshooting guide
+   - API reference
+
+5. **Configure environment**
    ```bash
    cp .env.example .env
-   # Edit .env with your settings
+   # Edit .env with your settings (Ollama config included)
    ```
 
-5. **Run the FastAPI server**
+6. **Run the FastAPI server**
    ```bash
    python main.py
    ```

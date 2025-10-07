@@ -94,6 +94,15 @@ class OllamaProvider(LLMProvider):
             Dict with summary, keywords, and metadata
         """
         try:
+            # Validate input
+            if not text or len(text.strip()) == 0:
+                logger.warning("Empty text provided for summarization")
+                return {
+                    "success": False,
+                    "error": "Empty text provided",
+                    "provider": "ollama"
+                }
+            
             # Create summarization prompt
             prompt = self._create_summary_prompt(text)
             
@@ -114,15 +123,30 @@ class OllamaProvider(LLMProvider):
                 )
                 
                 if response.status_code != 200:
-                    raise Exception(f"Ollama request failed: {response.status_code}")
+                    error_msg = f"Ollama request failed with status {response.status_code}"
+                    logger.error(error_msg)
+                    return {
+                        "success": False,
+                        "error": error_msg,
+                        "provider": "ollama"
+                    }
                 
                 result = response.json()
                 summary_text = result.get("response", "").strip()
+                
+                if not summary_text:
+                    logger.warning("Ollama returned empty response")
+                    return {
+                        "success": False,
+                        "error": "Empty response from Ollama",
+                        "provider": "ollama"
+                    }
                 
                 # Extract keywords from summary
                 keywords = await self._extract_keywords(summary_text)
                 
                 return {
+                    "success": True,
                     "summary": summary_text,
                     "keywords": keywords,
                     "model": self.model,
@@ -132,7 +156,11 @@ class OllamaProvider(LLMProvider):
                 
         except Exception as e:
             logger.error(f"Error in Ollama summarization: {str(e)}")
-            raise Exception(f"Ollama summarization failed: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "provider": "ollama"
+            }
     
     def _create_summary_prompt(self, text: str) -> str:
         """Create a well-structured prompt for summarization."""
