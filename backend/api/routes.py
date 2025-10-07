@@ -73,6 +73,102 @@ async def get_news(
         raise HTTPException(status_code=500, detail="Failed to fetch articles")
 
 
+@router.get("/news/articles", tags=["News"])
+async def get_articles(
+    page: int = Query(default=1, ge=1, description="Page number (1-indexed)"),
+    limit: int = Query(default=20, ge=1, le=100, description="Number of articles per page"),
+    source: Optional[str] = Query(default=None, description="Filter by news source"),
+    category: Optional[str] = Query(default=None, description="Filter by category")
+) -> Dict[str, Any]:
+    """
+    Get paginated articles from the database with optional filters.
+    
+    Args:
+        page: Page number (1-indexed)
+        limit: Number of articles per page (1-100)
+        source: Optional source filter
+        category: Optional category filter
+        
+    Returns:
+        Paginated list of articles with metadata
+    """
+    try:
+        import sqlite3
+        from pathlib import Path
+        import json
+        
+        logger.info(f"Fetching articles page {page}, limit {limit}, source={source}, category={category}")
+        
+        db_path = Path("./data/articles.db")
+        
+        if not db_path.exists():
+            return {
+                "articles": [],
+                "total": 0,
+                "page": page,
+                "limit": limit,
+                "total_pages": 0
+            }
+        
+        with sqlite3.connect(db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            
+            # Build query with filters
+            where_clauses = []
+            params = []
+            
+            if source:
+                where_clauses.append("source = ?")
+                params.append(source)
+            
+            if category:
+                where_clauses.append("tags LIKE ?")
+                params.append(f'%"{category}"%')
+            
+            where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+            
+            # Get total count
+            count_query = f"SELECT COUNT(*) FROM articles WHERE {where_sql}"
+            cursor = conn.execute(count_query, params)
+            total_count = cursor.fetchone()[0]
+            
+            # Get paginated articles
+            offset = (page - 1) * limit
+            articles_query = f"""
+                SELECT id, title, url, description, published_date, source, 
+                       source_url, author, tags, content, created_at, updated_at
+                FROM articles 
+                WHERE {where_sql}
+                ORDER BY published_date DESC 
+                LIMIT ? OFFSET ?
+            """
+            cursor = conn.execute(articles_query, params + [limit, offset])
+            
+            articles = []
+            for row in cursor.fetchall():
+                article = dict(row)
+                # Parse tags JSON
+                try:
+                    article['tags'] = json.loads(article['tags']) if article['tags'] else []
+                except:
+                    article['tags'] = []
+                articles.append(article)
+        
+        total_pages = (total_count + limit - 1) // limit  # Ceiling division
+        
+        return {
+            "articles": articles,
+            "total": total_count,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching articles: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch articles: {str(e)}")
+
+
 @router.post("/news/ingest", tags=["News"])
 async def trigger_news_ingestion(
     parse_content: bool = Query(default=False, description="Whether to parse full article content (slower)")
