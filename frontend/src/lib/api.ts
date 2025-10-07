@@ -66,12 +66,46 @@ export const healthApi = {
     api.get('/ping').then(res => res.data),
 };
 
+// Transform backend article format to frontend Article type
+const transformArticle = (backendArticle: any): Article => {
+  // Parse tags if it's a JSON string
+  let categories: string[] = [];
+  if (backendArticle.tags) {
+    try {
+      categories = typeof backendArticle.tags === 'string' 
+        ? JSON.parse(backendArticle.tags) 
+        : backendArticle.tags;
+    } catch (e) {
+      console.warn('Failed to parse tags:', backendArticle.tags);
+      categories = [];
+    }
+  }
+
+  return {
+    id: backendArticle.id,
+    title: backendArticle.title,
+    url: backendArticle.url,
+    content: backendArticle.content || backendArticle.description || '',
+    summary: backendArticle.description || backendArticle.summary,
+    author: backendArticle.author,
+    published_at: backendArticle.published_date || backendArticle.published_at,
+    source: backendArticle.source,
+    categories,
+    metadata: backendArticle.metadata || {},
+    created_at: backendArticle.created_at,
+    updated_at: backendArticle.updated_at,
+  };
+};
+
 export const articlesApi = {
   getArticles: (params?: ArticleSearchParams): Promise<SearchResponse> =>
-    api.get('/news/articles', { params }).then(res => res.data),
+    api.get('/news/articles', { params }).then(res => ({
+      ...res.data,
+      articles: res.data.articles.map(transformArticle),
+    })),
 
   getArticle: (id: string): Promise<Article> =>
-    api.get(`/news/articles/${id}`).then(res => res.data),
+    api.get(`/news/articles/${id}`).then(res => transformArticle(res.data)),
 
   searchArticles: (params: ArticleSearchParams): Promise<SearchResponse> =>
     api.get('/search/articles', { params }).then(res => res.data),
