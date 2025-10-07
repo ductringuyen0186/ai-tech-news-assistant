@@ -93,9 +93,9 @@ class ArticleEmbeddingManager:
             cursor = conn.cursor()
             
             query = """
-                SELECT id, title, content, summary, source, url, published_date
+                SELECT id, title, content, description as summary, source, url, published_date
                 FROM articles 
-                WHERE embedding IS NULL AND content IS NOT NULL
+                WHERE embedding IS NULL
                 ORDER BY published_date DESC
             """
             
@@ -284,6 +284,10 @@ async def main():
     manager = ArticleEmbeddingManager()
     
     try:
+        # Setup database schema first
+        print("🔧 Setting up database schema...")
+        await manager.setup_database()
+        
         # Check current status
         print("📊 Checking current embedding status...")
         stats = await manager.get_embedding_statistics()
