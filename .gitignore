@@ -570,3 +570,33 @@ local_config.py
 # Performance profiling
 *.prof
 profiling/
+
+# =======================
+# Temporary Documentation
+# =======================
+# PR descriptions (create them when needed, don't commit)
+PR_DESCRIPTION.md
+PULL_REQUEST_TEMPLATE.md.tmp
+
+# Issue tracking documents (use GitHub issues instead)
+ISSUE_*_TASKS.md
+TASK_*.md
+
+# One-time reports and summaries
+*_SUMMARY.md
+*_REPORT.md
+*_COMPLETE.md
+PROGRESS_REPORT.md
+REFACTORING_COMPLETE.md
+REVERT_SUMMARY.md
+
+# Personal notes and scratch files
+NOTES.md
+SCRATCH.md
+TODO.md
+TEMP*.md
+
+# Keep important docs (negative pattern to override above)
+!README.md
+!docs/**/*.md
+!.github/**/*.md
