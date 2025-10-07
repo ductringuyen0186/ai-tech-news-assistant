@@ -136,7 +136,7 @@ async def test_ollama_summarization():
             if result.get("success"):
                 print(f"✅ Summary generated in {elapsed:.2f}s:")
                 print(f"   {result['summary'][:200]}...")
-                print(f"\n   📊 Metadata:")
+                print("\n   📊 Metadata:")
                 print(f"   - Model: {result.get('model', 'N/A')}")
                 print(f"   - Provider: {result.get('provider', 'N/A')}")
                 print(f"   - Keywords: {', '.join(result.get('keywords', [])[:5])}")
