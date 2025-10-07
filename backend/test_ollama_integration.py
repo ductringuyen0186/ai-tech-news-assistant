@@ -4,7 +4,10 @@ Test Ollama Integration
 Tests the OllamaProvider and fallback mechanisms.
 
 Usage:
-    python test_ollama_integration.py
+    python test                print(f"  ✅ Summary generated in {elapsed:.2f}s:")
+                print(f"    {result['summary'][:200]}...")
+                print("\n   📊 Metadata:")
+                print(f"    - Model: {result.get('model', 'N/A')}")ama_integration.py
 """
 import asyncio
 import sys
@@ -13,7 +16,7 @@ from pathlib import Path
 # Add backend to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from llm.providers import OllamaProvider, ClaudeProvider
+from llm.providers import OllamaProvider
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -91,8 +94,8 @@ async def test_ollama_availability():
             return True
         else:
             print("❌ FAILED: Ollama server not available or model not found")
-            print(f"   - Check if Ollama is running: ollama serve")
-            print(f"   - Check if model exists: ollama list")
+            print("   - Check if Ollama is running: ollama serve")
+            print("   - Check if model exists: ollama list")
             return False
     except Exception as e:
         print(f"❌ ERROR: {e}")
@@ -237,15 +240,15 @@ async def test_edge_cases():
             
             if test['should_fail']:
                 # Should have returned error
-                if result.get('success') == False:
+                if not result.get('success'):
                     print(f"✅ SUCCESS: Properly returned error: {result.get('error')}")
                     results.append(True)
                 else:
-                    print(f"⚠️  Expected failure but succeeded")
+                    print("⚠️  Expected failure but succeeded")
                     results.append(False)
             else:
                 if result.get('success'):
-                    print(f"✅ SUCCESS: Handled correctly")
+                    print("✅ SUCCESS: Handled correctly")
                     results.append(True)
                 else:
                     print(f"❌ FAILED: {result.get('error')}")
