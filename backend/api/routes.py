@@ -11,6 +11,8 @@ from typing import Dict, Any, Optional
 import sqlite3
 
 from ingestion.rss_feeds import RSSFeedIngester, ingest_tech_news, parse_missing_content
+from src.models.search import SearchRequest, SearchResponse, SearchHealthResponse
+from src.services.search_service import get_search_service
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -459,10 +461,86 @@ async def get_summarization_status() -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail="Failed to check service status")
 
 
-@router.get("/search", tags=["Search"])
-async def search_articles() -> Dict[str, str]:
-    """Search articles using semantic search (placeholder)."""
-    return {"message": "Search endpoint - coming soon"}
+@router.post("/search", tags=["Search"])
+async def search_articles(request: "SearchRequest") -> "SearchResponse":
+    """
+    Perform semantic search on articles using AI-powered embeddings.
+    
+    This endpoint uses vector similarity search to find the most relevant articles
+    based on the semantic meaning of your query, not just keyword matching.
+    
+    Features:
+    - Semantic understanding of queries
+    - Vector similarity search
+    - Optional reranking for improved relevance
+    - Flexible filtering by source, category, and date
+    - Configurable result limits and similarity thresholds
+    
+    Args:
+        request: Search request with query and optional filters
+        
+    Returns:
+        Ranked search results with similarity scores
+        
+    Example:
+        ```json
+        {
+            "query": "latest AI breakthroughs in NLP",
+            "limit": 10,
+            "min_score": 0.5,
+            "sources": ["hackernews", "techcrunch"],
+            "use_reranking": true
+        }
+        ```
+    """
+    try:
+        # Get search service instance
+        search_service = get_search_service()
+        
+        # Perform search
+        results = await search_service.search(request)
+        
+        logger.info(
+            f"Search completed: query='{request.query}', "
+            f"results={results.total_results}, "
+            f"time={results.execution_time_ms}ms"
+        )
+        
+        return results
+        
+    except Exception as e:
+        logger.error(f"Search endpoint failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Search failed: {str(e)}"
+        )
+
+
+@router.get("/search/health", tags=["Search"])
+async def search_health() -> "SearchHealthResponse":
+    """
+    Check search service health and statistics.
+    
+    Returns information about:
+    - Service status
+    - Number of indexed articles
+    - Last indexing timestamp
+    - Embedding dimensions
+    
+    This is useful for monitoring and debugging the search functionality.
+    """
+    try:
+        search_service = get_search_service()
+        health = await search_service.health_check()
+        
+        return health
+        
+    except Exception as e:
+        logger.error(f"Search health check failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Health check failed: {str(e)}"
+        )
 
 
 @router.post("/embeddings/generate", tags=["Embeddings"])

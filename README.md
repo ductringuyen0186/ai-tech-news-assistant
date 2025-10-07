@@ -7,7 +7,12 @@ A job-market-aligned AI Tech-News Assistant that aggregates, analyzes, and prese
 - **News Ingestion**: Automated scraping from multiple tech news sources (RSS feeds, web scraping)
 - **Local LLM Integration**: Free AI-powered summarization using Ollama (Llama 3.2, Mistral) with optional Claude fallback
 - **AI Summarization**: Intelligent article summarization with keyword extraction and sentiment analysis
-- **Semantic Search**: RAG-based search through news archives using vector embeddings (Sentence Transformers)
+- **🔍 Semantic Search** ✨ **NEW**: AI-powered search using vector embeddings (Sentence Transformers)
+  - Natural language queries with semantic understanding
+  - Vector similarity search with cosine distance
+  - Smart reranking (50% similarity + 30% title match + 20% recency)
+  - Advanced filtering (source, category, date range, min score)
+  - Sub-100ms query performance with caching
 - **Interactive Dashboard**: React-based frontend for browsing and filtering news
 - **Automated Pipeline**: Prefect-orchestrated daily news processing
 
@@ -137,12 +142,25 @@ ai-tech-news-assistant/
 - `GET /` - API information
 - `GET /ping` - Basic health check
 - `GET /health` - Detailed health status
+- `GET /search/health` - ✨ Search service health and statistics
 
-### API v1 (Base: `/api/v1/`)
-- `GET /` - API information
-- `GET /news` - News articles (coming soon)
-- `POST /summarize` - Article summarization (coming soon)
-- `GET /search` - Semantic search (coming soon)
+### News & Articles
+- `GET /news` - List news articles with pagination
+- `POST /news/ingest` - Trigger RSS feed ingestion
+- `GET /news/{source}` - Get articles from specific source
+
+### 🔍 Semantic Search (NEW)
+- `POST /search` - **AI-powered semantic article search**
+  - Query using natural language
+  - Vector similarity search with embeddings
+  - Smart reranking (similarity + title match + recency)
+  - Filter by source, category, date, score
+  - Returns ranked results with relevance scores
+  - 📖 **[Full API Documentation](docs/SEARCH_API.md)**
+
+### AI Summarization
+- `POST /summarize` - Generate AI summaries using Ollama
+- `GET /summarize/health` - Check LLM service status
 
 ## 🔧 Configuration
 
