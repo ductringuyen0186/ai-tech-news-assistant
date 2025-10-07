@@ -1,29 +1,41 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { searchApi } from '@/lib/api.ts';
+import { useSemanticSearch, useSources, useCategories } from '../hooks';
 import { formatDate, truncateText } from '@/lib/utils.ts';
-import { Search as SearchIcon, ExternalLink } from 'lucide-react';
+import { Search as SearchIcon, ExternalLink, Filter, TrendingUp } from 'lucide-react';
 
 export default function Search() {
   const [query, setQuery] = useState('');
-  const [searchType, setSearchType] = useState<'text' | 'semantic'>('text');
   const [submitted, setSubmitted] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  
+  // Filter state
+  const [selectedSources, setSelectedSources] = useState<string[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [minScore, setMinScore] = useState(0.5);
+  const [useReranking, setUseReranking] = useState(true);
+  const [limit, setLimit] = useState(20);
 
+  // Semantic search with new hook
   const {
-    data: results,
+    results,
+    totalResults,
+    executionTime,
+    rerankingApplied,
     isLoading,
     error,
-  } = useQuery({
-    queryKey: ['search', searchType, query],
-    queryFn: () => {
-      if (searchType === 'semantic') {
-        return searchApi.semanticSearch({ query, limit: 20 });
-      } else {
-        return searchApi.textSearch({ query, limit: 20 });
-      }
-    },
-    enabled: !!query && submitted,
+  } = useSemanticSearch({
+    query,
+    limit,
+    min_score: minScore,
+    sources: selectedSources.length > 0 ? selectedSources : undefined,
+    categories: selectedCategories.length > 0 ? selectedCategories : undefined,
+    use_reranking: useReranking,
+    enabled: submitted && !!query,
   });
+
+  // Fetch available sources and categories for filters
+  const { data: sourcesData } = useSources();
+  const { data: categoriesData } = useCategories();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

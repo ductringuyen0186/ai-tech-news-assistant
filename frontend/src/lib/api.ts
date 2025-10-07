@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import type {
   Article,
   ArticleSearchParams,
@@ -9,11 +9,20 @@ import type {
   HealthStatus,
   SummarizationRequest,
   SummarizationResponse,
+  SemanticSearchRequest,
+  SemanticSearchResponse,
+  SearchHealthResponse,
 } from '../types/api';
 
+// Get API base URL from environment variables
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
 const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL: API_BASE_URL,
   timeout: 30000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
 });
 
 // Request interceptor for logging
@@ -27,8 +36,24 @@ api.interceptors.request.use(config => {
 // Response interceptor for error handling
 api.interceptors.response.use(
   response => response,
-  error => {
-    console.error('API Error:', error.response?.data || error.message);
+  (error: AxiosError) => {
+    // Handle specific error codes
+    if (error.response?.status === 401) {
+      console.error('Unauthorized - Authentication required');
+    } else if (error.response?.status === 429) {
+      console.warn('Rate limit exceeded - Please try again later');
+    } else if (error.response?.status === 500) {
+      console.error('Server error - Please try again later');
+    }
+    
+    // Log error details
+    console.error('API Error:', {
+      status: error.response?.status,
+      message: error.message,
+      data: error.response?.data,
+      url: error.config?.url,
+    });
+    
     return Promise.reject(error);
   }
 );
@@ -84,6 +109,21 @@ export const searchApi = {
     params: ArticleSearchParams & { query: string }
   ): Promise<SearchResponse> =>
     api.get('/search/semantic', { params }).then(res => res.data),
+  
+  /**
+   * Semantic search with vector similarity (Issue #14)
+   * Uses embeddings for natural language search
+   */
+  vectorSearch: (
+    request: SemanticSearchRequest
+  ): Promise<SemanticSearchResponse> =>
+    api.post('/search', request).then(res => res.data),
+  
+  /**
+   * Check semantic search service health
+   */
+  searchHealth: (): Promise<SearchHealthResponse> =>
+    api.get('/search/health').then(res => res.data),
 };
 
 export default api;
