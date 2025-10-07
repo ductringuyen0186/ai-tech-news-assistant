@@ -168,15 +168,15 @@ async def get_news_categories() -> Dict[str, Any]:
         List of categories found in articles
     """
     try:
-        # Get categories from database
+        # Get categories from database (using tags column)
         async with RSSFeedIngester() as ingester:
             with sqlite3.connect(ingester.db_path) as conn:
                 cursor = conn.cursor()
-                # Get distinct categories from the database
+                # Get distinct tags/categories from the database
                 cursor.execute("""
-                    SELECT DISTINCT categories 
+                    SELECT DISTINCT tags 
                     FROM articles 
-                    WHERE categories IS NOT NULL AND categories != ''
+                    WHERE tags IS NOT NULL AND tags != ''
                 """)
                 rows = cursor.fetchall()
                 
