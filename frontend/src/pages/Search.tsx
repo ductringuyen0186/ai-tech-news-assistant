@@ -32,6 +32,7 @@ export default function Search() {
     rerankingApplied,
     isLoading,
     error,
+    refetch,
   } = useSemanticSearch({
     query,
     limit,
@@ -50,6 +51,8 @@ export default function Search() {
     e.preventDefault();
     if (query.trim()) {
       setSubmitted(true);
+      // Force refetch when form is submitted
+      setTimeout(() => refetch(), 0);
     }
   };
 
