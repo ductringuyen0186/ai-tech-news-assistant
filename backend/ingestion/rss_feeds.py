@@ -361,78 +361,94 @@ class RSSFeedIngester:
         # Initialize content parser if needed
         content_parser = ContentParser() if parse_content else None
         
+        conn = None
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                for article in articles:
-                    try:
-                        # Convert article to dict for storage
-                        article_data = article.dict()
+            conn = sqlite3.connect(self.db_path)
+            for article in articles:
+                try:
+                    # Convert article to dict for storage
+                    article_data = article.dict()
+                    
+                    # Handle datetime serialization
+                    if article_data['published_date']:
+                        article_data['published_date'] = article_data['published_date'].isoformat()
+                    
+                    # Convert tags list to JSON string
+                    article_data['tags'] = json.dumps(article_data['tags'])
+                    
+                    # Parse full content if requested
+                    content_length = None
+                    content_parsed_at = None
+                    content_parser_method = None
+                    content_metadata = None
+                    
+                    if parse_content and content_parser:
+                        logger.info(f"Parsing content for: {article.title}")
                         
-                        # Handle datetime serialization
-                        if article_data['published_date']:
-                            article_data['published_date'] = article_data['published_date'].isoformat()
+                        full_content, metadata = await content_parser.extract_content(str(article.url))
                         
-                        # Convert tags list to JSON string
-                        article_data['tags'] = json.dumps(article_data['tags'])
-                        
-                        # Parse full content if requested
-                        content_length = None
-                        content_parsed_at = None
-                        content_parser_method = None
-                        content_metadata = None
-                        
-                        if parse_content and content_parser:
-                            logger.info(f"Parsing content for: {article.title}")
+                        if full_content:
+                            article_data['content'] = full_content
+                            content_length = len(full_content)
+                            content_parsed_at = datetime.utcnow().isoformat()
+                            content_parser_method = metadata.get('method', 'unknown')
+                            content_metadata = json.dumps(metadata)
                             
-                            full_content, metadata = await content_parser.extract_content(str(article.url))
-                            
-                            if full_content:
-                                article_data['content'] = full_content
-                                content_length = len(full_content)
-                                content_parsed_at = datetime.utcnow().isoformat()
-                                content_parser_method = metadata.get('method', 'unknown')
-                                content_metadata = json.dumps(metadata)
-                                
-                                logger.info(f"Successfully parsed {content_length} characters for {article.title}")
-                            else:
-                                logger.warning(f"Failed to parse content for {article.title}")
-                                content_metadata = json.dumps(metadata) if metadata else None
-                        
-                        # Map to existing database schema - use INSERT OR IGNORE since URL is unique
-                        conn.execute("""
-                            INSERT OR IGNORE INTO articles 
-                            (title, url, content, summary, author, published_at, source, 
-                             categories, metadata, content_length, content_parsed_at, 
-                             content_parser_method, content_metadata, updated_at)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                        """, (
-                            article_data['title'],
-                            str(article_data['url']),
-                            article_data['content'],
-                            article_data['description'],  # Use description as summary
-                            article_data['author'],
-                            article_data['published_date'],  # This maps to published_at
-                            article_data['source'],
-                            article_data['tags'],  # This maps to categories
-                            json.dumps({
-                                'source_url': article_data['source_url'],
-                                'original_metadata': content_metadata
-                            }) if content_metadata else json.dumps({'source_url': article_data['source_url']}),
-                            content_length,
-                            content_parsed_at,
-                            content_parser_method,
-                            content_metadata
-                        ))
-                        
+                            logger.info(f"Successfully parsed {content_length} characters for {article.title}")
+                        else:
+                            logger.warning(f"Failed to parse content for {article.title}")
+                            content_metadata = json.dumps(metadata) if metadata else None
+                    
+                    # Map to existing database schema - use INSERT OR IGNORE since URL is unique
+                    # Note: Database uses 'description' and 'tags' columns (not 'summary' and 'categories')
+                    cursor = conn.execute("""
+                        INSERT OR IGNORE INTO articles 
+                        (id, title, url, description, author, published_date, source, source_url,
+                         tags, content, content_length, content_parsed_at, 
+                         content_parser_method, content_metadata, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    """, (
+                        article_data['id'],
+                        article_data['title'],
+                        str(article_data['url']),
+                        article_data['description'] or '',
+                        article_data['author'] or '',
+                        article_data['published_date'],
+                        article_data['source'],
+                        article_data['source_url'],  # This was missing!
+                        json.dumps(article_data['tags']) if article_data['tags'] else '[]',
+                        article_data['content'] or '',
+                        content_length,
+                        content_parsed_at,
+                        content_parser_method,
+                        content_metadata
+                    ))
+                    
+                    # Check if row was actually inserted (rowcount > 0) or ignored (rowcount = 0)
+                    if cursor.rowcount > 0:
                         stored_count += 1
-                        
-                    except Exception as e:
-                        logger.error(f"Error storing article {article.title}: {str(e)}")
-                        continue
-                
-                conn.commit()
+                        logger.debug(f"✅ Inserted article: {article.title[:50]}")
+                    else:
+                        # Check why it was ignored
+                        existing = conn.execute("SELECT id FROM articles WHERE url = ? OR id = ?", 
+                                               (str(article_data['url']), article_data['id'])).fetchone()
+                        if existing:
+                            logger.debug(f"⏭️  Duplicate (already exists): {article.title[:50]}")
+                        else:
+                            logger.warning(f"⚠️  Insert ignored but no duplicate found: {article.title[:50]}")
+                    
+                except Exception as e:
+                    logger.error(f"Error storing article {article.title}: {str(e)}")
+                    conn.rollback()
+                    continue
+            
+            # Commit all changes
+            conn.commit()
+            logger.info(f"Committed {stored_count} articles to database")
         
         finally:
+            if conn:
+                conn.close()
             if content_parser:
                 await content_parser.close()
         
