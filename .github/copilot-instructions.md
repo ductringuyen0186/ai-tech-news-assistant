@@ -13,6 +13,37 @@ This is a **full-stack AI/ML application** with:
 
 ---
 
+## ⚡ Communication Guidelines
+
+### **DO:**
+- ✅ **Make changes directly** - Edit files immediately, don't ask for permission
+- ✅ **Be concise** - Give brief summaries of changes (2-3 sentences max)
+- ✅ **Use bullet points** - List changes clearly and directly
+- ✅ **Commit and push** - Complete the full workflow without asking
+- ✅ **Show results** - Demonstrate what was fixed/added with examples
+
+### **DON'T:**
+- ❌ **Create markdown files** - No PROGRESS.md, CHANGES.md, SUMMARY.md files
+- ❌ **Write lengthy explanations** - Keep responses short and actionable
+- ❌ **Add unnecessary comments** - Only comment complex logic or non-obvious code
+- ❌ **Ask for confirmation** - Just do it (unless destructive changes)
+- ❌ **Repeat context** - Don't restate what the user already knows
+
+### **Response Format:**
+```
+✅ Fixed [issue] by [action]
+
+Changes:
+- file1.py: updated X to Y
+- file2.ts: added Z function
+
+Test: [quick validation result]
+```
+
+**Complex workflows only**: If the change involves 5+ files or architectural decisions, provide a brief overview. Otherwise, just make the changes and summarize.
+
+---
+
 ## 📐 Architecture & Design Principles
 
 ### Core Principles
