@@ -32,11 +32,11 @@ const NewsCard: React.FC<NewsCardProps> = ({ article, compact = false, onRead })
   // Calculate credibility score (70-100% range for tech news)
   const credibilityScore = article.credibility_score || Math.floor(Math.random() * 30) + 70;
   
-  // Determine credibility color
-  const getCredibilityColor = (score: number) => {
-    if (score >= 90) return 'text-green-600 bg-green-50 border-green-200';
-    if (score >= 80) return 'text-blue-600 bg-blue-50 border-blue-200';
-    return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+  // Determine credibility color and badge
+  const getCredibilityBadge = (score: number) => {
+    if (score >= 90) return { color: 'text-green-700 bg-green-50 border-green-200', label: `🟢 ${score}%` };
+    if (score >= 80) return { color: 'text-blue-700 bg-blue-50 border-blue-200', label: `🔵 ${score}%` };
+    return { color: 'text-yellow-700 bg-yellow-50 border-yellow-200', label: `🟡 ${score}%` };
   };
 
   // Format time ago
@@ -45,7 +45,6 @@ const NewsCard: React.FC<NewsCardProps> = ({ article, compact = false, onRead })
     const now = new Date();
     const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
     
-    if (seconds < 60) return 'just now';
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
     if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
     return `${Math.floor(seconds / 86400)}d ago`;
@@ -56,49 +55,68 @@ const NewsCard: React.FC<NewsCardProps> = ({ article, compact = false, onRead })
     window.open(article.url, '_blank', 'noopener,noreferrer');
   };
 
+  const credBadge = getCredibilityBadge(credibilityScore);
+
+  // Random tech image placeholder
+  const imageUrl = `https://picsum.photos/seed/${article.id}/800/400`;
+
   return (
     <Card className={cn(
-      "group hover:shadow-lg transition-all duration-300 relative overflow-hidden",
-      "before:absolute before:inset-0 before:bg-gradient-to-r before:from-blue-50/0 before:via-blue-50/50 before:to-blue-50/0",
-      "before:translate-x-full before:hover:translate-x-0 before:transition-transform before:duration-700",
-      compact && "hover:scale-[1.02]"
+      "group hover:shadow-xl transition-all duration-300 relative overflow-hidden rounded-xl border-gray-200",
+      "hover:border-blue-200 hover:-translate-y-1",
+      compact && "hover:scale-[1.01]"
     )}>
+      {/* Trending Badge */}
       {article.is_trending && (
-        <div className="absolute top-3 right-3 z-10">
-          <Badge variant="destructive" className="gap-1">
+        <div className="absolute top-4 right-4 z-20">
+          <Badge variant="destructive" className="gap-1 shadow-lg trending-badge">
             <TrendingUp className="h-3 w-3" />
             Trending
           </Badge>
         </div>
       )}
 
-      <CardHeader className="pb-3">
+      {/* Article Image */}
+      {!compact && (
+        <div className="relative h-48 overflow-hidden news-card-image bg-gradient-to-br from-blue-100 to-purple-100">
+          <img 
+            src={imageUrl} 
+            alt={article.title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+            }}
+          />
+        </div>
+      )}
+
+      <CardHeader className="pb-3 pt-4">
         <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 space-y-2">
-            <h3 className="text-xl font-display font-semibold leading-tight group-hover:text-primary-600 transition-colors">
+          <div className="flex-1 space-y-3">
+            <h3 className="text-lg font-display font-semibold leading-tight text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-2">
               {article.title}
             </h3>
             
-            <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-2 text-sm">
               <HoverCard>
                 <HoverCardTrigger asChild>
-                  <span className="font-medium text-foreground hover:text-primary cursor-pointer">
+                  <span className="font-semibold text-gray-900 hover:text-blue-600 cursor-pointer transition-colors">
                     {article.source}
                   </span>
                 </HoverCardTrigger>
-                <HoverCardContent>
+                <HoverCardContent className="w-64">
                   <div className="space-y-2">
-                    <h4 className="font-semibold">{article.source}</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Credibility Score: {credibilityScore}%
+                    <h4 className="font-semibold text-sm">Source Credibility</h4>
+                    <p className="text-xs text-muted-foreground">
+                      {article.source} has a {credibilityScore}% credibility rating
                     </p>
                     <div className="flex gap-1">
                       {[...Array(5)].map((_, i) => (
                         <div
                           key={i}
                           className={cn(
-                            "h-1 w-8 rounded-full",
-                            i < Math.floor(credibilityScore / 20) ? "bg-primary" : "bg-gray-200"
+                            "h-1.5 flex-1 rounded-full",
+                            i < Math.floor(credibilityScore / 20) ? "bg-blue-500" : "bg-gray-200"
                           )}
                         />
                       ))}
@@ -107,30 +125,30 @@ const NewsCard: React.FC<NewsCardProps> = ({ article, compact = false, onRead })
                 </HoverCardContent>
               </HoverCard>
               
-              <span>•</span>
-              <span>{timeAgo(article.published_at)}</span>
-              <span>•</span>
+              <span className="text-gray-400">•</span>
+              <span className="text-gray-600">{timeAgo(article.published_at)}</span>
+              <span className="text-gray-400">•</span>
               
               <div className={cn(
-                "px-2 py-0.5 rounded-md border text-xs font-semibold",
-                getCredibilityColor(credibilityScore)
+                "px-2.5 py-1 rounded-full border text-xs font-semibold",
+                credBadge.color
               )}>
-                {credibilityScore}% credible
+                {credBadge.label}
               </div>
             </div>
           </div>
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 pt-0">
         {/* Summary/Content */}
         {!compact && (
-          <div className={cn(
-            "text-muted-foreground",
-            !expanded && "line-clamp-3"
+          <p className={cn(
+            "text-gray-600 text-sm leading-relaxed",
+            !expanded && "line-clamp-2"
           )}>
-            {article.summary || article.content?.substring(0, 300)}
-          </div>
+            {article.summary || article.content?.substring(0, 200) || 'No summary available.'}
+          </p>
         )}
 
         {/* Categories */}
@@ -164,10 +182,15 @@ const NewsCard: React.FC<NewsCardProps> = ({ article, compact = false, onRead })
         )}
 
         {/* Actions */}
-        <div className="flex items-center gap-3 pt-2">
-          <Button onClick={handleRead} variant="gradient" size="sm" className="gap-2">
-            <ExternalLink className="h-4 w-4" />
-            Read Article
+        <div className="flex items-center gap-2 pt-2 border-t border-gray-100 mt-4">
+          <Button 
+            onClick={handleRead} 
+            variant="default" 
+            size="sm" 
+            className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+          >
+            Read Full Article
+            <ExternalLink className="h-3.5 w-3.5" />
           </Button>
 
           {!compact && (article.content || article.keywords) && (
@@ -175,17 +198,17 @@ const NewsCard: React.FC<NewsCardProps> = ({ article, compact = false, onRead })
               onClick={() => setExpanded(!expanded)}
               variant="ghost"
               size="sm"
-              className="gap-2"
+              className="gap-1 text-gray-600"
             >
               {expanded ? (
                 <>
-                  <ChevronUp className="h-4 w-4" />
                   Show Less
+                  <ChevronUp className="h-3.5 w-3.5" />
                 </>
               ) : (
                 <>
-                  <ChevronDown className="h-4 w-4" />
-                  Show More
+                  Read More
+                  <ChevronDown className="h-3.5 w-3.5" />
                 </>
               )}
             </Button>

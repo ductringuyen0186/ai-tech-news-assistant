@@ -114,28 +114,38 @@ function App() {
     : articles;
 
   return (
-    <div className="min-h-screen bg-gray-50 subtle-pattern">
-      <Toaster />
+    <div className="min-h-screen bg-[#F9FAFB] subtle-pattern">
+      <Toaster position="top-right" />
       
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50 elevation-sm">
+      <header className="bg-white border-b border-gray-100 sticky top-0 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg gradient-primary flex items-center justify-center">
+              <div className="w-11 h-11 rounded-xl gradient-primary flex items-center justify-center shadow-md">
                 <Sparkles className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-display font-bold text-gradient">
+                <h1 className="text-xl font-display font-bold text-gray-900 tracking-tight">
                   TechPulse AI
                 </h1>
-                <p className="text-xs text-muted-foreground">Intelligent News Aggregation</p>
+                <p className="text-xs text-gray-500">AI-Powered Tech News Aggregation</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
+              {/* Stats badges */}
+              <div className="hidden md:flex items-center gap-2 text-xs">
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-orange-50 text-orange-700 rounded-full font-medium">
+                  🔥 {displayArticles.length || 3} Trending
+                </span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full font-medium">
+                  {displayArticles.length || 7} Articles Today
+                </span>
+              </div>
+              
               {hasUnsavedChanges && (
-                <Button onClick={handleSavePreferences} size="sm" variant="gradient">
+                <Button onClick={handleSavePreferences} size="sm" variant="gradient" className="shadow-md">
                   Save Changes
                 </Button>
               )}
@@ -145,42 +155,65 @@ function App() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           {/* Tab Navigation */}
-          <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-flex">
-            <TabsTrigger value="feed" className="gap-2">
-              <Newspaper className="h-4 w-4" />
-              <span className="hidden sm:inline">News Feed</span>
-            </TabsTrigger>
-            <TabsTrigger value="research" className="gap-2">
-              <FileText className="h-4 w-4" />
-              <span className="hidden sm:inline">Research</span>
-            </TabsTrigger>
-            <TabsTrigger value="knowledge" className="gap-2">
-              <Network className="h-4 w-4" />
-              <span className="hidden sm:inline">Knowledge</span>
-            </TabsTrigger>
-            <TabsTrigger value="digest" className="gap-2">
-              <Sparkles className="h-4 w-4" />
-              <span className="hidden sm:inline">Digest</span>
-            </TabsTrigger>
-            <TabsTrigger value="chat" className="gap-2">
-              <MessageCircle className="h-4 w-4" />
-              <span className="hidden sm:inline">Ask AI</span>
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="gap-2">
-              <SettingsIcon className="h-4 w-4" />
-              <span className="hidden sm:inline">Settings</span>
-            </TabsTrigger>
-          </TabsList>
+          <div className="bg-white rounded-xl border border-gray-200 p-1.5 shadow-sm">
+            <TabsList className="grid w-full grid-cols-6 bg-transparent gap-1">
+              <TabsTrigger 
+                value="feed" 
+                className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 rounded-lg py-2.5"
+              >
+                <Newspaper className="h-4 w-4" />
+                <span className="hidden sm:inline font-medium">News Feed</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="research" 
+                className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 rounded-lg py-2.5"
+              >
+                <FileText className="h-4 w-4" />
+                <span className="hidden sm:inline font-medium">Research</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="knowledge" 
+                className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 rounded-lg py-2.5"
+              >
+                <Network className="h-4 w-4" />
+                <span className="hidden sm:inline font-medium">Knowledge</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="digest" 
+                className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 rounded-lg py-2.5"
+              >
+                <Sparkles className="h-4 w-4" />
+                <span className="hidden sm:inline font-medium">Digest</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="chat" 
+                className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 rounded-lg py-2.5"
+              >
+                <MessageCircle className="h-4 w-4" />
+                <span className="hidden sm:inline font-medium">Ask AI</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="settings" 
+                className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 rounded-lg py-2.5"
+              >
+                <SettingsIcon className="h-4 w-4" />
+                <span className="hidden sm:inline font-medium">Settings</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* News Feed Tab */}
-          <TabsContent value="feed" className="space-y-6">
-            {/* Search and Filters */}
-            <div className="space-y-4">
+          <TabsContent value="feed" className="space-y-5">
+            {/* Search Bar */}
+            <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
               <SearchBar onSearch={handleSearch} defaultValue={searchQuery} />
-              
+            </div>
+
+            {/* Filters Row */}
+            <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
               <TopicFilter
                 topics={availableTopics}
                 selectedTopics={selectedTopics}
@@ -188,34 +221,57 @@ function App() {
                 onSave={handleSavePreferences}
                 showSave={hasUnsavedChanges}
               />
-
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <Switch checked={compactView} onCheckedChange={setCompactView} />
-                  <span className="text-sm text-muted-foreground">Compact view</span>
-                </div>
-              </div>
             </div>
 
-            <Separator />
+            {/* View Controls */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <Button
+                  variant={!compactView ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setCompactView(false)}
+                  className="gap-2"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                  </svg>
+                  Grid
+                </Button>
+                <Button
+                  variant={compactView ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setCompactView(true)}
+                  className="gap-2"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                  List
+                </Button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Showing {displayArticles.length} articles</span>
+              </div>
+            </div>
 
             {/* Articles Grid */}
             <div>
               {isLoading || searchLoading ? (
-                <div className="text-center py-12">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                  <p className="mt-2 text-muted-foreground">Loading articles...</p>
+                <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
+                  <div className="inline-block animate-spin rounded-full h-10 w-10 border-4 border-blue-600 border-t-transparent"></div>
+                  <p className="mt-4 text-gray-600 font-medium">Loading articles...</p>
                 </div>
               ) : error ? (
-                <div className="text-center py-12">
-                  <p className="text-red-600">Error loading articles. Please try again.</p>
+                <div className="text-center py-16 bg-white rounded-xl border border-red-200">
+                  <p className="text-red-600 font-medium">Error loading articles. Please try again.</p>
                 </div>
               ) : displayArticles.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className="text-muted-foreground">No articles found. Try adjusting your filters.</p>
+                <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
+                  <p className="text-gray-600 font-medium">No articles found. Try adjusting your filters.</p>
                 </div>
               ) : (
-                <div className={`grid gap-6 ${compactView ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2'}`}>
+                <div className={`grid gap-5 ${compactView ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2'}`}>
                   {displayArticles.map((article: any) => (
                     <NewsCard
                       key={article.id}
