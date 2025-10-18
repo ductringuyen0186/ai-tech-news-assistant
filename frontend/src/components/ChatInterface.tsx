@@ -37,26 +37,26 @@ const ChatInterface: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col animate-fadeIn">
-      <div className="mb-4">
-        <h2 className="text-3xl font-display font-bold text-gradient mb-2">
+    <div className="space-y-6 animate-fadeIn">
+      <div className="text-center">
+        <h2 className="text-3xl font-display font-bold text-blue-600 mb-2">
           Ask AI
         </h2>
-        <p className="text-muted-foreground">
+        <p className="text-gray-600">
           Get answers about any tech news topic
         </p>
       </div>
 
-      <Card className="flex-1 flex flex-col">
-        <CardHeader className="border-b">
-          <CardTitle className="flex items-center gap-2">
-            <Bot className="h-5 w-5 text-primary" />
-            AI Assistant
-            <Badge variant="success" className="ml-auto">Online</Badge>
-          </CardTitle>
-        </CardHeader>
+      {/* Main Chat Card - Yellow Background */}
+      <div className="bg-yellow-300 rounded-lg p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <Bot className="h-6 w-6 text-gray-700" />
+          <h3 className="text-xl font-bold text-gray-900">AI Assistant</h3>
+          <Badge className="ml-auto bg-blue-500 text-white">Online</Badge>
+        </div>
 
-        <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Messages Area */}
+        <div className="bg-white/80 backdrop-blur-sm rounded-lg p-6 mb-4 min-h-[400px] max-h-[500px] overflow-y-auto space-y-4">
           {messages.map((message, idx) => (
             <div
               key={idx}
@@ -78,6 +78,7 @@ const ChatInterface: React.FC = () => {
                 {message.content}
               </div>
 
+
               {message.role === 'user' && (
                 <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">
                   <User className="h-4 w-4 text-gray-600" />
@@ -85,23 +86,22 @@ const ChatInterface: React.FC = () => {
               )}
             </div>
           ))}
-        </CardContent>
-
-        <div className="border-t p-4">
-          <div className="flex gap-2">
-            <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-              placeholder="Ask anything..."
-              className="flex-1"
-            />
-            <Button onClick={handleSend} variant="gradient" size="icon">
-              <Send className="h-4 w-4" />
-            </Button>
-          </div>
         </div>
-      </Card>
+
+        {/* Input Area */}
+        <div className="flex gap-2">
+          <Input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+            placeholder="Ask anything..."
+            className="flex-1 bg-white"
+          />
+          <Button onClick={handleSend} className="bg-blue-600 hover:bg-blue-700 text-white">
+            <Send className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
     </div>
   );
 };

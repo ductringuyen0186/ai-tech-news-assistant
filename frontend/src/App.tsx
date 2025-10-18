@@ -155,65 +155,62 @@ function App() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          {/* Tab Navigation */}
-          <div className="bg-white rounded-xl border border-gray-200 p-1.5 shadow-sm">
-            <TabsList className="grid w-full grid-cols-6 bg-transparent gap-1">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
+          {/* Tab Navigation - Centered Inline Style */}
+          <div className="flex justify-center">
+            <TabsList className="inline-flex bg-white rounded-lg border border-gray-200 p-1 shadow-sm">
               <TabsTrigger 
                 value="feed" 
-                className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 rounded-lg py-2.5"
+                className="gap-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-md px-4 py-2"
               >
                 <Newspaper className="h-4 w-4" />
-                <span className="hidden sm:inline font-medium">News Feed</span>
+                <span className="font-medium">News Feed</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="research" 
-                className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 rounded-lg py-2.5"
+                className="gap-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-md px-4 py-2"
               >
                 <FileText className="h-4 w-4" />
-                <span className="hidden sm:inline font-medium">Research</span>
+                <span className="font-medium">Research</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="knowledge" 
-                className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 rounded-lg py-2.5"
+                className="gap-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-md px-4 py-2"
               >
                 <Network className="h-4 w-4" />
-                <span className="hidden sm:inline font-medium">Knowledge</span>
+                <span className="font-medium">Knowledge</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="digest" 
-                className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 rounded-lg py-2.5"
+                className="gap-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-md px-4 py-2"
               >
                 <Sparkles className="h-4 w-4" />
-                <span className="hidden sm:inline font-medium">Digest</span>
+                <span className="font-medium">Digest</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="chat" 
-                className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 rounded-lg py-2.5"
+                className="gap-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-md px-4 py-2"
               >
                 <MessageCircle className="h-4 w-4" />
-                <span className="hidden sm:inline font-medium">Ask AI</span>
+                <span className="font-medium">Ask AI</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="settings" 
-                className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 rounded-lg py-2.5"
+                className="gap-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-md px-4 py-2"
               >
                 <SettingsIcon className="h-4 w-4" />
-                <span className="hidden sm:inline font-medium">Settings</span>
+                <span className="font-medium">Settings</span>
               </TabsTrigger>
             </TabsList>
           </div>
 
           {/* News Feed Tab */}
-          <TabsContent value="feed" className="space-y-5">
-            {/* Search Bar */}
-            <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+          <TabsContent value="feed" className="space-y-6">
+            {/* Search and Filters in single white container */}
+            <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm space-y-4">
               <SearchBar onSearch={handleSearch} defaultValue={searchQuery} />
-            </div>
-
-            {/* Filters Row */}
-            <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+              
               <TopicFilter
                 topics={availableTopics}
                 selectedTopics={selectedTopics}
@@ -225,7 +222,7 @@ function App() {
 
             {/* View Controls */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
                 <Button
                   variant={!compactView ? "default" : "outline"}
                   size="sm"
