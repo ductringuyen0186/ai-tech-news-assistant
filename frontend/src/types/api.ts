@@ -76,3 +76,57 @@ export interface SummarizationResponse {
   model_used: string;
   created_at: string;
 }
+
+// ============================================================================
+// Semantic Search Types (Issue #14)
+// Mirror backend models from src/models/search.py
+// ============================================================================
+
+export interface SearchResultItem {
+  article_id: string;
+  title: string;
+  url: string;
+  source: string;
+  categories: string[];
+  keywords: string[];
+  published_date: string;
+  score: number;
+  embedding_id: string;
+}
+
+export interface SemanticSearchRequest {
+  query: string;
+  limit?: number;
+  min_score?: number;
+  sources?: string[];
+  categories?: string[];
+  published_after?: string;
+  published_before?: string;
+  use_reranking?: boolean;
+}
+
+export interface SemanticSearchResponse {
+  query: string;
+  results: SearchResultItem[];
+  total_results: number;
+  execution_time_ms: number;
+  reranking_applied: boolean;
+  filters_applied: {
+    sources?: string[];
+    categories?: string[];
+    min_score?: number;
+    date_range?: {
+      start?: string;
+      end?: string;
+    };
+    limit: number;
+  };
+}
+
+export interface SearchHealthResponse {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  total_indexed_articles: number;
+  embedding_dimensions: number;
+  model_name: string;
+  timestamp: string;
+}

@@ -54,9 +54,9 @@ class SearchService:
             return
         
         try:
-            # Initialize embedding generator
-            self.embedding_generator = EmbeddingGenerator()
-            await self.embedding_generator.initialize()
+            # Initialize embedding generator (it auto-initializes in __init__)
+            if not self.embedding_generator:
+                self.embedding_generator = EmbeddingGenerator()
             
             # Verify database exists
             db_file = Path(self.db_path)
