@@ -39,9 +39,17 @@ class Settings(BaseSettings):
     anthropic_api_key: Optional[str] = Field(default=None, env="ANTHROPIC_API_KEY")
     huggingface_api_key: Optional[str] = Field(default=None, env="HUGGINGFACE_API_KEY")
     
-    # Ollama settings
+    # Ollama settings (for local development)
     ollama_host: str = Field(default="http://localhost:11434", env="OLLAMA_HOST")
     ollama_model: str = Field(default="llama3.2", env="OLLAMA_MODEL")
+    
+    # Groq settings (for production deployment - FAST & FREE)
+    groq_api_key: Optional[str] = Field(default=None, env="GROQ_API_KEY")
+    groq_model: str = Field(default="llama-3.2-3b-preview", env="GROQ_MODEL")
+    
+    # LLM provider selection
+    llm_provider: str = Field(default="groq", env="LLM_PROVIDER")  # ollama, groq, claude, openai
+    llm_timeout: int = Field(default=30, env="LLM_TIMEOUT")
     
     # Additional LLM settings (using uppercase for consistency with environment variables)
     ANTHROPIC_API_KEY: Optional[str] = Field(default=None, env="ANTHROPIC_API_KEY")
