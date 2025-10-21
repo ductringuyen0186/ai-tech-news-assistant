@@ -1,28 +1,32 @@
 # Railway Deployment Configuration
-# AI Tech News Assistant
+# AI Tech News Assistant (Backend + Frontend)
 
-# Service Configuration
-[build]
-command = "pip install -r requirements.txt"
+[project]
+name = "ai-tech-news-assistant"
 
-[deploy]
-command = "uvicorn main:app --host 0.0.0.0 --port $PORT"
+[[services]]
+name = "backend"
+source = "backend"
+buildCommand = "pip install --upgrade pip && pip install -r requirements.txt"
+startCommand = "uvicorn main:app --host 0.0.0.0 --port $PORT --workers 2"
 
-# Environment Variables (set in Railway dashboard)
-# ENVIRONMENT=production
-# DEBUG=false
-# DATABASE_URL=postgresql://... (Railway provides this)
-# CORS_ORIGINS=https://your-frontend-domain.vercel.app
+	[services.env]
+	ENVIRONMENT = "production"
+	DEBUG = "false"
+	CORS_ORIGINS = "https://your-frontend-domain.vercel.app"
+		# Set OPENAI_API_KEY and DATABASE_URL in the Railway dashboard.
 
-[services.backend]
-source = "./backend"
-build = "pip install -r requirements.txt"
-start = "uvicorn main:app --host 0.0.0.0 --port $PORT --workers 2"
+[[services]]
+name = "frontend"
+source = "frontend"
+buildCommand = "npm install && npm run build"
+startCommand = "npx serve -s dist -l $PORT"
 
-[services.redis]
+	[services.env]
+	NODE_ENV = "production"
+	VITE_API_BASE_URL = "{{ services.backend.url }}"
+
+[[services]]
+name = "redis"
 image = "redis:7-alpine"
-
-# Health check
-[healthcheck]
-path = "/health"
-interval = 30
+startCommand = "redis-server --appendonly yes"

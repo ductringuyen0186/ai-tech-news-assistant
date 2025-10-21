@@ -6,10 +6,11 @@
 
 This is a **full-stack AI/ML application** with:
 - **Backend**: FastAPI (Python 3.11+) with SQLAlchemy, async operations, RAG pipeline, and vector embeddings
-- **Frontend**: React 18 + TypeScript + Vite with TanStack Query and Tailwind CSS
+- **Frontend**: React 18 + TypeScript + Vite with shadcn/ui and Tailwind CSS (single-page app, no routing)
 - **AI/ML**: Multi-LLM support (Ollama, OpenAI, Anthropic), Sentence Transformers embeddings, Chroma vector DB
 - **Architecture**: Clean Architecture, Repository Pattern, RAG pipeline, microservices-ready
 - **Focus**: Intelligent news aggregation, semantic search, AI summarization, personalized recommendations
+- **Authentication**: None currently (using localStorage for preferences, ready for future auth integration)
 
 ---
 
@@ -1188,43 +1189,44 @@ class TestArticlesEndpoint:
 frontend/
 ├── src/
 │   ├── components/          # Reusable components
-│   │   ├── ui/             # Base UI components
-│   │   │   ├── Button.tsx
-│   │   │   ├── Card.tsx
-│   │   │   └── Input.tsx
-│   │   ├── features/       # Feature-specific components
-│   │   │   ├── ArticleCard.tsx
-│   │   │   ├── SearchBar.tsx
-│   │   │   └── CategoryFilter.tsx
-│   │   └── Layout.tsx      # Main layout component
-│   ├── pages/              # Page components (routes)
-│   │   ├── Dashboard.tsx
-│   │   ├── Articles.tsx
-│   │   ├── Search.tsx
-│   │   └── Settings.tsx
-│   ├── hooks/              # Custom React hooks
-│   │   ├── useArticles.ts
-│   │   ├── useSearch.ts
-│   │   └── useAuth.ts
-│   ├── lib/                # Utilities and configurations
-│   │   ├── api.ts          # API client
-│   │   ├── utils.ts        # Helper functions
-│   │   └── constants.ts    # App constants
-│   ├── types/              # TypeScript type definitions
-│   │   ├── api.ts          # API types
-│   │   ├── models.ts       # Domain models
-│   │   └── global.d.ts     # Global type declarations
-│   ├── contexts/           # React contexts
-│   │   ├── AuthContext.tsx
-│   │   └── ThemeContext.tsx
-│   ├── services/           # Business logic
-│   │   └── articleService.ts
-│   ├── App.tsx             # Root component
-│   └── main.tsx            # Entry point
+│   │   ├── ui/             # shadcn/ui components (40+ components)
+│   │   │   ├── button.tsx
+│   │   │   ├── card.tsx
+│   │   │   ├── input.tsx
+│   │   │   ├── tabs.tsx
+│   │   │   ├── badge.tsx
+│   │   │   └── ... (all shadcn/ui components)
+│   │   ├── NewsCard.tsx           # News article display card
+│   │   ├── SearchBar.tsx          # Search input component
+│   │   ├── TopicFilter.tsx        # Category filter component
+│   │   ├── DigestView.tsx         # Daily digest component
+│   │   ├── ChatInterface.tsx      # AI chat component
+│   │   ├── ResearchMode.tsx       # AI research component
+│   │   └── KnowledgeGraph.tsx     # Graph visualization component
+│   ├── config/             # Configuration files
+│   │   └── api.ts          # FastAPI backend configuration
+│   ├── styles/             # Global styles
+│   │   └── globals.css     # Tailwind CSS + custom styles
+│   ├── utils/              # Utility functions
+│   ├── supabase/           # Legacy Supabase code (NOT USED - to be removed)
+│   │   └── functions/      # Old Supabase Edge Functions
+│   ├── App.tsx             # Root component (single-page app)
+│   ├── main.tsx            # Entry point
+│   └── index.css           # CSS entry
 ├── public/                 # Static assets
-├── package.json
-└── tsconfig.json
+├── .env                    # Environment variables (VITE_API_BASE_URL)
+├── package.json            # Dependencies (React 18, Vite, Tailwind)
+├── tsconfig.json           # TypeScript config
+├── vite.config.ts          # Vite configuration
+└── tailwind.config.js      # Tailwind CSS configuration
 ```
+
+**Key Architecture Notes**:
+- 🎯 **Single-Page Application**: All features in one `App.tsx` with tabs (no routing)
+- 🎨 **UI Library**: shadcn/ui components (40+ radix-ui based components)
+- 🔗 **API Integration**: Direct fetch to FastAPI via `config/api.ts`
+- 💾 **State Management**: React hooks + localStorage (no external state library)
+- ⚠️ **Legacy Code**: `supabase/` folder exists but is NOT USED (to be removed)
 
 ### Coding Standards
 
@@ -1406,238 +1408,200 @@ export default function ArticleCard({
 - ✅ Tailwind CSS for styling
 - ✅ Proper event handling
 
-#### 2. **Custom Hooks**
+#### 2. **Main App Component** (`App.tsx`)
+The application is a **single-page app** with all features in one component using tabs:
+
 ```typescript
 /**
- * useArticles Hook
+ * Main App Component
  * 
- * Manages article fetching, caching, and state.
- * Uses TanStack Query for server state management.
+ * Single-page application with tabbed interface for all features.
+ * NO ROUTING - all features accessible via tabs.
  */
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { articlesApi } from '../lib/api';
-import type { Article, ArticleSearchParams } from '../types/api';
+import React, { useState, useEffect } from 'react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
+import { API_ENDPOINTS, apiFetch } from './config/api';
+import NewsCard from './components/NewsCard';
+import DigestView from './components/DigestView';
+import ChatInterface from './components/ChatInterface';
+import ResearchMode from './components/ResearchMode';
+import KnowledgeGraph from './components/KnowledgeGraph';
 
-interface UseArticlesOptions {
-  /** Search parameters */
-  params?: ArticleSearchParams;
-  /** Enable/disable auto-fetching */
-  enabled?: boolean;
-  /** Refetch interval in milliseconds */
-  refetchInterval?: number;
-}
-
-interface UseArticlesReturn {
-  /** Article data */
-  articles: Article[];
-  /** Total article count */
-  total: number;
-  /** Loading state */
-  isLoading: boolean;
-  /** Error state */
-  error: Error | null;
-  /** Refetch function */
-  refetch: () => void;
-  /** Bookmark mutation */
-  bookmarkArticle: (articleId: string) => Promise<void>;
-  /** Remove bookmark mutation */
-  removeBookmark: (articleId: string) => Promise<void>;
-}
-
-export function useArticles({
-  params = {},
-  enabled = true,
-  refetchInterval
-}: UseArticlesOptions = {}): UseArticlesReturn {
-  const queryClient = useQueryClient();
+export default function App() {
+  const [articles, setArticles] = useState<any[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [digest, setDigest] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   
-  // Fetch articles query
-  const {
-    data,
-    isLoading,
-    error,
-    refetch
-  } = useQuery({
-    queryKey: ['articles', params],
-    queryFn: () => articlesApi.getArticles(params),
-    enabled,
-    refetchInterval,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
-    retry: 3,
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000)
-  });
-  
-  // Bookmark mutation
-  const bookmarkMutation = useMutation({
-    mutationFn: (articleId: string) => 
-      articlesApi.bookmarkArticle(articleId),
-    onSuccess: () => {
-      // Invalidate and refetch
-      queryClient.invalidateQueries({ queryKey: ['articles'] });
-      queryClient.invalidateQueries({ queryKey: ['bookmarks'] });
-    },
-    onError: (error) => {
-      console.error('Bookmark failed:', error);
-      // Could add toast notification here
+  // Fetch articles from FastAPI backend
+  const fetchArticles = async () => {
+    try {
+      const params = new URLSearchParams({
+        limit: '50',
+        offset: '0',
+        ...(selectedCategories.length > 0 && { 
+          categories: selectedCategories.join(',') 
+        }),
+        ...(searchQuery && { search: searchQuery })
+      });
+      
+      const response = await apiFetch(`${API_ENDPOINTS.news}?${params}`);
+      
+      // Transform response format (FastAPI returns {items: [...]} but we need {articles: [...]})
+      const articlesData = response.items || response.articles || [];
+      setArticles(articlesData);
+    } catch (error) {
+      console.error('Failed to fetch articles:', error);
+    } finally {
+      setLoading(false);
     }
-  });
-  
-  // Remove bookmark mutation
-  const removeBookmarkMutation = useMutation({
-    mutationFn: (articleId: string) => 
-      articlesApi.removeBookmark(articleId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['articles'] });
-      queryClient.invalidateQueries({ queryKey: ['bookmarks'] });
-    }
-  });
-  
-  return {
-    articles: data?.articles || [],
-    total: data?.total || 0,
-    isLoading,
-    error: error as Error | null,
-    refetch,
-    bookmarkArticle: bookmarkMutation.mutateAsync,
-    removeBookmark: removeBookmarkMutation.mutateAsync
   };
+  
+  // Save preferences to localStorage (no backend endpoint yet)
+  const savePreferences = async (categories: string[]) => {
+    try {
+      localStorage.setItem('selectedCategories', JSON.stringify(categories));
+      setSelectedCategories(categories);
+    } catch (error) {
+      console.error('Failed to save preferences:', error);
+    }
+  };
+  
+  useEffect(() => {
+    fetchArticles();
+  }, [selectedCategories, searchQuery]);
+  
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Tabs defaultValue="feed">
+        <TabsList>
+          <TabsTrigger value="feed">News Feed</TabsTrigger>
+          <TabsTrigger value="research">Research</TabsTrigger>
+          <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
+          <TabsTrigger value="digest">Digest</TabsTrigger>
+          <TabsTrigger value="chat">Ask AI</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="feed">
+          {/* News feed with filters */}
+        </TabsContent>
+        
+        <TabsContent value="digest">
+          <DigestView digest={digest} />
+        </TabsContent>
+        
+        {/* Other tabs... */}
+      </Tabs>
+    </div>
+  );
 }
-```
 
 **Key Points**:
-- ✅ Comprehensive TypeScript types
-- ✅ Use TanStack Query for server state
-- ✅ Proper caching and refetch strategies
-- ✅ Error handling with retry logic
-- ✅ Optimistic updates where appropriate
-- ✅ Query invalidation on mutations
-- ✅ Configurable options
+- ✅ Single-page application with tab-based navigation
+- ✅ All state managed with React hooks (useState, useEffect)
+- ✅ localStorage for preferences (no backend auth yet)
+- ✅ Direct fetch calls to FastAPI endpoints
+- ✅ Response transformation for API compatibility
+- ✅ Mock data for features without backend implementation
+- ✅ Yellow background design system (Figma TechPulse AI)
 
-#### 3. **API Client**
+#### 3. **API Client** (`config/api.ts`)
 ```typescript
 /**
- * API Client
+ * API Configuration for FastAPI Backend
  * 
- * Centralized API communication with error handling and interceptors.
+ * This file configures the connection to the FastAPI backend.
+ * NO AUTHENTICATION - using direct fetch with localStorage for preferences.
  */
-import axios, { AxiosError, AxiosInstance } from 'axios';
-import type { 
-  Article, 
-  ArticleSearchParams, 
-  SearchResponse 
-} from '../types/api';
 
-// Create axios instance
-const api: AxiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
-  timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json'
-  }
-});
+// Get API base URL from environment or use default
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
-// Request interceptor
-api.interceptors.request.use(
-  (config) => {
-    // Add auth token if available
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    
-    // Log in development
-    if (import.meta.env.DEV) {
-      console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`);
-    }
-    
-    return config;
-  },
-  (error) => {
-    console.error('[API] Request error:', error);
-    return Promise.reject(error);
-  }
-);
-
-// Response interceptor
-api.interceptors.response.use(
-  (response) => response,
-  (error: AxiosError) => {
-    // Handle specific error codes
-    if (error.response?.status === 401) {
-      // Unauthorized - clear auth and redirect
-      localStorage.removeItem('auth_token');
-      window.location.href = '/login';
-    }
-    
-    if (error.response?.status === 429) {
-      // Rate limited
-      console.warn('[API] Rate limit exceeded');
-    }
-    
-    // Log error
-    console.error('[API] Response error:', {
-      status: error.response?.status,
-      message: error.message,
-      data: error.response?.data
-    });
-    
-    return Promise.reject(error);
-  }
-);
-
-// API methods
-export const articlesApi = {
-  /**
-   * Get paginated articles
-   */
-  getArticles: async (params?: ArticleSearchParams): Promise<SearchResponse> => {
-    const response = await api.get<SearchResponse>('/articles', { params });
-    return response.data;
-  },
+// API Endpoints
+export const API_ENDPOINTS = {
+  // News endpoints
+  news: '/api/news',
+  newsById: (id: string) => `/api/news/${id}`,
+  newsSearch: '/api/news/search',
+  newsIngest: '/api/news/ingest',
+  newsSources: '/api/news/sources',
+  newsStats: '/api/news/stats',
   
-  /**
-   * Get single article by ID
-   */
-  getArticle: async (id: string): Promise<Article> => {
-    const response = await api.get<Article>(`/articles/${id}`);
-    return response.data;
-  },
+  // Search endpoints
+  search: '/api/search',
+  semanticSearch: '/api/search/semantic',
   
-  /**
-   * Search articles
-   */
-  searchArticles: async (params: ArticleSearchParams): Promise<SearchResponse> => {
-    const response = await api.post<SearchResponse>('/search', params);
-    return response.data;
-  },
+  // Summarization endpoints
+  summarize: '/api/summarization/summarize',
+  summarizeBatch: '/api/summarization/batch',
   
-  /**
-   * Bookmark article
-   */
-  bookmarkArticle: async (articleId: string): Promise<void> => {
-    await api.post(`/articles/${articleId}/bookmark`);
-  },
+  // Embeddings endpoints
+  embeddings: '/api/embeddings/generate',
+  embeddingsStats: '/api/embeddings/stats',
   
-  /**
-   * Remove bookmark
-   */
-  removeBookmark: async (articleId: string): Promise<void> => {
-    await api.delete(`/articles/${articleId}/bookmark`);
-  }
+  // Health check
+  health: '/health',
+  healthDetailed: '/health/detailed',
 };
 
-export default api;
+/**
+ * Fetch wrapper with error handling
+ */
+export async function apiFetch<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const url = `${API_BASE_URL}${endpoint}`;
+  
+  const defaultOptions: RequestInit = {
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  };
+
+  const response = await fetch(url, {
+    ...defaultOptions,
+    ...options,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({
+      detail: `HTTP error! status: ${response.status}`,
+    }));
+    throw new Error(error.detail || `API request failed: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Example usage in components:
+ */
+
+// Fetch all news
+const newsData = await apiFetch(`${API_ENDPOINTS.news}?limit=20&offset=0`);
+
+// Semantic search
+const searchResults = await apiFetch(API_ENDPOINTS.semanticSearch, {
+  method: 'POST',
+  body: JSON.stringify({ query: 'AI developments' })
+});
+
+// Get health status
+const health = await apiFetch(API_ENDPOINTS.health);
 ```
 
 **Key Points**:
-- ✅ Centralized API configuration
-- ✅ Request/response interceptors
-- ✅ Authentication token handling
-- ✅ Error handling by status code
-- ✅ TypeScript types for all responses
-- ✅ Environment-based configuration
-- ✅ Logging in development mode
+- ✅ Centralized API configuration with all endpoints defined
+- ✅ Native `fetch` API (no axios dependency)
+- ✅ Simple error handling with try/catch
+- ✅ TypeScript generic support with `apiFetch<T>`
+- ✅ Environment-based configuration (VITE_API_BASE_URL)
+- ✅ No authentication (using localStorage for preferences)
+- ✅ Direct integration with FastAPI backend
 
 #### 4. **Type Definitions**
 ```typescript

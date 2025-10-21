@@ -60,6 +60,14 @@ docker-compose -f docker-compose.prod.yml up -d
 
 ## Environment Configuration
 
+### Templates
+
+- `backend/.env.example` → copy to `backend/.env` for local dev or staging.
+- `frontend/.env.example` → copy to `frontend/.env` when running the Vite app locally or on Vercel.
+- `supabase/functions/.env.example` → copy to `supabase/functions/.env` when running edge functions via the Supabase CLI.
+
+All production secrets should be injected through your hosting provider’s environment management (Render, Railway, Vercel, Supabase project settings). Never commit populated `.env` files.
+
 ### Backend Environment Variables
 ```env
 # Required
@@ -75,6 +83,14 @@ REDIS_URL=redis://...
 ### Frontend Environment Variables  
 ```env
 VITE_API_BASE_URL=https://your-backend-domain.railway.app
+```
+
+Optional (enable if you route certain calls through Supabase Edge Functions):
+
+```env
+VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+VITE_SUPABASE_EDGE_FUNCTION_SEMANTIC_SEARCH=https://your-project-ref.supabase.co/functions/v1/semantic-search
 ```
 
 ## Domain Setup

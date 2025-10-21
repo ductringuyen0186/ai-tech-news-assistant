@@ -1,30 +1,34 @@
-# Render Deployment Configuration
-# AI Tech News Assistant Backend
+services:
+  - type: web
+    name: ai-tech-news-backend
+    env: python
+    rootDir: backend
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 2
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: CORS_ORIGINS
+        value: https://your-frontend-domain.vercel.app
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
 
-# Build configuration
-build:
-  - command: pip install -r requirements.txt
-
-# Runtime configuration
-start: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 2
-
-# Environment
-env:
-  - ENVIRONMENT=production
-  - DEBUG=false
-  - CORS_ORIGINS=https://your-frontend-domain.vercel.app
-
-# Health check
-healthcheck:
-  path: /health
-  interval: 30s
-
-# Scaling
-scaling:
-  minInstances: 1
-  maxInstances: 3
-
-# Static files (if any)
-staticFiles:
-  - path: /static
-    directory: ./static
+  - type: web
+    name: ai-tech-news-frontend
+    env: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    autoDeploy: true
+    envVars:
+      - key: VITE_API_BASE_URL
+        fromService:
+          name: ai-tech-news-backend
+          type: web
+          property: url

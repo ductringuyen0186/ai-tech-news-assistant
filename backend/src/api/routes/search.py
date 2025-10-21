@@ -406,20 +406,21 @@ async def text_search(
         )
 
 
-@router.post("/semantic", response_model=BaseResponse[List[SimilarityResult]])
+@router.post("/semantic")
 async def semantic_search(
     request: SemanticSearchRequest,
     embedding_service: EmbeddingService = Depends(get_embedding_service),
-    embedding_repo: EmbeddingRepository = Depends(get_embedding_repository)
-) -> BaseResponse[List[SimilarityResult]]:
+    embedding_repo: EmbeddingRepository = Depends(get_embedding_repository),
+    article_repo: ArticleRepository = Depends(get_article_repository)
+) -> Dict[str, Any]:
     """
-    Perform semantic search using embeddings.
+    Perform semantic search using embeddings and return full article objects.
     
     Args:
         request: Semantic search parameters
         
     Returns:
-        List of similar articles with similarity scores
+        Dict with results containing full article objects and similarity scores
     """
     try:
         # Generate embedding for the query
@@ -437,11 +438,34 @@ async def semantic_search(
             content_type=request.content_type
         )
         
-        return BaseResponse(
-            success=True,
-            message=f"Found {len(similar_results)} similar articles",
-            data=similar_results
-        )
+        # Fetch full article details for each result
+        results_with_articles = []
+        for result in similar_results:
+            try:
+                # Extract article ID from result.id (format: "article:123")
+                if result.id and ":" in result.id:
+                    article_id = int(result.id.split(":")[1])
+                elif result.content_id:
+                    article_id = int(result.content_id)
+                else:
+                    continue
+                
+                # Fetch full article
+                article = await article_repo.get_by_id(article_id)
+                if article:
+                    results_with_articles.append({
+                        "article": article,
+                        "score": result.similarity_score
+                    })
+            except (ValueError, IndexError, AttributeError) as e:
+                # Skip invalid results
+                continue
+        
+        return {
+            "results": results_with_articles,
+            "query": request.query,
+            "total": len(results_with_articles)
+        }
         
     except Exception as e:
         raise HTTPException(
