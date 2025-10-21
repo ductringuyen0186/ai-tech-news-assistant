@@ -24,7 +24,10 @@ This is a **full-stack AI/ML application** with:
 - ✅ **Show results** - Demonstrate what was fixed/added with examples
 
 ### **DON'T:**
-- ❌ **Create markdown files** - No PROGRESS.md, CHANGES.md, SUMMARY.md files
+- ❌ **Create documentation/markdown files automatically** - No PROGRESS.md, CHANGES.md, RENDER_DEPLOYMENT.md, FRONTEND_SETUP.md, etc.
+  - Exception: If documentation is absolutely necessary, show it in code block for user review FIRST
+  - Let user decide whether to keep, modify, or discard before committing
+  - Never auto-commit markdown files without explicit user approval
 - ❌ **Write lengthy explanations** - Keep responses short and actionable
 - ❌ **Add unnecessary comments** - Only comment complex logic or non-obvious code
 - ❌ **Ask for confirmation** - Just do it (unless destructive changes)
@@ -42,6 +45,24 @@ Test: [quick validation result]
 ```
 
 **Complex workflows only**: If the change involves 5+ files or architectural decisions, provide a brief overview. Otherwise, just make the changes and summarize.
+
+### **Documentation & Markdown Files Policy:**
+
+⚠️ **STRICT RULE**: Do NOT auto-generate and commit markdown files without explicit user approval.
+
+**Workflow for Documentation:**
+1. **Never create** deployment guides, setup docs, etc. automatically
+2. **If truly necessary**, display the content in a code block for user review
+3. **Wait for explicit approval** before committing any `.md` files
+4. **Let user decide**: Keep, modify, discard, or ask for revisions
+5. **Clean up later**: User will manage markdown files themselves
+
+**Exception cases** (require explicit user request):
+- README updates (code changes need to be documented)
+- API documentation (auto-generated if part of code)
+- Inline code comments (not separate markdown files)
+
+**Why?** Too many auto-generated docs clutter the repo and need cleanup later. User can write docs at their own pace.
 
 ---
 
