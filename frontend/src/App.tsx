@@ -1,287 +1,365 @@
-import React, { useState, useEffect } from 'react';
-import { Newspaper, Search as SearchIcon, Network, FileText, MessageCircle, Settings as SettingsIcon, Sparkles } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
-import { Toaster } from './components/ui/sonner';
-import { toast } from 'sonner';
+import { useState, useEffect } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
+import { Button } from "./components/ui/button";
+import { Badge } from "./components/ui/badge";
+import { Toaster } from "./components/ui/sonner";
+import { toast } from "sonner";
+import { NewsCard } from "./components/NewsCard";
+import { TopicFilter } from "./components/TopicFilter";
+import { SearchBar } from "./components/SearchBar";
+import { DigestView } from "./components/DigestView";
+import { ChatInterface } from "./components/ChatInterface";
+import { ResearchMode } from "./components/ResearchMode";
+import { KnowledgeGraph } from "./components/KnowledgeGraph";
+import { Newspaper, Settings, Mail, MessageCircle, TrendingUp, Loader2, Grid, List, Lightbulb, Network } from "lucide-react";
+import { API_BASE_URL, API_ENDPOINTS, apiFetch } from "./config/api";
 
-// Components
-import NewsCard from './components/NewsCard';
-import SearchBar from './components/SearchBar';
-import TopicFilter from './components/TopicFilter';
-import DigestView from './components/DigestView';
-import ChatInterface from './components/ChatInterface';
-import ResearchMode from './components/ResearchMode';
-import KnowledgeGraph from './components/KnowledgeGraph';
-import { Switch } from './components/ui/switch';
-import { Button } from './components/ui/button';
-import { Separator } from './components/ui/separator';
-
-// API
-import { useArticles, useSemanticSearch } from './hooks';
-
-// Types
-interface Preferences {
-  topics: string[];
-  compactView: boolean;
-  autoRefresh: boolean;
-}
-
-function App() {
-  const [activeTab, setActiveTab] = useState('feed');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
-  const [compactView, setCompactView] = useState(false);
-  const [preferences, setPreferences] = useState<Preferences>({
-    topics: [],
-    compactView: false,
-    autoRefresh: true,
-  });
+export default function App() {
+  const [articles, setArticles] = useState<any[]>([]);
+  const [filteredArticles, setFilteredArticles] = useState<any[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(["AI", "Machine Learning"]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [digest, setDigest] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<"compact" | "detailed">("detailed");
+  const [showTrendingOnly, setShowTrendingOnly] = useState(false);
+  const [isSavingPreferences, setIsSavingPreferences] = useState(false);
+  const [savedCategories, setSavedCategories] = useState<string[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-  // Available topics
-  const availableTopics = [
-    'AI',
-    'Machine Learning',
-    'Cloud',
-    'Security',
-    'DevOps',
-    'Web Development',
-    'Mobile',
-    'Data Science',
-    'Blockchain',
-    'IoT',
-  ];
-
   // Fetch articles
-  const { articles, isLoading, error, refetch } = useArticles({
-    params: {
-      limit: 20,
-      category: selectedTopics.length > 0 ? selectedTopics[0] : undefined,
-    },
-  });
+  const fetchArticles = async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+      if (selectedCategories.length > 0) {
+        params.append("category", selectedCategories.join(","));
+      }
+      if (searchQuery) {
+        params.append("q", searchQuery);
+      }
+      params.append("limit", "50");
 
-  // Search functionality
-  const { data: searchResults, refetch: searchRefetch, isLoading: searchLoading } = useSemanticSearch({
-    query: searchQuery,
-    categories: selectedTopics.length > 0 ? selectedTopics : undefined,
-    enabled: false,
-  });
-
-  // Handle topic toggle
-  const handleToggleTopic = (topic: string) => {
-    setSelectedTopics((prev) =>
-      prev.includes(topic) ? prev.filter((t) => t !== topic) : [...prev, topic]
-    );
-    setHasUnsavedChanges(true);
-  };
-
-  // Save preferences
-  const handleSavePreferences = () => {
-    setPreferences({
-      topics: selectedTopics,
-      compactView,
-      autoRefresh: preferences.autoRefresh,
-    });
-    setHasUnsavedChanges(false);
-    toast.success('Preferences saved successfully!');
-  };
-
-  // Search handler
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
-    if (query.trim()) {
-      setTimeout(() => searchRefetch(), 0);
+      const data = await apiFetch<any>(`${API_ENDPOINTS.news}?${params}`);
+      
+      // Map FastAPI response to expected format
+      // Backend returns PaginatedResponse with "data" field, not "items"
+      const articles = data.data || data.items || [];
+      const mappedArticles = articles.map((article: any) => ({
+        id: article.id,
+        title: article.title,
+        content: article.content,
+        summaryShort: article.summary || article.content?.substring(0, 200) + '...',
+        summaryMedium: article.summary || article.content?.substring(0, 400) + '...',
+        url: article.url,
+        publishedAt: article.published_at,
+        imageUrl: article.image_url || 'https://via.placeholder.com/400x300?text=Tech+News',
+        category: article.categories || [],
+        source: article.source,
+        credibilityScore: 85, // Default score
+        trending: false,
+        sentiment: 'neutral',
+        keyInsights: [],
+        sourcesUsed: [article.source],
+      })) || [];
+      
+      setArticles(mappedArticles);
+      setFilteredArticles(mappedArticles);
+    } catch (error) {
+      console.error("Error fetching articles:", error);
+      toast.error("Failed to fetch articles. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Transform search results to articles
-  const searchArticles = searchResults?.results?.map(result => ({
-    id: result.article_id,
-    title: result.title,
-    url: result.url,
-    source: result.source,
-    categories: result.categories,
-    keywords: result.keywords,
-    published_at: result.published_date,
-    content: '', // Not included in search results
-    metadata: {},
-    created_at: result.published_date,
-    updated_at: result.published_date,
-  })) || [];
-  
-  const displayArticles = searchQuery && searchArticles.length > 0
-    ? searchArticles 
-    : articles;
+  // Fetch digest - Create mock data for now (can be implemented later)
+  const fetchDigest = async () => {
+    try {
+      // Mock digest data matching DigestView expected structure
+      setDigest({
+        date: new Date().toISOString(),
+        topStories: [
+          {
+            id: "digest-1",
+            title: "AI Breakthrough in Natural Language Understanding",
+            source: "TechCrunch",
+            summaryShort: "Researchers achieve significant improvements in LLM reasoning capabilities, bringing AI closer to human-level understanding.",
+            category: ["AI", "Machine Learning"]
+          },
+          {
+            id: "digest-2",
+            title: "New Security Vulnerability Affects Major Cloud Providers",
+            source: "SecurityWeek",
+            summaryShort: "Critical security flaw discovered in major cloud infrastructure, prompting immediate patches across the industry.",
+            category: ["Security", "Cloud"]
+          },
+          {
+            id: "digest-3",
+            title: "Quantum Computing Makes Significant Progress",
+            source: "Nature",
+            summaryShort: "Scientists demonstrate quantum advantage in practical applications, marking a milestone in quantum computing development.",
+            category: ["Quantum", "Hardware"]
+          }
+        ],
+        categoryBreakdown: {
+          "AI": 15,
+          "Machine Learning": 12,
+          "Security": 8,
+          "Cloud": 6,
+          "Quantum": 4,
+          "Hardware": 5
+        },
+        trendingTopics: [
+          {
+            id: "trend-1",
+            title: "Large Language Models",
+            category: ["AI", "Machine Learning"]
+          },
+          {
+            id: "trend-2",
+            title: "Zero-Day Exploits",
+            category: ["Security"]
+          },
+          {
+            id: "trend-3",
+            title: "Quantum Supremacy",
+            category: ["Quantum"]
+          }
+        ]
+      });
+    } catch (error) {
+      console.error("Error fetching digest:", error);
+    }
+  };
+
+  // Save preferences - Store locally for now
+  const savePreferences = async () => {
+    setIsSavingPreferences(true);
+    try {
+      // Save to localStorage
+      localStorage.setItem('techpulse_categories', JSON.stringify(selectedCategories));
+      
+      // Update saved categories state
+      setSavedCategories([...selectedCategories]);
+      setHasUnsavedChanges(false);
+
+      toast.success("Preferences saved successfully!", {
+        description: `Your feed will now show ${selectedCategories.length} selected topic${selectedCategories.length !== 1 ? 's' : ''}.`,
+        duration: 3000,
+      });
+
+      // Refresh articles after saving preferences
+      await fetchArticles();
+    } catch (error) {
+      console.error("Error saving preferences:", error);
+      toast.error("Failed to save preferences", {
+        description: "Please try again later.",
+        duration: 3000,
+      });
+    } finally {
+      setIsSavingPreferences(false);
+    }
+  };
+
+  // Ask question in chat - Can be connected to summarization API later
+  const handleAskQuestion = async (question: string) => {
+    try {
+      // Mock response for now
+      return {
+        answer: "This is a placeholder response. Connect to your FastAPI summarization endpoint for real AI responses.",
+        success: true
+      };
+    } catch (error) {
+      console.error("Error processing question:", error);
+      throw error;
+    }
+  };
+
+  // Load preferences and articles on mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        // Load from localStorage
+        const saved = localStorage.getItem('techpulse_categories');
+        if (saved) {
+          const cats = JSON.parse(saved);
+          setSelectedCategories(cats);
+          setSavedCategories(cats);
+        }
+      } catch (error) {
+        console.error("Error loading preferences:", error);
+      }
+      
+      fetchArticles();
+      fetchDigest();
+    };
+
+    loadData();
+  }, []);
+
+  // Check for unsaved changes
+  useEffect(() => {
+    const categoriesChanged = JSON.stringify(selectedCategories.sort()) !== JSON.stringify(savedCategories.sort());
+    setHasUnsavedChanges(categoriesChanged);
+  }, [selectedCategories, savedCategories]);
+
+  // Refetch when filters change
+  useEffect(() => {
+    fetchArticles();
+  }, [selectedCategories, searchQuery, showTrendingOnly]);
 
   return (
-    <div className="min-h-screen bg-[#F9FAFB] subtle-pattern">
-      <Toaster position="top-right" />
-      
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 subtle-pattern">
       {/* Header */}
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-50 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+      <header className="bg-white/80 backdrop-blur-lg border-b border-gray-200 shadow-sm sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl gradient-primary flex items-center justify-center shadow-md">
-                <Sparkles className="h-6 w-6 text-white" />
+              <div className="w-10 h-10 gradient-primary rounded-xl flex items-center justify-center shadow-md">
+                <Newspaper className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-display font-bold text-gray-900 tracking-tight">
-                  TechPulse AI
-                </h1>
-                <p className="text-xs text-gray-500">AI-Powered Tech News Aggregation</p>
+                <h1 className="text-2xl text-gradient">TechPulse AI</h1>
+                <p className="text-sm text-gray-600">AI-Powered Tech News Aggregation</p>
               </div>
             </div>
-
-            <div className="flex items-center gap-3">
-              {/* Stats badges */}
-              <div className="hidden md:flex items-center gap-2 text-xs">
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-orange-50 text-orange-700 rounded-full font-medium">
-                  🔥 {displayArticles.length || 3} Trending
-                </span>
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full font-medium">
-                  {displayArticles.length || 7} Articles Today
-                </span>
-              </div>
-              
-              {hasUnsavedChanges && (
-                <Button onClick={handleSavePreferences} size="sm" variant="gradient" className="shadow-md">
-                  Save Changes
-                </Button>
-              )}
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="gap-1 border-orange-200 bg-orange-50 text-orange-700">
+                <span>🔥</span>
+                {articles.filter((a) => a.trending).length} Trending
+              </Badge>
+              <Badge variant="outline" className="gap-1 border-blue-200 bg-blue-50 text-blue-700">
+                {articles.length} Articles Today
+              </Badge>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-          {/* Tab Navigation - Centered Inline Style */}
-          <div className="flex justify-center">
-            <TabsList className="inline-flex bg-white rounded-lg border border-gray-200 p-1 shadow-sm">
-              <TabsTrigger 
-                value="feed" 
-                className="gap-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-md px-4 py-2"
-              >
-                <Newspaper className="h-4 w-4" />
-                <span className="font-medium">News Feed</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="research" 
-                className="gap-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-md px-4 py-2"
-              >
-                <FileText className="h-4 w-4" />
-                <span className="font-medium">Research</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="knowledge" 
-                className="gap-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-md px-4 py-2"
-              >
-                <Network className="h-4 w-4" />
-                <span className="font-medium">Knowledge</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="digest" 
-                className="gap-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-md px-4 py-2"
-              >
-                <Sparkles className="h-4 w-4" />
-                <span className="font-medium">Digest</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="chat" 
-                className="gap-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-md px-4 py-2"
-              >
-                <MessageCircle className="h-4 w-4" />
-                <span className="font-medium">Ask AI</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="settings" 
-                className="gap-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-md px-4 py-2"
-              >
-                <SettingsIcon className="h-4 w-4" />
-                <span className="font-medium">Settings</span>
-              </TabsTrigger>
-            </TabsList>
-          </div>
+      <div className="max-w-7xl mx-auto px-4 py-6">
+        <Tabs defaultValue="feed" className="space-y-6">
+          <TabsList className="grid grid-cols-6 w-full max-w-4xl mx-auto">
+            <TabsTrigger value="feed" className="gap-2">
+              <Newspaper className="w-4 h-4" />
+              News Feed
+            </TabsTrigger>
+            <TabsTrigger value="research" className="gap-2">
+              <Lightbulb className="w-4 h-4" />
+              Research
+            </TabsTrigger>
+            <TabsTrigger value="knowledge" className="gap-2">
+              <Network className="w-4 h-4" />
+              Knowledge
+            </TabsTrigger>
+            <TabsTrigger value="digest" className="gap-2">
+              <Mail className="w-4 h-4" />
+              Digest
+            </TabsTrigger>
+            <TabsTrigger value="chat" className="gap-2">
+              <MessageCircle className="w-4 h-4" />
+              Ask AI
+            </TabsTrigger>
+            <TabsTrigger value="preferences" className="gap-2 relative">
+              <Settings className="w-4 h-4" />
+              Settings
+              {hasUnsavedChanges && (
+                <span className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
+              )}
+            </TabsTrigger>
+          </TabsList>
 
           {/* News Feed Tab */}
           <TabsContent value="feed" className="space-y-6">
-            {/* Search and Filters in single white container */}
-            <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm space-y-4">
-              <SearchBar onSearch={handleSearch} defaultValue={searchQuery} />
-              
-              <TopicFilter
-                topics={availableTopics}
-                selectedTopics={selectedTopics}
-                onToggleTopic={handleToggleTopic}
-                onSave={handleSavePreferences}
-                showSave={hasUnsavedChanges}
-              />
-            </div>
-
-            {/* View Controls */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Button
-                  variant={!compactView ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setCompactView(false)}
-                  className="gap-2"
-                >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                  </svg>
-                  Grid
-                </Button>
-                <Button
-                  variant={compactView ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setCompactView(true)}
-                  className="gap-2"
-                >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
-                  List
-                </Button>
+            <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+              <div className="flex-1 w-full md:max-w-md">
+                <SearchBar onSearch={setSearchQuery} />
               </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Showing {displayArticles.length} articles</span>
+              <div className="flex gap-2 items-center">
+                <Button
+                  variant={showTrendingOnly ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setShowTrendingOnly(!showTrendingOnly)}
+                  className="gap-2"
+                >
+                  <TrendingUp className="w-4 h-4" />
+                  Trending Only
+                </Button>
+                <div className="flex gap-1 border rounded-lg p-1">
+                  <Button
+                    variant={viewMode === "detailed" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setViewMode("detailed")}
+                  >
+                    <Grid className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant={viewMode === "compact" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setViewMode("compact")}
+                  >
+                    <List className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
 
-            {/* Articles Grid */}
-            <div>
-              {isLoading || searchLoading ? (
-                <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
-                  <div className="inline-block animate-spin rounded-full h-10 w-10 border-4 border-blue-600 border-t-transparent"></div>
-                  <p className="mt-4 text-gray-600 font-medium">Loading articles...</p>
-                </div>
-              ) : error ? (
-                <div className="text-center py-16 bg-white rounded-xl border border-red-200">
-                  <p className="text-red-600 font-medium">Error loading articles. Please try again.</p>
-                </div>
-              ) : displayArticles.length === 0 ? (
-                <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
-                  <p className="text-gray-600 font-medium">No articles found. Try adjusting your filters.</p>
-                </div>
-              ) : (
-                <div className={`grid gap-5 ${compactView ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2'}`}>
-                  {displayArticles.map((article: any) => (
-                    <NewsCard
-                      key={article.id}
-                      article={article}
-                      compact={compactView}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
+            {selectedCategories.length > 0 && (
+              <div className="flex flex-wrap gap-2 items-center bg-white p-4 rounded-xl border border-gray-200 elevation-sm">
+                <span className="text-sm text-gray-600">Filtered by:</span>
+                {selectedCategories.map((cat) => (
+                  <Badge key={cat} variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
+                    {cat}
+                  </Badge>
+                ))}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedCategories([])}
+                  className="ml-auto text-gray-600 hover:text-blue-600"
+                >
+                  Clear Filters
+                </Button>
+              </div>
+            )}
+
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+              </div>
+            ) : filteredArticles.length === 0 ? (
+              <div className="text-center py-12 bg-white rounded-xl border border-gray-200 elevation-md">
+                <Newspaper className="w-12 h-12 text-blue-600 mx-auto mb-3" />
+                <h3 className="text-lg mb-2 text-gray-900">No articles found</h3>
+                <p className="text-gray-600 mb-4">
+                  Try adjusting your filters or search query
+                </p>
+                <Button onClick={() => {
+                  setSearchQuery("");
+                  setShowTrendingOnly(false);
+                  setSelectedCategories([]);
+                }} className="gradient-primary text-white">
+                  Reset Filters
+                </Button>
+              </div>
+            ) : (
+              <div className={`grid gap-6 ${
+                viewMode === "detailed" 
+                  ? "grid-cols-1 lg:grid-cols-2" 
+                  : "grid-cols-1"
+              }`}>
+                {filteredArticles.map((article) => (
+                  <NewsCard
+                    key={article.id}
+                    article={article}
+                    viewMode={viewMode}
+                  />
+                ))}
+              </div>
+            )}
           </TabsContent>
 
-          {/* Research Tab */}
+          {/* Research Mode Tab */}
           <TabsContent value="research">
             <ResearchMode />
           </TabsContent>
@@ -291,76 +369,60 @@ function App() {
             <KnowledgeGraph />
           </TabsContent>
 
-          {/* Digest Tab */}
+          {/* Daily Digest Tab */}
           <TabsContent value="digest">
-            <DigestView />
+            {digest ? (
+              <DigestView digest={digest} />
+            ) : (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+              </div>
+            )}
           </TabsContent>
 
           {/* Chat Tab */}
-          <TabsContent value="chat" className="h-[calc(100vh-250px)]">
-            <ChatInterface />
+          <TabsContent value="chat">
+            <div className="max-w-4xl mx-auto">
+              <ChatInterface onAskQuestion={handleAskQuestion} />
+            </div>
           </TabsContent>
 
-          {/* Settings Tab */}
-          <TabsContent value="settings" className="space-y-6">
-            <div>
-              <h2 className="text-3xl font-display font-bold text-gradient mb-2">
-                Settings
-              </h2>
-              <p className="text-muted-foreground">
-                Customize your news experience
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-white rounded-lg border">
-                <div>
-                  <h3 className="font-semibold">Auto Refresh</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Automatically check for new articles
-                  </p>
-                </div>
-                <Switch
-                  checked={preferences.autoRefresh}
-                  onCheckedChange={(checked) => {
-                    setPreferences({ ...preferences, autoRefresh: checked });
-                    setHasUnsavedChanges(true);
-                  }}
-                />
-              </div>
-
-              <div className="flex items-center justify-between p-4 bg-white rounded-lg border">
-                <div>
-                  <h3 className="font-semibold">Compact View by Default</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Use compact cards for article display
-                  </p>
-                </div>
-                <Switch
-                  checked={preferences.compactView}
-                  onCheckedChange={(checked) => {
-                    setPreferences({ ...preferences, compactView: checked });
-                    setCompactView(checked);
-                    setHasUnsavedChanges(true);
-                  }}
-                />
-              </div>
+          {/* Preferences Tab */}
+          <TabsContent value="preferences">
+            <div className="max-w-4xl mx-auto">
+              <TopicFilter
+                selectedCategories={selectedCategories}
+                onCategoriesChange={setSelectedCategories}
+                onSave={savePreferences}
+                isSaving={isSavingPreferences}
+                hasUnsavedChanges={hasUnsavedChanges}
+              />
             </div>
           </TabsContent>
         </Tabs>
-      </main>
+      </div>
+
+      {/* Toast Notifications */}
+      <Toaster position="bottom-right" />
 
       {/* Footer */}
-      <footer className="border-t border-gray-200 bg-white mt-auto">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="text-center text-sm text-muted-foreground">
-            <p>TechPulse AI • Powered by Advanced Machine Learning</p>
-            <p className="mt-1">Stay informed with intelligent news aggregation</p>
+      <footer className="bg-white border-t border-gray-200 mt-12">
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center shadow-md">
+                <Newspaper className="w-4 h-4 text-white" />
+              </div>
+              <span className="text-sm text-gray-700">
+                TechPulse AI - Your personalized tech news hub
+              </span>
+            </div>
+            <p className="text-sm text-gray-500">
+              Aggregating from TechCrunch, The Verge, Wired, Ars Technica & more
+            </p>
           </div>
         </div>
       </footer>
     </div>
   );
 }
-
-export default App;

@@ -1,95 +1,130 @@
-import React from 'react';
-import { Button } from './ui/button';
-import { Badge } from './ui/badge';
-import { Check } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+import { Checkbox } from "./ui/checkbox";
+import { Filter, X, Loader2, Check } from "lucide-react";
 
 interface TopicFilterProps {
-  topics: string[];
-  selectedTopics: string[];
-  onToggleTopic: (topic: string) => void;
-  onSave?: () => void;
-  showSave?: boolean;
+  selectedCategories: string[];
+  onCategoriesChange: (categories: string[]) => void;
+  onSave: () => void;
+  isSaving?: boolean;
+  hasUnsavedChanges?: boolean;
 }
 
-const TOPIC_COLORS: Record<string, string> = {
-  'AI': 'bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-200',
-  'Machine Learning': 'bg-purple-100 text-purple-700 hover:bg-purple-200 border-purple-200',
-  'Cloud': 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200 border-cyan-200',
-  'Security': 'bg-red-100 text-red-700 hover:bg-red-200 border-red-200',
-  'DevOps': 'bg-green-100 text-green-700 hover:bg-green-200 border-green-200',
-  'Web Development': 'bg-orange-100 text-orange-700 hover:bg-orange-200 border-orange-200',
-  'Mobile': 'bg-pink-100 text-pink-700 hover:bg-pink-200 border-pink-200',
-  'Data Science': 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 border-indigo-200',
-  'Blockchain': 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200 border-yellow-200',
-  'IoT': 'bg-teal-100 text-teal-700 hover:bg-teal-200 border-teal-200',
-};
+const AVAILABLE_CATEGORIES = [
+  { id: "AI/ML", label: "AI/ML", icon: "🤖" },
+  { id: "AI Agents", label: "AI Agents", icon: "🎯" },
+  { id: "Robotics", label: "Robotics", icon: "🦾" },
+  { id: "Biotech", label: "Biotech", icon: "🧬" },
+  { id: "Military Tech", label: "Military Tech", icon: "⚔️" },
+  { id: "Hardware", label: "Hardware", icon: "💻" },
+  { id: "Cloud", label: "Cloud", icon: "☁️" },
+  { id: "Security", label: "Security", icon: "🔒" },
+  { id: "Quantum Computing", label: "Quantum Computing", icon: "⚛️" },
+  { id: "Healthcare", label: "Healthcare", icon: "🏥" },
+];
 
-const TopicFilter: React.FC<TopicFilterProps> = ({
-  topics,
-  selectedTopics,
-  onToggleTopic,
-  onSave,
-  showSave = false,
-}) => {
-  const getTopicColor = (topic: string) => {
-    return TOPIC_COLORS[topic] || 'bg-gray-100 text-gray-700 hover:bg-gray-200 border-gray-200';
+export function TopicFilter({ selectedCategories, onCategoriesChange, onSave, isSaving = false, hasUnsavedChanges = false }: TopicFilterProps) {
+  const toggleCategory = (categoryId: string) => {
+    if (selectedCategories.includes(categoryId)) {
+      onCategoriesChange(selectedCategories.filter((c) => c !== categoryId));
+    } else {
+      onCategoriesChange([...selectedCategories, categoryId]);
+    }
   };
 
-  const isSelected = (topic: string) => selectedTopics.includes(topic);
+  const clearAll = () => {
+    onCategoriesChange([]);
+  };
+
+  const selectAll = () => {
+    onCategoriesChange(AVAILABLE_CATEGORIES.map((c) => c.id));
+  };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="font-display font-semibold text-lg">Filter by Topics</h3>
-        {showSave && selectedTopics.length > 0 && (
-          <Button onClick={onSave} size="sm" variant="gradient">
-            Save Preferences
-          </Button>
-        )}
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {topics.map((topic) => {
-          const selected = isSelected(topic);
-          return (
-            <button
-              key={topic}
-              onClick={() => onToggleTopic(topic)}
-              className={cn(
-                "relative px-4 py-2 rounded-full border-2 font-medium text-sm transition-all duration-200",
-                "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
-                getTopicColor(topic),
-                selected && "ring-2 ring-offset-2",
-                selected && "ring-primary shadow-md scale-105"
-              )}
-            >
-              <span className="flex items-center gap-2">
-                {topic}
-                {selected && (
-                  <Check className="h-4 w-4 animate-in zoom-in duration-200" />
-                )}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {selectedTopics.length > 0 && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span className="font-medium">{selectedTopics.length} topics selected</span>
-          <Button
-            onClick={() => selectedTopics.forEach(onToggleTopic)}
-            variant="ghost"
-            size="sm"
-            className="h-auto py-0 px-2"
-          >
-            Clear all
-          </Button>
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Filter className="w-5 h-5" />
+            <CardTitle>Topic Preferences</CardTitle>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={clearAll}>
+              Clear All
+            </Button>
+            <Button variant="outline" size="sm" onClick={selectAll}>
+              Select All
+            </Button>
+          </div>
         </div>
-      )}
-    </div>
-  );
-};
+        <CardDescription>
+          Choose topics you're interested in to personalize your news feed
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+          {AVAILABLE_CATEGORIES.map((category) => (
+            <label
+              key={category.id}
+              className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+            >
+              <Checkbox
+                checked={selectedCategories.includes(category.id)}
+                onCheckedChange={() => toggleCategory(category.id)}
+              />
+              <span className="text-2xl">{category.icon}</span>
+              <span className="flex-1">{category.label}</span>
+            </label>
+          ))}
+        </div>
 
-export default TopicFilter;
+        {selectedCategories.length > 0 && (
+          <div className="border-t pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm text-gray-600">
+                Selected Topics ({selectedCategories.length})
+              </p>
+              {hasUnsavedChanges && (
+                <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-300">
+                  Unsaved changes
+                </Badge>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {selectedCategories.map((catId) => {
+                const category = AVAILABLE_CATEGORIES.find((c) => c.id === catId);
+                return (
+                  <Badge key={catId} variant="default" className="gap-1">
+                    <span>{category?.icon}</span>
+                    <span>{category?.label}</span>
+                    <button
+                      onClick={() => toggleCategory(catId)}
+                      className="ml-1 hover:bg-white/20 rounded-full"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </Badge>
+                );
+              })}
+            </div>
+            <Button onClick={onSave} className="w-full" disabled={isSaving}>
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4 mr-2" />
+                  Save Preferences
+                </>
+              )}
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

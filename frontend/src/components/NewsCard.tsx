@@ -1,222 +1,283 @@
-import React, { useState } from 'react';
-import { ExternalLink, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
-import { Card, CardContent, CardHeader } from './ui/card';
-import { Badge } from './ui/badge';
-import { Button } from './ui/button';
-import { HoverCard, HoverCardContent, HoverCardTrigger } from './ui/hover-card';
-import { cn } from '../lib/utils';
-
-interface Article {
-  id: string;
-  title: string;
-  content?: string;
-  summary?: string;
-  url: string;
-  published_at: string;
-  source: string;
-  categories: string[];
-  keywords?: string[];
-  credibility_score?: number;
-  is_trending?: boolean;
-}
+import { useState } from "react";
+import { ImageWithFallback } from "./figma/ImageWithFallback";
+import { ExternalLink, TrendingUp, Clock, ChevronDown, ChevronUp, Shield, Info } from "lucide-react";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./ui/card";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "./ui/hover-card";
 
 interface NewsCardProps {
-  article: Article;
-  compact?: boolean;
-  onRead?: (articleId: string) => void;
+  article: {
+    id: string;
+    title: string;
+    source: string;
+    url: string;
+    publishedAt: string;
+    imageUrl: string;
+    category: string[];
+    summaryShort: string;
+    summaryMedium: string;
+    keyInsights: string[];
+    sentiment: string;
+    trending: boolean;
+    credibilityScore?: number;
+    sourcesUsed?: string[];
+  };
+  viewMode: "compact" | "detailed";
 }
 
-const NewsCard: React.FC<NewsCardProps> = ({ article, compact = false, onRead }) => {
+export function NewsCard({ article, viewMode }: NewsCardProps) {
   const [expanded, setExpanded] = useState(false);
 
-  // Calculate credibility score (70-100% range for tech news)
-  const credibilityScore = article.credibility_score || Math.floor(Math.random() * 30) + 70;
-  
-  // Determine credibility color and badge
-  const getCredibilityBadge = (score: number) => {
-    if (score >= 90) return { color: 'text-green-700 bg-green-50 border-green-200', label: `🟢 ${score}%` };
-    if (score >= 80) return { color: 'text-blue-700 bg-blue-50 border-blue-200', label: `🔵 ${score}%` };
-    return { color: 'text-yellow-700 bg-yellow-50 border-yellow-200', label: `🟡 ${score}%` };
-  };
-
-  // Format time ago
   const timeAgo = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
-    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    const hours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
     
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-    return `${Math.floor(seconds / 86400)}d ago`;
+    if (hours < 1) return "Just now";
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
   };
 
-  const handleRead = () => {
-    if (onRead) onRead(article.id);
-    window.open(article.url, '_blank', 'noopener,noreferrer');
+  const sentimentColor = {
+    positive: "text-green-600",
+    negative: "text-red-600",
+    mixed: "text-yellow-600"
+  }[article.sentiment] || "text-gray-600";
+
+  const getCredibilityColor = (score: number) => {
+    if (score >= 90) return "text-green-600";
+    if (score >= 70) return "text-blue-600";
+    if (score >= 50) return "text-yellow-600";
+    return "text-red-600";
   };
 
-  const credBadge = getCredibilityBadge(credibilityScore);
+  const getCredibilityLabel = (score: number) => {
+    if (score >= 90) return "Highly Reliable";
+    if (score >= 70) return "Reliable";
+    if (score >= 50) return "Moderate";
+    return "Limited";
+  };
 
-  // Random tech image placeholder
-  const imageUrl = `https://picsum.photos/seed/${article.id}/800/400`;
+  if (viewMode === "compact") {
+    return (
+      <Card className="hover:shadow-lg transition-shadow">
+        <CardHeader className="pb-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                {article.trending && (
+                  <Badge variant="default" className="bg-orange-500">
+                    <TrendingUp className="w-3 h-3 mr-1" />
+                    Trending
+                  </Badge>
+                )}
+                <span className="text-sm text-gray-500">{article.source}</span>
+                {article.credibilityScore !== undefined && (
+                  <>
+                    <span className="text-sm text-gray-400">•</span>
+                    <HoverCard>
+                      <HoverCardTrigger asChild>
+                        <span className={`text-sm flex items-center gap-1 cursor-help ${getCredibilityColor(article.credibilityScore)}`}>
+                          <Shield className="w-3 h-3" />
+                          {article.credibilityScore}%
+                        </span>
+                      </HoverCardTrigger>
+                      <HoverCardContent className="w-80">
+                        <div className="space-y-2">
+                          <h4 className="font-semibold flex items-center gap-2">
+                            <Shield className="w-4 h-4" />
+                            Source Credibility
+                          </h4>
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-gray-600">Reliability:</span>
+                              <span className={`text-sm font-semibold ${getCredibilityColor(article.credibilityScore)}`}>
+                                {getCredibilityLabel(article.credibilityScore)}
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full ${article.credibilityScore >= 90 ? 'bg-green-600' : article.credibilityScore >= 70 ? 'bg-blue-600' : article.credibilityScore >= 50 ? 'bg-yellow-600' : 'bg-red-600'}`}
+                                style={{ width: `${article.credibilityScore}%` }}
+                              />
+                            </div>
+                          </div>
+                          {article.sourcesUsed && article.sourcesUsed.length > 0 && (
+                            <div className="pt-2 border-t">
+                              <p className="text-sm font-semibold mb-1">Sources Used:</p>
+                              <div className="flex flex-wrap gap-1">
+                                {article.sourcesUsed.map((src, idx) => (
+                                  <Badge key={idx} variant="outline" className="text-xs">
+                                    {src}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </HoverCardContent>
+                    </HoverCard>
+                  </>
+                )}
+                <span className="text-sm text-gray-400">•</span>
+                <span className="text-sm text-gray-500 flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  {timeAgo(article.publishedAt)}
+                </span>
+              </div>
+              <CardTitle className="text-lg leading-snug mb-2">{article.title}</CardTitle>
+              <CardDescription>{article.summaryShort}</CardDescription>
+            </div>
+            <ImageWithFallback
+              src={article.imageUrl}
+              alt={article.title}
+              className="w-24 h-24 object-cover rounded-md flex-shrink-0"
+            />
+          </div>
+        </CardHeader>
+        <CardFooter className="pt-0 pb-4 flex flex-wrap gap-2">
+          {article.category.map((cat) => (
+            <Badge key={cat} variant="outline" className="text-xs">
+              {cat}
+            </Badge>
+          ))}
+          <Button variant="ghost" size="sm" className="ml-auto" asChild>
+            <a href={article.url} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="w-4 h-4" />
+            </a>
+          </Button>
+        </CardFooter>
+      </Card>
+    );
+  }
 
   return (
-    <Card className={cn(
-      "group hover:shadow-xl transition-all duration-300 relative overflow-hidden rounded-xl border-gray-200",
-      "hover:border-blue-200 hover:-translate-y-1",
-      compact && "hover:scale-[1.01]"
-    )}>
-      {/* Trending Badge */}
-      {article.is_trending && (
-        <div className="absolute top-4 right-4 z-20">
-          <Badge variant="destructive" className="gap-1 shadow-lg trending-badge">
-            <TrendingUp className="h-3 w-3" />
-            Trending
-          </Badge>
-        </div>
-      )}
-
-      {/* Article Image */}
-      {!compact && (
-        <div className="relative h-48 overflow-hidden news-card-image bg-gradient-to-br from-blue-100 to-purple-100">
-          <img 
-            src={imageUrl} 
-            alt={article.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            onError={(e) => {
-              e.currentTarget.style.display = 'none';
-            }}
-          />
-        </div>
-      )}
-
-      <CardHeader className="pb-3 pt-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 space-y-3">
-            <h3 className="text-lg font-display font-semibold leading-tight text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-2">
-              {article.title}
-            </h3>
-            
-            <div className="flex flex-wrap items-center gap-2 text-sm">
+    <Card className="hover:shadow-lg transition-shadow">
+      <ImageWithFallback
+        src={article.imageUrl}
+        alt={article.title}
+        className="w-full h-48 object-cover rounded-t-lg"
+      />
+      <CardHeader>
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          {article.trending && (
+            <Badge variant="default" className="bg-orange-500">
+              <TrendingUp className="w-3 h-3 mr-1" />
+              Trending
+            </Badge>
+          )}
+          <span className="text-sm text-gray-500">{article.source}</span>
+          {article.credibilityScore !== undefined && (
+            <>
+              <span className="text-sm text-gray-400">•</span>
               <HoverCard>
                 <HoverCardTrigger asChild>
-                  <span className="font-semibold text-gray-900 hover:text-blue-600 cursor-pointer transition-colors">
-                    {article.source}
+                  <span className={`text-sm flex items-center gap-1 cursor-help ${getCredibilityColor(article.credibilityScore)}`}>
+                    <Shield className="w-3 h-3" />
+                    {article.credibilityScore}%
                   </span>
                 </HoverCardTrigger>
-                <HoverCardContent className="w-64">
+                <HoverCardContent className="w-80">
                   <div className="space-y-2">
-                    <h4 className="font-semibold text-sm">Source Credibility</h4>
-                    <p className="text-xs text-muted-foreground">
-                      {article.source} has a {credibilityScore}% credibility rating
-                    </p>
-                    <div className="flex gap-1">
-                      {[...Array(5)].map((_, i) => (
+                    <h4 className="font-semibold flex items-center gap-2">
+                      <Shield className="w-4 h-4" />
+                      Source Credibility
+                    </h4>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Reliability:</span>
+                        <span className={`text-sm font-semibold ${getCredibilityColor(article.credibilityScore)}`}>
+                          {getCredibilityLabel(article.credibilityScore)}
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
                         <div
-                          key={i}
-                          className={cn(
-                            "h-1.5 flex-1 rounded-full",
-                            i < Math.floor(credibilityScore / 20) ? "bg-blue-500" : "bg-gray-200"
-                          )}
+                          className={`h-full ${article.credibilityScore >= 90 ? 'bg-green-600' : article.credibilityScore >= 70 ? 'bg-blue-600' : article.credibilityScore >= 50 ? 'bg-yellow-600' : 'bg-red-600'}`}
+                          style={{ width: `${article.credibilityScore}%` }}
                         />
-                      ))}
+                      </div>
                     </div>
+                    {article.sourcesUsed && article.sourcesUsed.length > 0 && (
+                      <div className="pt-2 border-t">
+                        <p className="text-sm font-semibold mb-1">Sources Used:</p>
+                        <div className="flex flex-wrap gap-1">
+                          {article.sourcesUsed.map((src, idx) => (
+                            <Badge key={idx} variant="outline" className="text-xs">
+                              {src}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </HoverCardContent>
               </HoverCard>
-              
-              <span className="text-gray-400">•</span>
-              <span className="text-gray-600">{timeAgo(article.published_at)}</span>
-              <span className="text-gray-400">•</span>
-              
-              <div className={cn(
-                "px-2.5 py-1 rounded-full border text-xs font-semibold",
-                credBadge.color
-              )}>
-                {credBadge.label}
-              </div>
-            </div>
-          </div>
+            </>
+          )}
+          <span className="text-sm text-gray-400">•</span>
+          <span className="text-sm text-gray-500 flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            {timeAgo(article.publishedAt)}
+          </span>
         </div>
+        <CardTitle className="text-xl leading-snug">{article.title}</CardTitle>
+        <CardDescription className="mt-2">{article.summaryShort}</CardDescription>
       </CardHeader>
-
-      <CardContent className="space-y-4 pt-0">
-        {/* Summary/Content */}
-        {!compact && (
-          <p className={cn(
-            "text-gray-600 text-sm leading-relaxed",
-            !expanded && "line-clamp-2"
-          )}>
-            {article.summary || article.content?.substring(0, 200) || 'No summary available.'}
-          </p>
-        )}
-
-        {/* Categories */}
-        {article.categories && article.categories.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {article.categories.slice(0, compact ? 3 : 5).map((category) => (
-              <Badge key={category} variant="secondary" className="text-xs">
-                {category}
-              </Badge>
-            ))}
-            {article.categories.length > (compact ? 3 : 5) && (
-              <Badge variant="outline" className="text-xs">
-                +{article.categories.length - (compact ? 3 : 5)} more
-              </Badge>
-            )}
-          </div>
-        )}
-
-        {/* Key Insights (if expanded and has keywords) */}
-        {expanded && article.keywords && article.keywords.length > 0 && (
-          <div className="rounded-lg bg-blue-50 border border-blue-100 p-3">
-            <h4 className="text-sm font-semibold text-blue-900 mb-2">Key Insights</h4>
-            <div className="flex flex-wrap gap-1.5">
-              {article.keywords.map((keyword) => (
-                <span key={keyword} className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
-                  {keyword}
-                </span>
-              ))}
+      <CardContent>
+        {expanded ? (
+          <>
+            <p className="text-gray-700 mb-4">{article.summaryMedium}</p>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <h4 className="font-semibold mb-2">Key Insights</h4>
+              <ul className="space-y-1">
+                {article.keyInsights.map((insight, idx) => (
+                  <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
+                    <span className="text-blue-500 mt-1">•</span>
+                    <span>{insight}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
-          </div>
-        )}
-
-        {/* Actions */}
-        <div className="flex items-center gap-2 pt-2 border-t border-gray-100 mt-4">
-          <Button 
-            onClick={handleRead} 
-            variant="default" 
-            size="sm" 
-            className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
-          >
-            Read Full Article
-            <ExternalLink className="h-3.5 w-3.5" />
-          </Button>
-
-          {!compact && (article.content || article.keywords) && (
             <Button
-              onClick={() => setExpanded(!expanded)}
               variant="ghost"
               size="sm"
-              className="gap-1 text-gray-600"
+              className="w-full mt-4"
+              onClick={() => setExpanded(false)}
             >
-              {expanded ? (
-                <>
-                  Show Less
-                  <ChevronUp className="h-3.5 w-3.5" />
-                </>
-              ) : (
-                <>
-                  Read More
-                  <ChevronDown className="h-3.5 w-3.5" />
-                </>
-              )}
+              Show Less <ChevronUp className="w-4 h-4 ml-2" />
             </Button>
-          )}
-        </div>
+          </>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full"
+            onClick={() => setExpanded(true)}
+          >
+            Read More <ChevronDown className="w-4 h-4 ml-2" />
+          </Button>
+        )}
       </CardContent>
+      <CardFooter className="flex flex-wrap gap-2 border-t pt-4">
+        <div className="flex flex-wrap gap-2 flex-1">
+          {article.category.map((cat) => (
+            <Badge key={cat} variant="outline">
+              {cat}
+            </Badge>
+          ))}
+        </div>
+        <Button variant="default" size="sm" asChild>
+          <a href={article.url} target="_blank" rel="noopener noreferrer">
+            Read Full Article <ExternalLink className="w-4 h-4 ml-2" />
+          </a>
+        </Button>
+      </CardFooter>
     </Card>
   );
-};
-
-export default NewsCard;
+}
