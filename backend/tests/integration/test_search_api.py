@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 import json
 from typing import Dict, Any
 
-from main import app
+from src.main import app
 
 
 # ============================================================================
@@ -62,14 +62,14 @@ class TestSearchEndpoint:
     
     def test_search_endpoint_exists(self, client):
         """Test that search endpoint is accessible."""
-        response = client.post("/search", json={"query": "test", "limit": 5})
+        response = client.post("/api/search/hybrid", json={"query": "test", "limit": 5})
         
         # Should not return 404
         assert response.status_code != 404
     
     def test_search_returns_valid_response_structure(self, client, sample_search_payload):
         """Test that search returns properly structured response."""
-        response = client.post("/search", json=sample_search_payload)
+        response = client.post("/api/search/hybrid", json=sample_search_payload)
         
         if response.status_code == 200:
             data = response.json()
@@ -90,7 +90,7 @@ class TestSearchEndpoint:
     
     def test_search_result_item_structure(self, client, sample_search_payload):
         """Test that individual search results have correct structure."""
-        response = client.post("/search", json=sample_search_payload)
+        response = client.post("/api/search/hybrid", json=sample_search_payload)
         
         if response.status_code == 200:
             data = response.json()
@@ -118,7 +118,7 @@ class TestSearchEndpoint:
         """Test search with only required fields."""
         minimal_payload = {"query": "AI", "limit": 5}
         
-        response = client.post("/search", json=minimal_payload)
+        response = client.post("/api/search/hybrid", json=minimal_payload)
         
         # Should succeed with defaults
         assert response.status_code in [200, 500]  # May fail if no embeddings exist
@@ -127,7 +127,7 @@ class TestSearchEndpoint:
         """Test that search respects the limit parameter."""
         payload = {"query": "technology", "limit": 3}
         
-        response = client.post("/search", json=payload)
+        response = client.post("/api/search/hybrid", json=payload)
         
         if response.status_code == 200:
             data = response.json()
@@ -149,7 +149,7 @@ class TestSearchFiltering:
             "sources": ["hackernews"]
         }
         
-        response = client.post("/search", json=payload)
+        response = client.post("/api/search/hybrid", json=payload)
         
         if response.status_code == 200:
             data = response.json()
@@ -166,7 +166,7 @@ class TestSearchFiltering:
             "sources": ["hackernews", "techcrunch", "reddit"]
         }
         
-        response = client.post("/search", json=payload)
+        response = client.post("/api/search/hybrid", json=payload)
         
         if response.status_code == 200:
             data = response.json()
@@ -184,7 +184,7 @@ class TestSearchFiltering:
             "categories": ["AI"]
         }
         
-        response = client.post("/search", json=payload)
+        response = client.post("/api/search/hybrid", json=payload)
         
         if response.status_code == 200:
             data = response.json()
@@ -201,7 +201,7 @@ class TestSearchFiltering:
             "min_score": 0.7
         }
         
-        response = client.post("/search", json=payload)
+        response = client.post("/api/search/hybrid", json=payload)
         
         if response.status_code == 200:
             data = response.json()
@@ -222,7 +222,7 @@ class TestSearchFiltering:
             "published_before": end_date.isoformat()
         }
         
-        response = client.post("/search", json=payload)
+        response = client.post("/api/search/hybrid", json=payload)
         
         if response.status_code == 200:
             data = response.json()
@@ -245,7 +245,7 @@ class TestSearchReranking:
         """Test search with reranking enabled."""
         sample_search_payload["use_reranking"] = True
         
-        response = client.post("/search", json=sample_search_payload)
+        response = client.post("/api/search/hybrid", json=sample_search_payload)
         
         if response.status_code == 200:
             data = response.json()
@@ -255,7 +255,7 @@ class TestSearchReranking:
         """Test search without reranking."""
         sample_search_payload["use_reranking"] = False
         
-        response = client.post("/search", json=sample_search_payload)
+        response = client.post("/api/search/hybrid", json=sample_search_payload)
         
         if response.status_code == 200:
             data = response.json()
@@ -267,11 +267,11 @@ class TestSearchReranking:
         
         # Get results without reranking
         payload["use_reranking"] = False
-        response_no_rerank = client.post("/search", json=payload)
+        response_no_rerank = client.post("/api/search/hybrid", json=payload)
         
         # Get results with reranking
         payload["use_reranking"] = True
-        response_with_rerank = client.post("/search", json=payload)
+        response_with_rerank = client.post("/api/search/hybrid", json=payload)
         
         if response_no_rerank.status_code == 200 and response_with_rerank.status_code == 200:
             data_no_rerank = response_no_rerank.json()
@@ -298,7 +298,7 @@ class TestSearchValidation:
         """Test that empty query is rejected."""
         payload = {"query": "", "limit": 10}
         
-        response = client.post("/search", json=payload)
+        response = client.post("/api/search/hybrid", json=payload)
         
         # Should fail validation
         assert response.status_code in [400, 422, 500]
@@ -307,7 +307,7 @@ class TestSearchValidation:
         """Test that invalid limit is rejected."""
         payload = {"query": "test", "limit": -1}
         
-        response = client.post("/search", json=payload)
+        response = client.post("/api/search/hybrid", json=payload)
         
         # Should fail validation
         assert response.status_code == 422
@@ -316,7 +316,7 @@ class TestSearchValidation:
         """Test that limit exceeding maximum is handled."""
         payload = {"query": "test", "limit": 1000}
         
-        response = client.post("/search", json=payload)
+        response = client.post("/api/search/hybrid", json=payload)
         
         # Should either reject or cap at max
         assert response.status_code in [200, 422]
@@ -325,7 +325,7 @@ class TestSearchValidation:
         """Test that invalid min_score is rejected."""
         payload = {"query": "test", "limit": 10, "min_score": 1.5}
         
-        response = client.post("/search", json=payload)
+        response = client.post("/api/search/hybrid", json=payload)
         
         # Should fail validation (score should be 0-1)
         assert response.status_code == 422
@@ -338,7 +338,7 @@ class TestSearchValidation:
             "published_after": "not-a-date"
         }
         
-        response = client.post("/search", json=payload)
+        response = client.post("/api/search/hybrid", json=payload)
         
         # Should fail validation
         assert response.status_code in [400, 422]
@@ -347,7 +347,7 @@ class TestSearchValidation:
         """Test that missing required fields are rejected."""
         payload = {"limit": 10}  # Missing query
         
-        response = client.post("/search", json=payload)
+        response = client.post("/api/search/hybrid", json=payload)
         
         # Should fail validation
         assert response.status_code == 422
@@ -372,7 +372,7 @@ class TestSearchErrorHandling:
     
     def test_search_wrong_http_method(self, client):
         """Test that GET method is not allowed."""
-        response = client.get("/search?query=test")
+        response = client.get("/api/search?query=test")
         
         # Should return method not allowed or not found
         assert response.status_code in [404, 405]
@@ -397,13 +397,13 @@ class TestSearchHealthEndpoint:
     
     def test_health_endpoint_exists(self, client):
         """Test that health endpoint is accessible."""
-        response = client.get("/search/health")
+        response = client.get("/api/search/health")
         
         assert response.status_code != 404
     
     def test_health_returns_valid_structure(self, client):
         """Test health endpoint returns proper structure."""
-        response = client.get("/search/health")
+        response = client.get("/api/search/health")
         
         if response.status_code == 200:
             data = response.json()
@@ -424,7 +424,7 @@ class TestSearchHealthEndpoint:
     
     def test_health_status_values(self, client):
         """Test that health status has valid values."""
-        response = client.get("/search/health")
+        response = client.get("/api/search/health")
         
         if response.status_code == 200:
             data = response.json()
@@ -440,7 +440,7 @@ class TestSearchPerformance:
     
     def test_search_execution_time(self, client, sample_search_payload):
         """Test that search completes in reasonable time."""
-        response = client.post("/search", json=sample_search_payload)
+        response = client.post("/api/search/hybrid", json=sample_search_payload)
         
         if response.status_code == 200:
             data = response.json()
@@ -458,7 +458,7 @@ class TestSearchPerformance:
         
         payload = {"query": complex_query, "limit": 10}
         
-        response = client.post("/search", json=payload)
+        response = client.post("/api/search/hybrid", json=payload)
         
         # Should handle long queries
         assert response.status_code in [200, 500]
@@ -468,7 +468,7 @@ class TestSearchPerformance:
         import concurrent.futures
         
         def make_request():
-            return client.post("/search", json=sample_search_payload)
+            return client.post("/api/search/hybrid", json=sample_search_payload)
         
         # Make 5 concurrent requests
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
@@ -488,7 +488,7 @@ class TestSearchResultsQuality:
     
     def test_results_are_sorted_by_score(self, client, sample_search_payload):
         """Test that results are sorted by relevance score."""
-        response = client.post("/search", json=sample_search_payload)
+        response = client.post("/api/search/hybrid", json=sample_search_payload)
         
         if response.status_code == 200:
             data = response.json()
@@ -501,7 +501,7 @@ class TestSearchResultsQuality:
     
     def test_scores_are_valid_range(self, client, sample_search_payload):
         """Test that all scores are in valid range (0-1)."""
-        response = client.post("/search", json=sample_search_payload)
+        response = client.post("/api/search/hybrid", json=sample_search_payload)
         
         if response.status_code == 200:
             data = response.json()
@@ -514,7 +514,7 @@ class TestSearchResultsQuality:
     
     def test_no_duplicate_results(self, client, sample_search_payload):
         """Test that results don't contain duplicates."""
-        response = client.post("/search", json=sample_search_payload)
+        response = client.post("/api/search/hybrid", json=sample_search_payload)
         
         if response.status_code == 200:
             data = response.json()
@@ -527,7 +527,7 @@ class TestSearchResultsQuality:
     
     def test_all_results_have_required_metadata(self, client, sample_search_payload):
         """Test that all results have required metadata."""
-        response = client.post("/search", json=sample_search_payload)
+        response = client.post("/api/search/hybrid", json=sample_search_payload)
         
         if response.status_code == 200:
             data = response.json()
@@ -560,7 +560,7 @@ class TestSearchEdgeCases:
         ]
         
         for payload in payloads:
-            response = client.post("/search", json=payload)
+            response = client.post("/api/search/hybrid", json=payload)
             
             # Should handle special characters
             assert response.status_code in [200, 500]
@@ -569,7 +569,7 @@ class TestSearchEdgeCases:
         """Test search with unicode characters."""
         payload = {"query": "人工智能 machine learning 🤖", "limit": 5}
         
-        response = client.post("/search", json=payload)
+        response = client.post("/api/search/hybrid", json=payload)
         
         # Should handle unicode
         assert response.status_code in [200, 500]
@@ -578,7 +578,7 @@ class TestSearchEdgeCases:
         """Test search with very short query."""
         payload = {"query": "AI", "limit": 5}
         
-        response = client.post("/search", json=payload)
+        response = client.post("/api/search/hybrid", json=payload)
         
         # Should work with short queries
         assert response.status_code in [200, 500]
@@ -587,7 +587,7 @@ class TestSearchEdgeCases:
         """Test search with limit of 0."""
         payload = {"query": "test", "limit": 0}
         
-        response = client.post("/search", json=payload)
+        response = client.post("/api/search/hybrid", json=payload)
         
         # Should reject or return empty results
         assert response.status_code in [200, 422]

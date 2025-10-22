@@ -15,14 +15,14 @@ sys.path.insert(0, os.path.dirname(__file__))
 class TestAppImports:
     """Test that core imports work without external dependencies."""
     
-    def test_production_main_import(self):
-        """Test that production_main can be imported."""
-        import production_main
-        assert hasattr(production_main, 'app')
+    def test_main_import(self):
+        """Test that main can be imported."""
+        import main
+        assert hasattr(main, 'app')
     
     def test_fastapi_app_creation(self):
         """Test FastAPI app is created successfully."""
-        from production_main import app
+        from main import app
         assert app is not None
         assert hasattr(app, 'routes')
 
@@ -149,7 +149,7 @@ class TestAPIEndpoints:
     def client(self):
         """Create test client."""
         from fastapi.testclient import TestClient
-        from production_main import app
+        from main import app
         return TestClient(app)
     
     def test_root_endpoint(self, client):

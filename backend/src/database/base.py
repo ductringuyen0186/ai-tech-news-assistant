@@ -42,7 +42,11 @@ def get_database_url() -> str:
         # Ensure the directory exists
         if db_path.startswith("sqlite:///"):
             db_file_path = db_path.replace("sqlite:///", "")
-            os.makedirs(os.path.dirname(db_file_path), exist_ok=True)
+            # Only create directory if it's not in-memory (:memory:)
+            if db_file_path and db_file_path != ":memory:":
+                dir_path = os.path.dirname(db_file_path)
+                if dir_path:
+                    os.makedirs(dir_path, exist_ok=True)
         return db_path
     elif db_type == "postgresql":
         return settings.database_url or "postgresql://user:password@localhost/ai_news"

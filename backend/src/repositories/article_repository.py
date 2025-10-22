@@ -17,7 +17,14 @@ class ArticleRepository:
     
     def __init__(self, db_path: str):
         """Initialize repository with database path."""
-        self.db_path = db_path
+        # Handle both SQLAlchemy URL format and direct file paths
+        if db_path.startswith('sqlite:///'):
+            # Convert SQLAlchemy format to file path
+            # sqlite:///:memory: -> :memory:
+            # sqlite:///./path/to/db.db -> ./path/to/db.db
+            self.db_path = db_path.replace('sqlite:///', '')
+        else:
+            self.db_path = db_path
         self._ensure_tables_exist()
     
     def _ensure_tables_exist(self):

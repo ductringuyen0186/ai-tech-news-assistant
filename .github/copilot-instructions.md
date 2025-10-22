@@ -50,19 +50,29 @@ Test: [quick validation result]
 
 ⚠️ **STRICT RULE**: Do NOT auto-generate and commit markdown files without explicit user approval.
 
+**Files NEVER to auto-create:**
+- ❌ `ROOT_FILE_CLEANUP.md` - Cleanup/analysis documents
+- ❌ `PROGRESS_REPORT.md` - Progress tracking (user manages this)
+- ❌ `CHANGES.md` - Change summaries
+- ❌ `DEPLOYMENT_GUIDE.md` - Deployment documentation
+- ❌ `FRONTEND_SETUP.md` - Setup guides
+- ❌ `TESTING_RESULTS.md` - Test reports
+- ❌ `REFACTORING_COMPLETE.md` - Refactoring summaries
+- ❌ Any other temporary `.md` files
+
 **Workflow for Documentation:**
-1. **Never create** deployment guides, setup docs, etc. automatically
-2. **If truly necessary**, display the content in a code block for user review
-3. **Wait for explicit approval** before committing any `.md` files
-4. **Let user decide**: Keep, modify, discard, or ask for revisions
-5. **Clean up later**: User will manage markdown files themselves
+1. **NEVER create** temporary markdown files (cleanup docs, progress files, analysis docs, etc.)
+2. **ONLY update** README.md if absolutely necessary for user benefit (requires explicit request)
+3. **If documentation needed**, display content in a code block for user review FIRST
+4. **Wait for explicit approval** before committing any `.md` files
+5. **Let user decide**: Keep, modify, discard, or update README instead
 
 **Exception cases** (require explicit user request):
 - README updates (code changes need to be documented)
-- API documentation (auto-generated if part of code)
-- Inline code comments (not separate markdown files)
+- API documentation (auto-generated from code if available)
+- Inline code comments (in actual source files, not separate docs)
 
-**Why?** Too many auto-generated docs clutter the repo and need cleanup later. User can write docs at their own pace.
+**Why?** Auto-generated docs clutter the repo, cause merge conflicts, and create maintenance burden. User can write documentation at their own pace. All important information should go in README.md or inline code comments.
 
 ---
 
@@ -81,6 +91,35 @@ Test: [quick validation result]
 ---
 
 ## 🔧 Backend Development (FastAPI)
+
+### Backend Root Directory Organization
+
+**✅ What belongs at `backend/` root level:**
+- `main.py` - FastAPI application entry point (REQUIRED)
+- `conftest.py` - pytest configuration for tests (REQUIRED)
+- Configuration files: `alembic.ini`, `pytest.ini` (tool-specific, must be at root)
+- Database files: `news_assistant.db` (local SQLite, should be in `.gitignore`)
+- Lock/dependency files: `requirements.txt`, `pyproject.toml`
+
+**🔧 What belongs in `backend/scripts/`:**
+- `validate_config.py` - Configuration validation tool
+- `manage_embeddings.py` - Embeddings management utility
+- `run_tests.py` - Test runner script
+- `create_article_repo.py` - Repository setup utility
+- `test_*.py` files that are manual testing scripts (not pytest tests)
+- `setup_refactored.py` - One-time setup scripts
+- `setup_python.bat`, `test_api.ps1` - Shell scripts
+
+**❌ What should NOT be at root:**
+- Debug/check scripts: `check_*.py`, `debug_*.py`, `force_*.py`
+- Temporary test files: `quick_test.py`, `run.py`, `simple_main.py`
+- Alternate entry points (production deployments should use `main.py`)
+
+**Cleanup Status:**
+- ✅ Deleted 12 debug/check files (27.68 KB of noise)
+- ✅ Moved 4 utility scripts to `scripts/` folder
+- ✅ Kept only essential files at root: `main.py`, `conftest.py`
+- ✅ Result: Clean, organized backend structure
 
 ### Project Structure Convention
 ```
@@ -1796,22 +1835,187 @@ describe('ArticleCard', () => {
 - **Integration Tests**: Critical paths
 - **E2E Tests**: Main user journeys
 
+### Test Organization Structure
+
+**CRITICAL**: All tests must be organized in the proper folder structure. Duplicates at root level are NOT allowed.
+
+```
+backend/tests/
+├── conftest.py              # Global fixtures and configuration
+├── fixtures/                # Shared test data and fixtures
+│   ├── article_fixtures.py  # Article data generators
+│   ├── news_service_fixtures.py
+│   └── test_data.py
+├── helpers/                 # Test utilities (NOT test files)
+│   ├── mock_helpers.py      # Mock/patch utilities
+│   └── test_helpers.py      # Assertion helpers
+├── unit/                    # ✅ UNIT TESTS (11 files - 139+ tests)
+│   ├── test_models.py                    # Pydantic models validation
+│   ├── test_article_repository.py        # Repository pattern tests
+│   ├── test_news_service.py              # NewsService business logic
+│   ├── test_embedding_service.py         # Embedding generation
+│   ├── test_health_routes.py             # Health check endpoints
+│   ├── test_core_functionality.py        # Core utilities
+│   ├── test_error_handling_framework.py  # Error handling patterns
+│   ├── test_final_coverage_push.py       # Coverage validation
+│   ├── test_news_service_fixes.py        # Additional service tests
+│   ├── test_app_startup.py               # App initialization
+│   └── test_ci_environment.py            # CI/CD environment tests
+├── integration/             # ✅ INTEGRATION TESTS (3 files)
+│   ├── test_news_api.py                  # News API + DB integration
+│   ├── test_search_api.py                # Search + Vector DB
+│   └── test_ingestion_integration.py     # Full ingestion flow
+├── services/                # Service-specific tests (1 file)
+│   └── test_ingestion_service.py         # Ingestion service tests
+├── e2e/                     # END-TO-END TESTS (1 file)
+│   └── test_complete_workflows.py        # Complete user workflows
+└── api/                     # API route tests (currently empty)
+```
+
+**📋 Current Test Count: 11 unit + 3 integration + 1 e2e + 1 service = 16 test files**
+**Tests Passing: 139+ unit tests**
+
+### 📂 Additional Test Resources
+
+Manual testing scripts (for local development, not pytest):
+```
+scripts/
+├── test_content_parser.py      # Content parsing verification
+├── test_embeddings.py          # Embedding generation testing
+├── test_ingestion.py           # Ingestion system testing
+├── test_ollama_integration.py  # Ollama provider testing
+├── test_rss.py                 # RSS feed parsing testing
+└── test_summarization.py       # LLM summarization testing
+```
+
+**Note**: These scripts are for manual testing and experimentation. They use direct execution (e.g., `python scripts/test_ollama_integration.py`) and are NOT run by pytest CI/CD.
+
+### ⚠️ IMPORTANT: No Root-Level Test Files
+
+**STRICT ENFORCEMENT**: Test files at `backend/test_*.py` (root level) are **NOT ALLOWED**.
+
+**Why?**
+- Clutters the backend directory
+- Breaks pytest discovery and organization
+- Makes maintenance difficult
+- Violates Clean Architecture principles
+
+**What to do instead:**
+- ✅ **Unit tests** → `backend/tests/unit/test_*.py`
+- ✅ **Integration tests** → `backend/tests/integration/test_*.py`
+- ✅ **E2E tests** → `backend/tests/e2e/test_*.py`
+- ✅ **Manual test scripts** → `backend/scripts/test_*.py` (not run by pytest)
+
+**Historical cleanup (2025-10-22):**
+- Removed 13 root-level test files
+- Moved test_ci.py → tests/unit/test_ci_environment.py
+- Moved manual testing scripts to scripts/ folder
+- Deleted 6 obsolete debug files
+
 ### Test Types
 
-#### 1. Unit Tests
-- Individual functions
-- React components (isolated)
-- Service methods
-- Utility functions
+#### 1. Unit Tests (`tests/unit/`)
+Location: `backend/tests/unit/test_*.py`
 
-#### 2. Integration Tests
-- API endpoints + database
-- Frontend + API communication
-- Service orchestration
+What to test:
+- Individual functions and methods
+- Service business logic
+- Repository data access patterns
+- Model validation (Pydantic)
+- Error handling utilities
+- Core utilities
 
-#### 3. E2E Tests
-- User registration → login → browse → search → bookmark
-- Article scraping → display → summarization
+Example:
+```python
+# tests/unit/test_news_service.py
+class TestNewsService:
+    def test_fetch_articles_success(self):
+        """Test successful article fetching"""
+        pass
+```
+
+#### 2. Integration Tests (`tests/integration/`)
+Location: `backend/tests/integration/test_*.py`
+
+What to test:
+- API endpoints + database (real or mocked DB)
+- Service orchestration (multiple services together)
+- Vector database + search functionality
+- End-to-end data flows
+
+Example:
+```python
+# tests/integration/test_news_api.py
+class TestNewsRoutes:
+    def test_get_articles_with_pagination(self, client):
+        """Test API pagination with real DB"""
+        pass
+```
+
+#### 3. Service Tests (`tests/services/`)
+Location: `backend/tests/services/test_*.py`
+
+What to test:
+- Complex service logic
+- Multiple component interactions
+- Business rule validation
+
+Example:
+```python
+# tests/services/test_ingestion_service.py
+class TestIngestionService:
+    def test_ingest_rss_feed(self):
+        """Test RSS feed ingestion"""
+        pass
+```
+
+#### 4. E2E Tests (`tests/e2e/`)
+Location: `backend/tests/e2e/test_*.py`
+
+What to test:
+- Complete user workflows
+- Multiple API calls in sequence
+- Data consistency across operations
+- Error recovery flows
+
+Example:
+```python
+# tests/e2e/test_complete_workflows.py
+class TestCompleteWorkflows:
+    async def test_news_ingestion_to_search(self):
+        """Test ingest → store → search flow"""
+        pass
+```
+
+### File Organization Rules
+
+⚠️ **MUST FOLLOW THESE RULES**:
+
+1. **NO test files at `tests/` root level**
+   - ❌ `tests/test_*.py` - Not allowed
+   - ✅ `tests/unit/test_*.py` - Correct
+   - ✅ `tests/integration/test_*.py` - Correct
+
+2. **No duplicate tests**
+   - Delete old versions when refactoring
+   - Move tests to proper folder
+   - Don't keep multiple copies
+
+3. **Shared utilities go in `helpers/` or `fixtures/`**
+   - ❌ `tests/shared_mocks.py` - Wrong
+   - ✅ `tests/helpers/mock_helpers.py` - Correct
+
+4. **All tests must import conftest fixtures**
+   ```python
+   # Good - Uses global fixtures
+   def test_something(mock_db, mock_service):
+       pass
+   
+   # Bad - Creates local fixtures
+   @pytest.fixture
+   def local_fixture():
+       pass
+   ```
 
 ---
 
@@ -2251,6 +2455,307 @@ export default function CommentSection({ articleId }: Props) {
 - **CONTRIBUTING.md**: How to contribute
 - **API_DOCS.md**: Detailed API documentation
 - **ARCHITECTURE.md**: System design and architecture
+
+---
+
+## ✍️ Writing Tests - Guidelines by Location
+
+### 1. **Unit Tests** (`tests/unit/test_*.py`)
+
+Purpose: Test individual functions, methods, and services in isolation.
+
+**When to create unit tests:**
+- New service methods
+- New utility functions
+- Model validation (Pydantic)
+- Repository methods
+- Error handling logic
+
+**What to test:**
+```python
+# tests/unit/test_news_service.py
+import pytest
+from src.services.news_service import NewsService
+from tests.fixtures.article_fixtures import sample_article
+
+class TestNewsService:
+    """Test NewsService methods."""
+    
+    @pytest.fixture
+    def service(self, mock_db):
+        """Create service instance with mock DB."""
+        return NewsService(db=mock_db)
+    
+    def test_fetch_articles_success(self, service):
+        """Test successful article fetching."""
+        # Setup
+        articles = [sample_article(), sample_article()]
+        service.db.query.return_value = articles
+        
+        # Execute
+        result = service.fetch_articles(limit=10)
+        
+        # Assert
+        assert len(result) == 2
+        assert result[0].title == articles[0].title
+        service.db.query.assert_called_once()
+    
+    def test_fetch_articles_empty_database(self, service):
+        """Test with empty database."""
+        service.db.query.return_value = []
+        
+        result = service.fetch_articles(limit=10)
+        
+        assert result == []
+    
+    def test_fetch_articles_database_error(self, service):
+        """Test error handling."""
+        service.db.query.side_effect = Exception("DB Error")
+        
+        with pytest.raises(Exception):
+            service.fetch_articles(limit=10)
+    
+    @pytest.mark.parametrize("limit,expected_calls", [(10, 1), (50, 1), (100, 1)])
+    def test_fetch_articles_limits(self, service, limit, expected_calls):
+        """Test different limit values."""
+        service.db.query.return_value = []
+        
+        service.fetch_articles(limit=limit)
+        
+        assert service.db.query.call_count == expected_calls
+```
+
+**Key practices:**
+- Use `@pytest.fixture` for setup
+- Use `@pytest.mark.parametrize` for multiple scenarios
+- Mock external dependencies (database, API, services)
+- Test success, failure, and edge cases
+- Keep tests focused (one concept per test)
+
+### 2. **Integration Tests** (`tests/integration/test_*.py`)
+
+Purpose: Test components working together (API + database, multiple services, etc.).
+
+**When to create integration tests:**
+- API endpoint testing
+- Service orchestration
+- Database transactions
+- RAG pipeline flows
+- Vector search
+
+**What to test:**
+```python
+# tests/integration/test_news_api.py
+import pytest
+from fastapi.testclient import TestClient
+from src.main import app
+from tests.fixtures.article_fixtures import sample_article
+
+@pytest.fixture
+def client():
+    """Create test client."""
+    return TestClient(app)
+
+@pytest.fixture
+def db_with_articles(db_session):
+    """Create database with sample articles."""
+    articles = [
+        sample_article(title="AI Breakthrough"),
+        sample_article(title="Tech News"),
+    ]
+    for article in articles:
+        db_session.add(article)
+    db_session.commit()
+    return db_session
+
+class TestNewsRoutes:
+    """Test news API routes."""
+    
+    def test_get_articles_success(self, client, db_with_articles):
+        """Test successful article retrieval."""
+        response = client.get("/api/news?page=1&limit=10")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "articles" in data
+        assert len(data["articles"]) >= 2
+    
+    def test_get_articles_pagination(self, client, db_with_articles):
+        """Test pagination parameters."""
+        response = client.get("/api/news?page=1&limit=1")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["articles"]) == 1
+    
+    def test_get_articles_invalid_params(self, client):
+        """Test invalid parameters."""
+        response = client.get("/api/news?page=-1")
+        
+        assert response.status_code == 422  # Validation error
+    
+    def test_search_articles_semantic(self, client, db_with_articles):
+        """Test semantic search endpoint."""
+        response = client.post(
+            "/api/search",
+            json={"query": "artificial intelligence"}
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "results" in data
+```
+
+**Key practices:**
+- Use real or well-mocked database
+- Test with TestClient (FastAPI)
+- Test HTTP status codes and response format
+- Test data persistence and retrieval
+- Include error scenarios
+
+### 3. **Service Tests** (`tests/services/test_*.py`)
+
+Purpose: Test complex service logic and business rules.
+
+**When to create service tests:**
+- Complex service logic (ingestion, summarization, etc.)
+- Multiple component interactions
+- Business rule validation
+- Data transformation
+
+**What to test:**
+```python
+# tests/services/test_ingestion_service.py
+import pytest
+from src.services.ingestion_service import IngestionService
+from unittest.mock import MagicMock
+
+class TestIngestionService:
+    """Test ingestion service."""
+    
+    @pytest.fixture
+    def mock_scraper(self):
+        """Mock RSS scraper."""
+        return MagicMock()
+    
+    @pytest.fixture
+    def service(self, mock_scraper, mock_db):
+        """Create service with mocks."""
+        service = IngestionService(
+            scraper=mock_scraper,
+            db=mock_db
+        )
+        return service
+    
+    def test_ingest_rss_feed_success(self, service):
+        """Test successful RSS feed ingestion."""
+        # Setup
+        service.scraper.fetch.return_value = [
+            {"title": "Article 1", "url": "https://example.com/1"},
+            {"title": "Article 2", "url": "https://example.com/2"}
+        ]
+        
+        # Execute
+        result = service.ingest_rss_feed("https://example.com/feed.xml")
+        
+        # Assert
+        assert len(result) == 2
+        assert result[0]["title"] == "Article 1"
+        service.db.add.call_count == 2  # Two articles added
+    
+    def test_ingest_rss_feed_duplicate_handling(self, service):
+        """Test duplicate article detection."""
+        # Same URL should not be ingested twice
+        articles = [
+            {"title": "Article", "url": "https://example.com/1"}
+        ]
+        service.scraper.fetch.side_effect = [articles, articles]
+        
+        result1 = service.ingest_rss_feed("https://example.com/feed1.xml")
+        result2 = service.ingest_rss_feed("https://example.com/feed2.xml")
+        
+        # Second ingestion should skip duplicate
+        assert len(result1) == 1
+        assert len(result2) == 0
+    
+    def test_ingest_rss_feed_error_handling(self, service):
+        """Test error recovery during ingestion."""
+        service.scraper.fetch.side_effect = ConnectionError("Network error")
+        
+        with pytest.raises(ConnectionError):
+            service.ingest_rss_feed("https://example.com/feed.xml")
+        
+        # Verify rollback or cleanup happened
+        service.db.rollback.assert_called()
+```
+
+**Key practices:**
+- Focus on business logic
+- Mock only external services
+- Test orchestration patterns
+- Include error scenarios
+- Test data consistency
+
+### 4. **E2E Tests** (`tests/e2e/test_*.py`)
+
+Purpose: Test complete user workflows end-to-end.
+
+**When to create E2E tests:**
+- Critical user workflows
+- Data persistence across multiple operations
+- Full feature flows
+
+**What to test:**
+```python
+# tests/e2e/test_complete_workflows.py
+import pytest
+from fastapi.testclient import TestClient
+
+class TestCompleteWorkflows:
+    """Test complete user workflows."""
+    
+    @pytest.fixture
+    def client(self):
+        """Create test client."""
+        from src.main import app
+        return TestClient(app)
+    
+    def test_ingest_to_search_workflow(self, client):
+        """Test complete workflow: ingest articles → search → retrieve."""
+        # Step 1: Ingest articles
+        ingest_response = client.post(
+            "/api/news/ingest",
+            json={"source": "hackernews"}
+        )
+        assert ingest_response.status_code == 200
+        
+        # Step 2: Verify articles in database
+        list_response = client.get("/api/news?limit=10")
+        assert list_response.status_code == 200
+        articles_count = len(list_response.json()["articles"])
+        assert articles_count > 0
+        
+        # Step 3: Search for articles
+        search_response = client.post(
+            "/api/search",
+            json={"query": "technology"}
+        )
+        assert search_response.status_code == 200
+        assert len(search_response.json()["results"]) > 0
+        
+        # Step 4: Verify data consistency
+        first_result = search_response.json()["results"][0]
+        detail_response = client.get(f"/api/news/{first_result['id']}")
+        assert detail_response.status_code == 200
+        assert detail_response.json()["id"] == first_result["id"]
+```
+
+**Key practices:**
+- Test complete workflows
+- Verify data persistence
+- Check state transitions
+- Include cleanup/teardown
+- Test real scenarios users would experience
 
 ---
 
