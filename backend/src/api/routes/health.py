@@ -192,8 +192,12 @@ async def detailed_health_check() -> HealthResponse:
                 message=f"Summarization service health check failed: {str(e)}"
             )
         
-        # Determine overall status
-        overall_status = determine_overall_status(components)
+        # Determine overall status from component statuses
+        status_dict = {
+            name: component.status 
+            for name, component in components.items()
+        }
+        overall_status = determine_overall_status(status_dict)
         
         # Convert components to match test expectations (database -> database, etc.)
         components_dict = {
@@ -346,19 +350,62 @@ async def metrics() -> Dict[str, Any]:
 # Utility functions for health checks
 
 def get_system_metrics() -> Dict[str, Any]:
-    """Get basic system metrics."""
-    return {
-        "memory_usage": "normal",
-        "cpu_usage": "low",
-        "disk_usage": "normal"
-    }
+    """
+    Get basic system metrics.
+    
+    Returns:
+        Dict with cpu_usage, memory_usage, and disk_usage percentages
+    """
+    if psutil is None:
+        # Return fallback values if psutil is not available
+        return {
+            "cpu_usage": 0,
+            "memory_usage": 0,
+            "disk_usage": 0
+        }
+    
+    try:
+        return {
+            "cpu_usage": psutil.cpu_percent(interval=1),
+            "memory_usage": psutil.virtual_memory().percent,
+            "disk_usage": psutil.disk_usage('/').percent
+        }
+    except Exception:
+        # Return fallback values on error
+        return {
+            "cpu_usage": 0,
+            "memory_usage": 0,
+            "disk_usage": 0
+        }
 
 
-def determine_overall_status(statuses: Dict[str, str]) -> str:
-    """Determine overall health status from component statuses."""
-    if all(status == "healthy" for status in statuses.values()):
+def determine_overall_status(statuses: Dict[str, Any]) -> str:
+    """
+    Determine overall health status from component statuses.
+    
+    Args:
+        statuses: Dict mapping component names to status strings or ComponentHealth objects
+        
+    Returns:
+        Overall health status: 'healthy', 'degraded', or 'unhealthy'
+    """
+    # Extract status values, handling both string and object formats
+    status_values = []
+    for value in statuses.values():
+        if isinstance(value, str):
+            status_values.append(value)
+        elif isinstance(value, dict) and "status" in value:
+            status_values.append(value["status"])
+        elif hasattr(value, "status"):
+            status_values.append(value.status)
+        else:
+            # Default to unhealthy if we can't determine status
+            status_values.append("unhealthy")
+    
+    # Determine overall status based on component statuses
+    if all(status == "healthy" for status in status_values):
         return "healthy"
-    elif any(status == "unhealthy" for status in statuses.values()):
+    elif any(status == "unhealthy" for status in status_values):
         return "unhealthy"
     else:
         return "degraded"
