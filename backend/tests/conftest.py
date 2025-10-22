@@ -10,11 +10,14 @@ import pytest
 import tempfile
 import os
 from typing import Generator
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 # Test database configuration
 TEST_DB_PATH = ":memory:"  # Use in-memory SQLite for tests
+
+# Patch settings to use in-memory database for all tests
+os.environ['DATABASE_URL'] = 'sqlite:///:memory:'
 
 
 @pytest.fixture(scope="session")
