@@ -350,7 +350,8 @@ class Settings(BaseSettings):
         "case_sensitive": False,
         "use_enum_values": True,
         "validate_assignment": True,
-        "populate_by_name": True  # Allows using both field names and aliases
+        "populate_by_name": True,  # Allows using both field names and aliases
+        "extra": "ignore"  # Ignore unknown environment variables (e.g., deprecated LLM_PROVIDER)
     }
 
 
