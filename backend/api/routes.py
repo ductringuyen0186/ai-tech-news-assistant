@@ -9,6 +9,7 @@ Routes are organized by functionality and follow RESTful conventions.
 from fastapi import APIRouter, HTTPException, Query
 from typing import Dict, Any, Optional
 import sqlite3
+import json
 
 from ingestion.rss_feeds import RSSFeedIngester, ingest_tech_news, parse_missing_content
 from src.models.search import SearchRequest, SearchResponse, SearchHealthResponse
@@ -150,7 +151,7 @@ async def get_articles(
                 # Parse tags JSON
                 try:
                     article['tags'] = json.loads(article['tags']) if article['tags'] else []
-                except:
+                except (ValueError, TypeError):
                     article['tags'] = []
                 articles.append(article)
         
