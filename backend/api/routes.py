@@ -13,7 +13,7 @@ import json
 
 from ingestion.rss_feeds import RSSFeedIngester, ingest_tech_news, parse_missing_content
 from src.models.search import SearchRequest, SearchResponse, SearchHealthResponse
-from src.services.search_service import get_search_service
+# from src.services.search_service import get_search_service  # TODO: requires numpy, disabled for now
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -591,19 +591,24 @@ async def search_articles(request: "SearchRequest") -> "SearchResponse":
         ```
     """
     try:
-        # Get search service instance
-        search_service = get_search_service()
-        
-        # Perform search
-        results = await search_service.search(request)
-        
-        logger.info(
-            f"Search completed: query='{request.query}', "
-            f"results={results.total_results}, "
-            f"time={results.execution_time_ms}ms"
+        # TODO: Search service disabled - requires numpy dependency
+        raise HTTPException(
+            status_code=503,
+            detail="Search service is temporarily disabled. Please use RSS feed endpoints instead."
         )
-        
-        return results
+        # # Get search service instance
+        # search_service = get_search_service()
+        # 
+        # # Perform search
+        # results = await search_service.search(request)
+        # 
+        # logger.info(
+        #     f"Search completed: query='{request.query}', "
+        #     f"results={results.total_results}, "
+        #     f"time={results.execution_time_ms}ms"
+        # )
+        # 
+        # return results
         
     except Exception as e:
         logger.error(f"Search endpoint failed: {e}", exc_info=True)
@@ -627,10 +632,15 @@ async def search_health() -> "SearchHealthResponse":
     This is useful for monitoring and debugging the search functionality.
     """
     try:
-        search_service = get_search_service()
-        health = await search_service.health_check()
-        
-        return health
+        # TODO: Search health check disabled - search service requires numpy
+        raise HTTPException(
+            status_code=503,
+            detail="Search service is temporarily disabled. Please use RSS feed endpoints instead."
+        )
+        # search_service = get_search_service()
+        # health = await search_service.health_check()
+        # 
+        # return health
         
     except Exception as e:
         logger.error(f"Search health check failed: {e}", exc_info=True)
