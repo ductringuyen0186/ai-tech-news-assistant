@@ -457,7 +457,7 @@ async def semantic_search(
                         "article": article,
                         "score": result.similarity_score
                     })
-            except (ValueError, IndexError, AttributeError) as e:
+            except (ValueError, IndexError, AttributeError):
                 # Skip invalid results
                 continue
         

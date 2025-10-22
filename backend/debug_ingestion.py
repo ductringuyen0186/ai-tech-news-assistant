@@ -26,7 +26,7 @@ async def main():
     
     if articles:
         article = articles[0]
-        print(f"\n📝 First Article:")
+        print("\n📝 First Article:")
         print(f"   ID: {article.id}")
         print(f"   Title: {article.title}")
         print(f"   URL: {article.url}")
@@ -35,7 +35,7 @@ async def main():
         print(f"   Description: {article.description[:100]}..." if article.description else "None")
         
         # Try to store it
-        print(f"\n💾 Attempting to store articles...")
+        print("\n💾 Attempting to store articles...")
         stored = await ingester.store_articles(articles[:1], parse_content=False)
         print(f"   Stored: {stored} articles")
         

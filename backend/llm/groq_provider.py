@@ -15,7 +15,7 @@ Sign up: https://console.groq.com
 """
 
 import httpx
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from utils.logger import get_logger
 from utils.config import get_settings
 

@@ -1,7 +1,6 @@
 """Test direct SQL insert"""
 import sqlite3
 import json
-from datetime import datetime
 
 conn = sqlite3.connect('data/articles.db')
 

@@ -6,7 +6,7 @@ Factory for creating and managing LLM providers.
 Automatically selects the best available provider based on configuration.
 """
 
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 from utils.logger import get_logger
 from utils.config import get_settings
 
