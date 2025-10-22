@@ -27,7 +27,13 @@ class Settings(BaseSettings):
     
     # CORS settings
     allowed_origins: List[str] = Field(
-        default=["http://localhost:3000", "http://localhost:5173"],
+        default=[
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "https://ai-tech-news-assistant-8xbp128f1-ductringuyen0186s-projects.vercel.app",
+            "https://ai-tech-news-assistant.vercel.app",
+            "https://*.vercel.app"
+        ],
         env="ALLOWED_ORIGINS"
     )
     
