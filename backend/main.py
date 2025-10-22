@@ -40,13 +40,23 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# CORS middleware configuration
+# CORS middleware configuration - allow all common development and production origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for debugging - we'll restrict later
-    allow_credentials=False,
-    allow_methods=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:8000",
+        "http://localhost:8001",
+        "https://ai-tech-news-assistant.vercel.app",
+        "https://ai-tech-news-assistant-8xbp128f1-ductringuyen0186s-projects.vercel.app",
+        "https://*.vercel.app",  # Wildcard for Vercel preview deployments
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600,
 )
 
 
