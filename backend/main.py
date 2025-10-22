@@ -29,7 +29,11 @@ load_dotenv()
 logger = get_logger(__name__)
 
 # Get application settings
-settings = get_settings()
+try:
+    settings = get_settings()
+except Exception as e:
+    print(f"ERROR: Failed to load settings: {e}")
+    raise
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -105,7 +109,10 @@ async def detailed_health_check() -> Dict[str, Any]:
 
 
 # Include API routes
-app.include_router(api_router, prefix="/api")
+try:
+    app.include_router(api_router, prefix="/api")
+except Exception as e:
+    logger.error(f"Failed to include API routes: {e}")
 
 
 @app.exception_handler(Exception)
