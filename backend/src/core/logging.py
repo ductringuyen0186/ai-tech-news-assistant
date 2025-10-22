@@ -253,7 +253,11 @@ def log_exception(
     
     # Add structured error information for custom exceptions
     if isinstance(exception, NewsAssistantError):
-        extra.update(exception.to_dict())
+        error_dict = exception.to_dict()
+        # Rename 'message' to 'error_details' to avoid conflicting with LogRecord.message
+        if 'message' in error_dict:
+            error_dict['error_details'] = error_dict.pop('message')
+        extra.update(error_dict)
     
     logger.error(message, exc_info=True, extra=extra)
 
