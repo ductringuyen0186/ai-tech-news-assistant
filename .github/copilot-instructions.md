@@ -2254,30 +2254,248 @@ export default function CommentSection({ articleId }: Props) {
 
 ---
 
+---
+
+## 🧪 TESTING REQUIREMENTS FOR NEW FEATURES
+
+### **MANDATORY TESTING CHECKLIST - DO NOT SKIP**
+
+> **CRITICAL**: Every new feature MUST have a complete test suite BEFORE any commit or push. Testing is NOT optional.
+
+#### Backend Feature: Complete Test Suite Required
+
+When adding new service/feature to backend, create tests for:
+
+1. **Unit Tests** (80%+ coverage)
+   - Test each public method
+   - Test initialization and setup
+   - Test success paths
+   - Test error paths
+   - Test edge cases
+   - Use mocking for external dependencies
+
+2. **Integration Tests**
+   - Test with real or mocked database
+   - Test service interactions
+   - Test transaction management
+   - Test error recovery
+
+3. **API Endpoint Tests** (if applicable)
+   - Test each endpoint
+   - Test success (200, 201, etc.)
+   - Test client errors (400, 422, etc.)
+   - Test server errors (500)
+   - Test error responses
+   - Test request validation
+   - Test response format
+
+4. **Database Tests** (if applicable)
+   - Test model constraints
+   - Test unique constraints
+   - Test foreign keys
+   - Test transactions (commit/rollback)
+   - Test migrations
+
+#### Frontend Feature: Complete Test Suite Required
+
+When adding new React component/feature, create tests for:
+
+1. **Component Tests**
+   - Test rendering
+   - Test user interactions
+   - Test prop variations
+   - Test error states
+   - Test loading states
+   - Test accessibility (ARIA labels, keyboard nav)
+
+2. **Hook Tests** (if applicable)
+   - Test hook initialization
+   - Test hook state updates
+   - Test hook side effects
+   - Test hook errors
+
+3. **API Integration Tests**
+   - Test API calls
+   - Test data transformation
+   - Test error handling
+   - Test loading states
+
+#### Test File Structure
+
+```
+backend/tests/
+├── services/test_[service_name].py      # Unit tests for new service
+├── api/test_[endpoint_name].py          # API endpoint tests
+├── [feature_name]/
+│   ├── test_[module1].py
+│   ├── test_[module2].py
+│   └── conftest.py                      # Fixtures for feature
+
+frontend/src/__tests__/
+├── components/[ComponentName].test.tsx  # Component tests
+├── hooks/use[HookName].test.ts          # Hook tests
+└── setupTests.ts                        # Test configuration
+```
+
+#### Test Execution Before Commit
+
+```bash
+# Backend - MUST pass before commit
+cd backend
+pytest tests/ -v --tb=short
+pytest --cov=src --cov-report=term-missing tests/  # Check coverage
+
+# Frontend - MUST pass before commit
+cd frontend
+npm test -- --coverage
+npm run lint
+```
+
+#### Coverage Expectations
+
+- **New Code**: 80%+ line coverage minimum
+- **Service Classes**: 90%+ coverage expected
+- **API Endpoints**: 100% coverage for all paths
+- **Critical Paths**: 95%+ coverage (authentication, payment, data)
+
+#### Example: Adding New Feature
+
+**Scenario**: Add new `CategoryService.get_trending_categories()` method
+
+**Required Tests**:
+```python
+# File: backend/tests/services/test_category_service.py
+
+def test_get_trending_categories_success():
+    """Test fetching trending categories."""
+    # Setup, call, assert
+
+def test_get_trending_categories_empty_db():
+    """Test with no categories in database."""
+    # Setup, call, assert
+
+def test_get_trending_categories_limit():
+    """Test respecting limit parameter."""
+    # Setup, call, assert
+
+def test_get_trending_categories_db_error():
+    """Test handling database errors."""
+    # Setup, call, assert
+```
+
+**Required Tests**:
+```python
+# File: backend/tests/api/test_category_routes.py
+
+def test_get_trending_categories_endpoint():
+    """Test GET /api/categories/trending endpoint."""
+    # Setup, call, assert response
+
+def test_get_trending_categories_pagination():
+    """Test pagination parameters."""
+    # Setup, call, assert
+
+def test_get_trending_categories_error():
+    """Test error response."""
+    # Setup, call, assert error status
+```
+
+**MUST RUN BEFORE COMMIT**:
+```bash
+pytest backend/tests/services/test_category_service.py -v
+pytest backend/tests/api/test_category_routes.py -v
+pytest --cov=src.services.category_service backend/tests/
+```
+
+#### What NOT to Do
+
+❌ **DO NOT commit code without tests**
+- Exception: Testing code itself (conftest.py, fixtures, helpers)
+- Exception: Auto-generated code (migrations, scaffolds)
+
+❌ **DO NOT use placeholder tests**
+- "# TODO: write tests" comments
+- Empty test functions
+- Tests that just import (no assertions)
+
+❌ **DO NOT skip error/edge case testing**
+- Only test happy paths
+- Ignore validation failures
+- Skip error response scenarios
+
+❌ **DO NOT mock everything**
+- Mock external services (APIs, third-party)
+- Mock time/random for determinism
+- Use real instances for unit-tested code
+
+#### Test Maintenance
+
+1. **Keep Tests Updated**
+   - Update tests when modifying tested code
+   - Update tests when changing API contracts
+   - Update tests when modifying database schema
+
+2. **Refactor Common Patterns**
+   - Extract fixtures for reusable setup
+   - Create helper functions for common assertions
+   - Use parametrized tests for multiple scenarios
+
+3. **Delete Obsolete Tests**
+   - Remove tests for deleted features
+   - Remove duplicate tests
+   - Keep test suite lean
+
+#### Testing Tools
+
+**Backend**:
+- `pytest` - Testing framework
+- `pytest-cov` - Coverage reporting
+- `pytest-mock` - Mocking support
+- `TestClient` (FastAPI) - API testing
+
+**Frontend**:
+- `vitest` - Testing framework
+- `@testing-library/react` - Component testing
+- `@testing-library/user-event` - User interaction
+- `@testing-library/jest-dom` - DOM assertions
+
+---
+
 ## ✅ Definition of Done
 
 ### Before any commit and push to remote branch:
 
-1. **ALL TESTS MUST PASS** ✅
-   - Backend: Run `pytest` - All unit, integration, and CI tests must pass
-   - Frontend: Run `npm test` - All component and integration tests must pass
-   - CI/CD: All GitHub Actions checks must pass (ruff linting, mypy type checking, etc.)
+1. **NEW FEATURES MUST HAVE TEST SUITE** ✅ **[REQUIRED FOR NEW FEATURES]**
+   - Backend service/feature: Create `tests/services/test_[service].py` with 80%+ coverage
+   - Backend API endpoints: Create `tests/api/test_[endpoint].py` with all paths tested
+   - Frontend components: Create `src/__tests__/components/[Component].test.tsx` with user interactions
+   - Frontend hooks: Create `src/__tests__/hooks/use[Hook].test.ts` if applicable
+   - Database models: Create transaction/constraint tests if models changed
+   - **NO EXCEPTIONS**: Every new feature MUST have tests before commit
 
-2. **Code Quality Checks** ✅
+2. **ALL TESTS MUST PASS** ✅ **[CRITICAL - BLOCKS COMMIT]**
+   - Backend: Run `pytest tests/ -v` - **ALL** unit, integration, and CI tests must pass
+   - Frontend: Run `npm test` - **ALL** component and integration tests must pass
+   - CI/CD: All GitHub Actions checks must pass (ruff linting, mypy type checking, etc.)
+   - If ANY test fails: DO NOT COMMIT - fix the test first
+   - Coverage minimum: New code 80%, service classes 90%, API endpoints 100%
+
+3. **Code Quality Checks** ✅
    - Backend: `ruff check .` - No linting errors
    - Backend: `mypy . --ignore-missing-imports` - Type checking passes
    - Frontend: `npm run lint` - ESLint passes
    - Frontend: `npx prettier --check` - Formatting is correct
 
-3. **No Breaking Changes** ✅
+4. **No Breaking Changes** ✅
    - Verify backward compatibility
    - Update API documentation if endpoints change
    - Update type definitions if models change
 
-4. **Documentation Updated** ✅
+5. **Documentation Updated** ✅
    - Update inline code comments for complex logic
    - Update README if needed (with user approval only)
    - Update API documentation (auto-generated with FastAPI)
+   - Update Copilot instructions if process changes
 
 ### Commands to Run Before Commit:
 
