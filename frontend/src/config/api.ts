@@ -5,8 +5,24 @@
  * instead of Supabase.
  */
 
-// Get API base URL from environment or use default
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+// Determine API base URL
+const getApiBaseUrl = (): string => {
+  // 1. Check environment variable (set via Vercel dashboard or .env)
+  const viteEnv = (import.meta as any).env;
+  if (viteEnv?.VITE_API_BASE_URL) {
+    return viteEnv.VITE_API_BASE_URL;
+  }
+
+  // 2. If running on Vercel production domain, use Render backend
+  if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
+    return 'https://ai-tech-news-assistant-backend.onrender.com';
+  }
+
+  // 3. Default to localhost for development
+  return 'http://localhost:8000';
+};
+
+export const API_BASE_URL = getApiBaseUrl();
 
 // API Endpoints
 export const API_ENDPOINTS = {
