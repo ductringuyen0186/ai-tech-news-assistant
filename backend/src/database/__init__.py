@@ -7,7 +7,7 @@ Provides ORM models, database connections, and migration support.
 """
 
 from .base import Base, get_db, init_db, close_db
-from .models import Article, User, Source, Category, ArticleCategory, Embedding
+from .models import Article, User, Source, Category, article_category_association, Embedding
 from .session import DatabaseManager, get_session
 
 __all__ = [
@@ -19,7 +19,7 @@ __all__ = [
     "User", 
     "Source",
     "Category",
-    "ArticleCategory",
+    "article_category_association",
     "Embedding",
     "DatabaseManager",
     "get_session",

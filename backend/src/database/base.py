@@ -32,17 +32,22 @@ def get_database_url() -> str:
     """Get database URL from configuration."""
     settings = get_settings()
     
-    if settings.database_type.value == "sqlite":
+    # Get database_type value (handle both Enum and string)
+    db_type = settings.database_type
+    if hasattr(db_type, 'value'):
+        db_type = db_type.value
+    
+    if db_type == "sqlite":
         db_path = settings.database_url or "sqlite:///./data/ai_news.db"
         # Ensure the directory exists
         if db_path.startswith("sqlite:///"):
             db_file_path = db_path.replace("sqlite:///", "")
             os.makedirs(os.path.dirname(db_file_path), exist_ok=True)
         return db_path
-    elif settings.database_type.value == "postgresql":
+    elif db_type == "postgresql":
         return settings.database_url or "postgresql://user:password@localhost/ai_news"
     else:
-        raise ValueError(f"Unsupported database type: {settings.database_type}")
+        raise ValueError(f"Unsupported database type: {db_type}")
 
 
 def create_database_engine():
