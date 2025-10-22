@@ -15,8 +15,8 @@ requests==2.31.0
 python-multipart==0.0.6
 
 # Data Processing
-pandas==2.1.4
-numpy==1.24.4
+# pandas==2.1.4  # Temporarily commented - causes build failures on Python 3.13
+# numpy==1.24.4  # Temporarily commented - version conflicts with Python 3.13
 
 # Web Scraping and RSS Parsing
 feedparser==6.0.11
@@ -26,7 +26,7 @@ newspaper3k==0.2.8
 # AI/ML Libraries for Embeddings and Vector Search
 sentence-transformers==2.2.2
 transformers==4.35.2
-torch==2.1.1
+torch==2.1.1  # Pre-installed for development; uses CPU mode on Render
 
 # Vector Database
 chromadb==0.4.18
