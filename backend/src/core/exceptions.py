@@ -138,7 +138,7 @@ class LLMError(NewsAssistantError):
     """Raised when LLM operations fail."""
     
     def __init__(self, message: str, model: Optional[str] = None, **kwargs):
-        details = kwargs.get("details", {})
+        details = kwargs.pop("details", {})
         if model:
             details["model"] = model
             
@@ -157,7 +157,7 @@ class NewsIngestionError(NewsAssistantError):
     """Raised when news ingestion operations fail."""
     
     def __init__(self, message: str, source: Optional[str] = None, **kwargs):
-        details = kwargs.get("details", {})
+        details = kwargs.pop("details", {})
         if source:
             details["source"] = source
             
