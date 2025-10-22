@@ -157,7 +157,8 @@ class TestAPIEndpoints:
         response = client.get("/")
         assert response.status_code == 200
         data = response.json()
-        assert "message" in data or "name" in data
+        # Check for API info fields
+        assert "name" in data or "service" in data or "endpoints" in data
     
     def test_health_endpoint(self, client):
         """Test health endpoint."""

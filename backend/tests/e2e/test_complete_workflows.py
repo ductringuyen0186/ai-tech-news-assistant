@@ -89,7 +89,7 @@ class TestCompleteWorkflows:
             embed_result = await embedding_service.generate_embeddings(embed_request)
         
         # Store embedding
-        embedding_id = await embedding_repo.store_embedding(
+        embedding_id = embedding_repo.store_embedding(
             content_id=str(updated_article.id),
             content_type="article",
             embedding_vector=embed_result.embeddings[0],
@@ -112,7 +112,7 @@ class TestCompleteWorkflows:
         
         # Similarity search
         query_embedding = [0.1, 0.2, 0.3] * 128  # Similar to stored embedding
-        similarity_results = await embedding_repo.similarity_search(
+        similarity_results = embedding_repo.similarity_search(
             query_embedding=query_embedding,
             model_name="test-model",
             top_k=5,
@@ -229,7 +229,7 @@ class TestCompleteWorkflows:
         
         # Store embedding
         embedding_vector = [0.1] * 384
-        await embedding_repo.store_embedding(
+        embedding_repo.store_embedding(
             content_id=str(article.id),
             content_type="article",
             embedding_vector=embedding_vector,
@@ -246,7 +246,7 @@ class TestCompleteWorkflows:
         assert updated_article.title == article.title  # Unchanged fields preserved
         
         # Verify embedding still exists and is linked correctly
-        retrieved_embedding = await embedding_repo.get_embedding(
+        retrieved_embedding = embedding_repo.get_embedding(
             content_id=str(article.id),
             content_type="article",
             model_name="test-model"
