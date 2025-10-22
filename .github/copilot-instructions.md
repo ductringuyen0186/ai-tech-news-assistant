@@ -2254,6 +2254,108 @@ export default function CommentSection({ articleId }: Props) {
 
 ---
 
+## ✅ Definition of Done
+
+### Before any commit and push to remote branch:
+
+1. **ALL TESTS MUST PASS** ✅
+   - Backend: Run `pytest` - All unit, integration, and CI tests must pass
+   - Frontend: Run `npm test` - All component and integration tests must pass
+   - CI/CD: All GitHub Actions checks must pass (ruff linting, mypy type checking, etc.)
+
+2. **Code Quality Checks** ✅
+   - Backend: `ruff check .` - No linting errors
+   - Backend: `mypy . --ignore-missing-imports` - Type checking passes
+   - Frontend: `npm run lint` - ESLint passes
+   - Frontend: `npx prettier --check` - Formatting is correct
+
+3. **No Breaking Changes** ✅
+   - Verify backward compatibility
+   - Update API documentation if endpoints change
+   - Update type definitions if models change
+
+4. **Documentation Updated** ✅
+   - Update inline code comments for complex logic
+   - Update README if needed (with user approval only)
+   - Update API documentation (auto-generated with FastAPI)
+
+### Commands to Run Before Commit:
+
+**Backend Testing:**
+```bash
+cd backend
+pytest tests/ -v                          # Run all tests
+ruff check .                               # Lint check
+mypy . --ignore-missing-imports            # Type checking
+```
+
+**Frontend Testing:**
+```bash
+cd frontend
+npm test                                   # Run all tests
+npm run lint                               # ESLint check
+npx prettier --check "src/**/*"            # Format check
+```
+
+**Full CI/CD Simulation (Local):**
+```bash
+# Backend
+cd backend && python -m pytest test_ci.py -v --tb=short
+
+# Frontend  
+cd frontend && npm run lint && npm run build
+```
+
+### 🔄 Test Loop - MANDATORY BEFORE ANY COMMIT & PUSH
+
+**CRITICAL REQUIREMENT**: When making ANY changes, Copilot MUST follow this loop until ALL tests pass:
+
+1. **Run All Tests** (BEFORE making any changes)
+   ```bash
+   # Backend
+   cd backend && python -m pytest tests/ -v
+   
+   # Frontend
+   cd frontend && npm test
+   ```
+
+2. **Check Test Results**
+   - ✅ ALL TESTS PASS? → Proceed to commit & push
+   - ❌ TESTS FAIL? → Go to step 3 (LOOP)
+
+3. **Fix Failing Tests** (LOOP CONTINUES HERE)
+   - Analyze the failure messages
+   - Identify root cause
+   - Make code fixes
+   - Re-run ONLY the failing tests to verify fix works
+   - If fixed → Go to step 1 (re-run all tests)
+   - If NOT fixed → Repeat step 3
+
+4. **Verify All Tests Pass Again**
+   - Re-run full test suite (step 1)
+   - If any NEW tests fail → Loop back to step 3
+   - If ALL tests pass → PROCEED TO COMMIT
+
+5. **ONLY THEN: Commit & Push**
+   - Once ALL tests verified passing
+   - Commit with descriptive message
+   - Push to remote branch
+   - GitHub Actions CI/CD will run final verification
+
+**IMPORTANT**:
+- ❌ **NEVER commit or push if any tests fail**
+- ❌ **NEVER skip test verification to save time**
+- ✅ **Always loop until 100% test success**
+- ✅ **Document what was fixed in commit message**
+
+**If Tests Continue to Fail**:
+- Provide detailed error messages and stack traces to user
+- Ask for clarification on expected behavior
+- Do NOT force-commit broken code
+- Keep iterating on fixes
+
+---
+
 ## 🔄 Git Workflow
 
 ### Branch Naming
@@ -2369,7 +2471,18 @@ When GitHub Copilot assists with this project:
 8. **Include tests** - Suggest tests for new features, especially AI/ML components
 9. **Follow accessibility standards** - ARIA labels, keyboard navigation
 10. **Be consistent** - Match existing code style and patterns
-11. **AI/ML specific**:
+
+**🔴 CRITICAL TEST LOOP REQUIREMENT**:
+11. **RUN ALL TESTS BEFORE COMMIT** - This is NON-NEGOTIABLE
+    - Before making ANY changes: Run full test suite (pytest + npm test)
+    - After making changes: Re-run ALL tests
+    - If ANY test fails: Keep fixing until ALL tests pass
+    - NEVER commit or push with failing tests
+    - NEVER skip tests to save time
+    - Use the Test Loop process (see Definition of Done section)
+    - Document test fixes in commit messages
+
+12. **AI/ML specific**:
     - Always use provider abstraction for LLM calls
     - Implement graceful fallbacks for ML operations
     - Cache embeddings and LLM responses appropriately
@@ -2377,7 +2490,7 @@ When GitHub Copilot assists with this project:
     - Handle model loading errors gracefully
     - Mock external AI services in tests
     - Document model assumptions and limitations
-12. **RAG/Vector Search specific**:
+13. **RAG/Vector Search specific**:
     - Use semantic chunking for documents
     - Implement hybrid search (vector + keyword)
     - Add metadata filtering capabilities
