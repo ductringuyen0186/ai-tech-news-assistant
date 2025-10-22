@@ -10,7 +10,7 @@ from typing import List, Optional, Dict
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, field_validator
 
 
 class Settings(BaseSettings):
@@ -36,6 +36,14 @@ class Settings(BaseSettings):
         ],
         env="ALLOWED_ORIGINS"
     )
+    
+    @field_validator("allowed_origins", mode="before")
+    @classmethod
+    def parse_allowed_origins(cls, v):
+        """Parse ALLOWED_ORIGINS from comma-separated string if needed."""
+        if isinstance(v, str):
+            return [origin.strip() for origin in v.split(",")]
+        return v
     
     # Database settings (for future use)
     database_url: Optional[str] = Field(default=None, env="DATABASE_URL")
