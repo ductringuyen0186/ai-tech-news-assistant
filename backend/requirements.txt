@@ -15,8 +15,8 @@ requests==2.31.0
 python-multipart==0.0.6
 
 # Data Processing
-pandas==2.1.4
-numpy==1.24.4
+pandas>=2.2.0  # 2.2+ supports Python 3.13
+numpy>=1.26.0  # 1.26+ supports Python 3.13
 
 # Web Scraping and RSS Parsing
 feedparser==6.0.11
