@@ -26,7 +26,7 @@ newspaper3k==0.2.8
 # AI/ML Libraries for Embeddings and Vector Search
 sentence-transformers==2.2.2
 transformers==4.35.2
-torch==2.1.1  # Pre-installed for development; uses CPU mode on Render
+torch==2.7.0  # Updated for Python 3.13 compatibility; uses CPU mode on Render
 
 # Vector Database
 chromadb==0.4.18
