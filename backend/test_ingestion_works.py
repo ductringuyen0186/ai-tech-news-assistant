@@ -10,6 +10,13 @@ def test_ingestion():
     print("🚀 Testing IngestionService...")
     print()
     
+    # Initialize database tables
+    from src.database import init_db
+    print("📦 Initializing database tables...")
+    init_db()
+    print("✅ Database initialized")
+    print()
+    
     # Get database session
     db = next(get_db())
     
