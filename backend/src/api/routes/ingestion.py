@@ -19,7 +19,7 @@ from src.database.session import DatabaseManager
 from src.services.ingestion_service import IngestionService
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/api/ingest", tags=["ingestion"])
+router = APIRouter(prefix="/ingest", tags=["ingestion"])
 
 # Store latest ingestion result globally (in production, use Redis or database)
 latest_ingestion_result = None
