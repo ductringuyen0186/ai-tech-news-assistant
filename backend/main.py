@@ -95,7 +95,7 @@ async def detailed_health_check() -> Dict[str, Any]:
 
 
 # Include API routes
-app.include_router(api_router, prefix="/api/v1")
+app.include_router(api_router, prefix="/api")
 
 
 @app.exception_handler(Exception)
