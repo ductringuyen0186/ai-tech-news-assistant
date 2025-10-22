@@ -19,12 +19,13 @@ from dotenv import load_dotenv
 import uvicorn
 
 try:
-    from api.routes import router as api_router
+    from src.api import api_router, root_router
 except Exception as e:
-    print(f"CRITICAL: Failed to import api_router: {e}")
+    print(f"CRITICAL: Failed to import routers from src.api: {e}")
     import traceback
     traceback.print_exc()
     api_router = None
+    root_router = None
 
 from utils.config import get_settings
 from utils.logger import get_logger
@@ -118,11 +119,20 @@ async def detailed_health_check() -> Dict[str, Any]:
 # Include API routes
 if api_router is not None:
     try:
-        app.include_router(api_router, prefix="/api")
+        app.include_router(api_router)  # api_router already has /api prefix
     except Exception as e:
         logger.error(f"Failed to include API routes: {e}")
 else:
     logger.error("API router is None - routes will not be available")
+
+# Include root/health routes
+if root_router is not None:
+    try:
+        app.include_router(root_router)
+    except Exception as e:
+        logger.error(f"Failed to include root routes: {e}")
+else:
+    logger.error("Root router is None - health routes will not be available")
 
 
 @app.exception_handler(Exception)
