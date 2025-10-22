@@ -14,6 +14,7 @@ from .news import router as news_router
 from .summarization import router as summarization_router
 from .embeddings import router as embeddings_router
 from .search import router as search_router
+from .ingestion import router as ingestion_router
 
 # Create the main API router
 api_router = APIRouter(prefix="/api")
@@ -23,6 +24,7 @@ api_router.include_router(news_router)
 api_router.include_router(summarization_router)
 api_router.include_router(embeddings_router)
 api_router.include_router(search_router)
+api_router.include_router(ingestion_router)
 
 # Create a separate router for health/root endpoints (no /api prefix)
 root_router = APIRouter()

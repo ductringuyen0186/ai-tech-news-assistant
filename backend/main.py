@@ -18,7 +18,14 @@ from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 import uvicorn
 
-from api.routes import router as api_router
+try:
+    from api.routes import router as api_router
+except Exception as e:
+    print(f"CRITICAL: Failed to import api_router: {e}")
+    import traceback
+    traceback.print_exc()
+    api_router = None
+
 from utils.config import get_settings
 from utils.logger import get_logger
 
@@ -109,10 +116,13 @@ async def detailed_health_check() -> Dict[str, Any]:
 
 
 # Include API routes
-try:
-    app.include_router(api_router, prefix="/api")
-except Exception as e:
-    logger.error(f"Failed to include API routes: {e}")
+if api_router is not None:
+    try:
+        app.include_router(api_router, prefix="/api")
+    except Exception as e:
+        logger.error(f"Failed to include API routes: {e}")
+else:
+    logger.error("API router is None - routes will not be available")
 
 
 @app.exception_handler(Exception)
