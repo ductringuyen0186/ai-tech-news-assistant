@@ -24,12 +24,12 @@ beautifulsoup4==4.12.2
 newspaper3k==0.2.8
 
 # AI/ML Libraries for Embeddings and Vector Search
-sentence-transformers==2.2.2
-transformers==4.35.2
-torch==2.7.0  # Updated for Python 3.13 compatibility; uses CPU mode on Render
+# sentence-transformers==2.2.2
+# transformers==4.35.2
+# torch==2.7.0  # Updated for Python 3.13 compatibility; uses CPU mode on Render
 
 # Vector Database
-chromadb==0.4.18
+# chromadb==0.4.18
 
 # Future LangChain integration
 # langchain==0.0.350
