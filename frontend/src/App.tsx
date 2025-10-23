@@ -32,18 +32,24 @@ export default function App() {
     try {
       setLoading(true);
       const params = new URLSearchParams();
+      
+      // Backend expects page_size, page, source (not limit, q, category)
+      params.append("page", "1");
+      params.append("page_size", "50");
+      
       if (selectedCategories.length > 0) {
-        params.append("category", selectedCategories.join(","));
+        // Backend uses 'source' parameter for filtering, not 'category'
+        params.append("source", selectedCategories[0]);
       }
       if (searchQuery) {
-        params.append("q", searchQuery);
+        params.append("author", searchQuery);
       }
-      params.append("limit", "50");
 
       const data = await apiFetch<any>(`${API_ENDPOINTS.news}?${params}`);
+      console.log("API Response:", data);
       
       // Map FastAPI response to expected format
-      // Backend returns PaginatedResponse with "data" field, not "items"
+      // Backend returns PaginatedResponse with "data" field containing articles
       const articles = data.data || data.items || [];
       const mappedArticles = articles.map((article: any) => ({
         id: article.id,
