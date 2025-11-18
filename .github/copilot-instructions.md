@@ -2970,7 +2970,18 @@ pytest --cov=src.services.category_service backend/tests/
 
 ### Before any commit and push to remote branch:
 
-1. **NEW FEATURES MUST HAVE TEST SUITE** ✅ **[REQUIRED FOR NEW FEATURES]**
+⚠️ **ABSOLUTE REQUIREMENT: NO COMMITS WITHOUT PASSING TESTS**
+
+1. **VERIFY ALL CHANGES WITH TESTS FIRST** ✅ **[MANDATORY - NO EXCEPTIONS]**
+   - **BEFORE making any code changes**: Understand what needs to be tested
+   - **AFTER making code changes**: Write/run tests IMMEDIATELY
+   - **BEFORE committing**: Verify ALL tests pass locally
+   - **If refactoring**: Create integration test to verify functionality unchanged
+   - **If fixing bugs**: Write test that reproduces bug, then fix, then verify test passes
+   - **If adding features**: Write tests for new feature, implement feature, verify tests pass
+   - **NEVER commit without running tests** - No exceptions, no shortcuts, no "will test later"
+
+2. **NEW FEATURES MUST HAVE TEST SUITE** ✅ **[REQUIRED FOR NEW FEATURES]**
    - Backend service/feature: Create `tests/services/test_[service].py` with 80%+ coverage
    - Backend API endpoints: Create `tests/api/test_[endpoint].py` with all paths tested
    - Frontend components: Create `src/__tests__/components/[Component].test.tsx` with user interactions
@@ -2978,12 +2989,15 @@ pytest --cov=src.services.category_service backend/tests/
    - Database models: Create transaction/constraint tests if models changed
    - **NO EXCEPTIONS**: Every new feature MUST have tests before commit
 
-2. **ALL TESTS MUST PASS** ✅ **[CRITICAL - BLOCKS COMMIT]**
-   - Backend: Run `pytest tests/ -v` - **ALL** unit, integration, and CI tests must pass
-   - Frontend: Run `npm test` - **ALL** component and integration tests must pass
-   - CI/CD: All GitHub Actions checks must pass (ruff linting, mypy type checking, etc.)
-   - If ANY test fails: DO NOT COMMIT - fix the test first
-   - Coverage minimum: New code 80%, service classes 90%, API endpoints 100%
+3. **ALL TESTS MUST PASS** ✅ **[CRITICAL - BLOCKS COMMIT]**
+   - **Backend pytest**: Run `pytest tests/ -v` - **ALL** unit, integration, and CI tests must pass
+   - **Backend integration**: Test API endpoints manually or with test client
+   - **Refactors/Fixes**: Create temporary test script (e.g., `test_refactor.py`) to verify changes work
+   - **Frontend**: Run `npm test` - **ALL** component and integration tests must pass
+   - **CI/CD**: All GitHub Actions checks must pass (ruff linting, mypy type checking, etc.)
+   - **If ANY test fails**: DO NOT COMMIT - fix the test first, loop until all pass
+   - **Coverage minimum**: New code 80%, service classes 90%, API endpoints 100%
+   - **Manual verification**: For critical changes (database, API), create quick test script and run it
 
 3. **Code Quality Checks** ✅
    - Backend: `ruff check .` - No linting errors

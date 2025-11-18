@@ -146,54 +146,72 @@ async def detailed_health_check() -> Dict[str, Any]:
         raise HTTPException(status_code=503, detail="Service unhealthy")
 
 
-# Temporary fallback API endpoint for articles (until routes are fixed)
+# Direct PostgreSQL API endpoint using psycopg2
 @app.get("/api/news", tags=["News"])
 async def get_articles_fallback(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100)
 ):
-    """Temporary fallback endpoint to serve articles from database."""
+    """Get articles directly from PostgreSQL database using psycopg2."""
     try:
         import os
-        from sqlalchemy import create_engine, text
-        from sqlalchemy.orm import sessionmaker
+        import psycopg2
+        from psycopg2.extras import RealDictCursor
+        from urllib.parse import urlparse
         
         database_url = os.getenv("DATABASE_URL", "")
+        if not database_url:
+            raise HTTPException(status_code=500, detail="DATABASE_URL not configured")
+        
+        # Parse PostgreSQL connection string
+        # Handle both postgres:// and postgresql:// schemes
         if database_url.startswith("postgres://"):
             database_url = database_url.replace("postgres://", "postgresql://", 1)
         
-        engine = create_engine(database_url, echo=False)
-        Session = sessionmaker(bind=engine)
-        session = Session()
+        result = urlparse(database_url)
+        
+        # Connect to PostgreSQL
+        conn = psycopg2.connect(
+            database=result.path[1:],
+            user=result.username,
+            password=result.password,
+            host=result.hostname,
+            port=result.port
+        )
+        
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
         
         offset = (page - 1) * page_size
         
         # Get articles
-        result = session.execute(text("""
+        cursor.execute("""
             SELECT id, title, content, url, source, author, published_date, created_at
             FROM articles
             ORDER BY published_date DESC
-            LIMIT :limit OFFSET :offset
-        """), {"limit": page_size, "offset": offset})
+            LIMIT %s OFFSET %s
+        """, (page_size, offset))
+        
+        rows = cursor.fetchall()
         
         articles = []
-        for row in result:
+        for row in rows:
             articles.append({
-                "id": row[0],
-                "title": row[1],
-                "content": row[2],
-                "url": row[3],
-                "source": row[4],
-                "author": row[5],
-                "published_date": row[6].isoformat() if row[6] else None,
-                "created_at": row[7].isoformat() if row[7] else None
+                "id": row['id'],
+                "title": row['title'],
+                "content": row['content'],
+                "url": row['url'],
+                "source": row['source'],
+                "author": row['author'],
+                "published_date": row['published_date'].isoformat() if row['published_date'] else None,
+                "created_at": row['created_at'].isoformat() if row['created_at'] else None
             })
         
         # Get total count
-        count_result = session.execute(text("SELECT COUNT(*) FROM articles"))
-        total = count_result.scalar()
+        cursor.execute("SELECT COUNT(*) as count FROM articles")
+        total = cursor.fetchone()['count']
         
-        session.close()
+        cursor.close()
+        conn.close()
         
         return {
             "items": articles,
@@ -203,8 +221,10 @@ async def get_articles_fallback(
             "total_pages": (total + page_size - 1) // page_size
         }
     except Exception as e:
-        logger.error(f"Fallback API error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Database error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 # Include API routes
 if api_router is not None:
