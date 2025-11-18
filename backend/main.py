@@ -25,7 +25,7 @@ from pathlib import Path
 _debug_cwd = Path.cwd()
 _debug_backend = Path(__file__).parent
 
-print(f"\n🔍 DEBUG INFO:")
+print(f"\n[DEBUG INFO]")
 print(f"  CWD: {_debug_cwd}")
 print(f"  Backend dir: {_debug_backend}")
 print(f"  src exists: {(_debug_backend / 'src').exists()}")
@@ -33,9 +33,9 @@ print(f"  Python path[0:3]: {sys.path[0:3]}")
 
 try:
     from src.api import api_router, root_router
-    print(f"✅ Successfully imported api_router and root_router")
+    print(f"[OK] Successfully imported api_router and root_router")
 except Exception as e:
-    print(f"❌ CRITICAL: Failed to import routers from src.api: {e}")
+    print(f"[ERROR] CRITICAL: Failed to import routers from src.api: {e}")
     import traceback
     traceback.print_exc()
     api_router = None
