@@ -76,6 +76,7 @@ app.add_middleware(
         "http://localhost:8001",
         "https://ai-tech-news-assistant.vercel.app",
         "https://ai-tech-news-assistant-8xbp128f1-ductringuyen0186s-projects.vercel.app",
+        "https://frontend-khmjrrjtq-ductringuyen0186s-projects.vercel.app",  # Current production deployment
         "https://*.vercel.app",  # Wildcard for Vercel preview deployments
     ],
     allow_credentials=True,
