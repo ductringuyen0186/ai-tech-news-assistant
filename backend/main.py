@@ -34,10 +34,15 @@ print(f"  Python path[0:3]: {sys.path[0:3]}")
 try:
     from src.api import api_router, root_router
     print(f"[OK] Successfully imported api_router and root_router")
+    ROUTERS_LOADED = True
 except Exception as e:
     print(f"[ERROR] CRITICAL: Failed to import routers from src.api: {e}")
+    print(f"[INFO] Fallback API endpoints will be used")
     import traceback
     traceback.print_exc()
+    ROUTERS_LOADED = False
+    api_router = None
+    root_router = None
     api_router = None
     root_router = None
 
