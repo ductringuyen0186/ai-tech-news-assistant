@@ -91,14 +91,10 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
     """Initialize database and run migrations on application startup."""
-    try:
-        from src.database.base import init_db
-        logger.info("Initializing database...")
-        init_db()
-        logger.info("✅ Database initialized successfully")
-    except Exception as e:
-        logger.error(f"❌ Failed to initialize database: {e}", exc_info=True)
-        # Don't raise - let app start anyway in case DB is optional
+    # Disabled for now - articles table already exists in production
+    # Database init causes errors with embeddings table foreign key mismatch
+    logger.info("⏭️ Skipping database initialization - using existing schema")
+    pass
 
 
 @app.get("/", tags=["Health"])
