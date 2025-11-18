@@ -49,7 +49,7 @@
 1. Read: DEPLOY_RENDER_GUIDE.md
 2. Create PostgreSQL database on Render
 3. Deploy FastAPI app to Render web service
-4. Verify: curl https://your-backend.onrender.com/health
+4. Verify: curl https://ai-tech-news-assistant-backend.onrender.com/health
 ```
 
 ### Phase 2: Frontend Deployment (10-15 min)

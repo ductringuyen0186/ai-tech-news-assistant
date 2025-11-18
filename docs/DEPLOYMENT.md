@@ -82,7 +82,7 @@ REDIS_URL=redis://...
 
 ### Frontend Environment Variables  
 ```env
-VITE_API_BASE_URL=https://your-backend-domain.railway.app
+VITE_API_BASE_URL=https://ai-tech-news-assistant-backend.onrender.com
 ```
 
 Optional (enable if you route certain calls through Supabase Edge Functions):
@@ -107,8 +107,8 @@ VITE_SUPABASE_EDGE_FUNCTION_SEMANTIC_SEARCH=https://your-project-ref.supabase.co
 ## Monitoring & Health Checks
 
 ### Health Endpoints
-- **Backend**: `https://your-backend-url/health`
-- **Frontend**: `https://your-frontend-url/health`  
+- **Backend**: `https://ai-tech-news-assistant-backend.onrender.com/health`
+- **Frontend**: `https://frontend-khmjrrjtq-ductringuyen0186s-projects.vercel.app`  
 
 ### Logging
 - **Railway**: Built-in logs dashboard
@@ -226,7 +226,7 @@ curl https://your-backend-url/api/v1/news
 
 Once deployed, your AI Tech News Assistant will be accessible at:
 - **Frontend**: `https://your-app.vercel.app`
-- **Backend API**: `https://your-backend.railway.app`
-- **API Docs**: `https://your-backend.railway.app/docs`
+- **Backend API**: `https://ai-tech-news-assistant-backend.onrender.com`
+- **API Docs**: `https://ai-tech-news-assistant-backend.onrender.com/docs`
 
 **Total deployment time**: ~15 minutes for cloud deployment! 🚀

@@ -73,7 +73,7 @@
 
 Test the health endpoint:
 ```bash
-curl https://your-backend-url.onrender.com/health
+curl https://ai-tech-news-assistant-backend.onrender.com/health
 ```
 
 Expected response:
@@ -100,7 +100,7 @@ curl https://your-backend-url.onrender.com/api/news?page=1&page_size=10
 
 Edit `frontend/.env.production`:
 ```
-VITE_API_BASE_URL=<your-actual-backend-url-from-step-2>
+VITE_API_BASE_URL=https://ai-tech-news-assistant-backend.onrender.com
 ```
 
 Example:
@@ -138,7 +138,7 @@ Follow prompts:
    ```
 4. Environment Variables:
    ```
-   VITE_API_BASE_URL = <your-backend-url>
+   VITE_API_BASE_URL = https://ai-tech-news-assistant-backend.onrender.com
    ```
 5. Click "Deploy"
 
@@ -180,7 +180,7 @@ Follow prompts:
 
 Test API again:
 ```bash
-curl https://your-backend-url.onrender.com/api/news?page=1&page_size=10
+curl https://ai-tech-news-assistant-backend.onrender.com/api/news?page=1&page_size=10
 ```
 
 Should return 8 sample articles now.

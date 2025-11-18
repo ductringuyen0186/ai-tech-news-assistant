@@ -41,7 +41,7 @@
 ### Post-Deployment Setup
 - [ ] Run database migrations (if needed)
 - [ ] Verify API endpoints accessible
-- [ ] Document backend URL: `https://your-backend.onrender.com`
+- [x] Document backend URL: `https://ai-tech-news-assistant-backend.onrender.com`
 
 **Estimated Time**: 15-20 minutes  
 **Status**: [ ] Not Started | [ ] In Progress | [x] Complete
@@ -61,7 +61,7 @@
 
 ### Configure Environment Variables
 - [ ] `VITE_API_BASE_URL` = Backend URL from Phase 1 (no trailing slash)
-  - Example: `https://your-backend.onrender.com`
+  - Example: `https://ai-tech-news-assistant-backend.onrender.com`
 
 ### Verify Frontend Deployment
 - [ ] Build completes without errors
@@ -190,10 +190,10 @@
 
 | Component | URL | Status |
 |-----------|-----|--------|
-| Backend | `https://your-backend.onrender.com` | [ ] Set |
-| Frontend | `https://your-frontend.vercel.app` | [ ] Set |
-| API Docs | `https://your-backend.onrender.com/docs` | [ ] Verified |
-| Health Check | `https://your-backend.onrender.com/health` | [ ] Verified |
+| Backend | `https://ai-tech-news-assistant-backend.onrender.com` | [x] Set |
+| Frontend | `https://frontend-khmjrrjtq-ductringuyen0186s-projects.vercel.app` | [x] Set |
+| API Docs | `https://ai-tech-news-assistant-backend.onrender.com/docs` | [x] Verified |
+| Health Check | `https://ai-tech-news-assistant-backend.onrender.com/health` | [x] Verified |
 
 ## 🎯 Success Criteria
 
