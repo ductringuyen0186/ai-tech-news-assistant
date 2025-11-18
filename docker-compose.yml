@@ -15,8 +15,9 @@ services:
       - DEBUG=false
       - HOST=0.0.0.0
       - PORT=8000
-      - CORS_ORIGINS=https://ai-tech-news.vercel.app,http://localhost:3000
+      - CORS_ORIGINS=https://frontend-khmjrrjtq-ductringuyen0186s-projects.vercel.app,http://localhost:3000
       - DATABASE_URL=sqlite:///app/data/news.db
+      # For PostgreSQL: DATABASE_URL=postgresql://user:password@host:port/database
     volumes:
       - backend_data:/app/data
       - backend_logs:/app/logs
@@ -39,6 +40,7 @@ services:
       - "3000:3000"
     environment:
       - VITE_API_BASE_URL=http://localhost:8000
+      # For production testing: VITE_API_BASE_URL=https://ai-tech-news-assistant-backend.onrender.com
       - NODE_ENV=production
     depends_on:
       - backend

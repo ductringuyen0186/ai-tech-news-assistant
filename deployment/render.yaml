@@ -16,7 +16,7 @@ services:
       - key: DEBUG
         value: "false"
       - key: CORS_ORIGINS
-        value: https://your-frontend-domain.vercel.app
+        value: https://frontend-khmjrrjtq-ductringuyen0186s-projects.vercel.app
       - key: OPENAI_API_KEY
         sync: false
       - key: DATABASE_TYPE

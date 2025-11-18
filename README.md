@@ -110,9 +110,14 @@ ai-tech-news-assistant/
    ```
 
 6. **Access the API**
-   - API Documentation: http://localhost:8000/docs
-   - Health Check: http://localhost:8000/ping
-   - API Info: http://localhost:8000/api/v1/
+   - **Local Development**:
+     - API Documentation: http://localhost:8000/docs
+     - Health Check: http://localhost:8000/health
+     - API Endpoints: http://localhost:8000/api/news
+   - **Production Deployment**:
+     - Frontend: https://frontend-khmjrrjtq-ductringuyen0186s-projects.vercel.app
+     - API Documentation: https://ai-tech-news-assistant-backend.onrender.com/docs
+     - Health Check: https://ai-tech-news-assistant-backend.onrender.com/health
 
 ## 🔧 Development Status
 
@@ -166,6 +171,7 @@ ai-tech-news-assistant/
 
 Key environment variables in `.env`:
 
+**Local Development:**
 ```bash
 # Application
 APP_NAME=AI Tech News Assistant
@@ -187,6 +193,23 @@ CHROMA_PERSIST_DIRECTORY=./data/chroma_db
 NEWS_SOURCES=https://feeds.feedburner.com/oreilly/radar,https://techcrunch.com/feed/
 ```
 
+**Production Deployment:**
+```bash
+# Application
+ENVIRONMENT=production
+DEBUG=false
+
+# Database (PostgreSQL on Render)
+DATABASE_URL=postgresql://user:password@host:port/database
+
+# CORS (Vercel frontend)
+ALLOWED_ORIGINS=["https://frontend-khmjrrjtq-ductringuyen0186s-projects.vercel.app"]
+
+# LLM Services (Groq - free tier, fast)
+LLM_PROVIDER=groq
+GROQ_API_KEY=your_groq_api_key_here
+```
+
 ## 🤝 Contributing
 
 1. Check the [GitHub Issues](https://github.com/ductringuyen0186/ai-tech-news-assistant/issues) for open tasks
@@ -204,7 +227,12 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - [GitHub Repository](https://github.com/ductringuyen0186/ai-tech-news-assistant)
 - [Issues & Roadmap](https://github.com/ductringuyen0186/ai-tech-news-assistant/issues)
-- [API Documentation](http://localhost:8000/docs) (when running locally)
+- **Production:**
+  - [Live Application](https://frontend-khmjrrjtq-ductringuyen0186s-projects.vercel.app)
+  - [API Documentation](https://ai-tech-news-assistant-backend.onrender.com/docs)
+  - [Backend Health](https://ai-tech-news-assistant-backend.onrender.com/health)
+- **Local Development:**
+  - [Local API Docs](http://localhost:8000/docs) (when running locally)
 
 A job-market-aligned AI Tech-News Assistant that aggregates, analyzes, and presents technology news with AI-powered insights to help professionals stay current with industry trends.
 
@@ -287,9 +315,13 @@ ai-tech-news-assistant/
    ```
 
 6. **Access the API**:
-   - API Documentation: http://localhost:8000/docs
-   - Health Check: http://localhost:8000/ping
-   - Alternative Docs: http://localhost:8000/redoc
+   - **Local Development:**
+     - API Documentation: http://localhost:8000/docs
+     - Health Check: http://localhost:8000/health
+     - Alternative Docs: http://localhost:8000/redoc
+   - **Production:**
+     - Frontend App: https://frontend-khmjrrjtq-ductringuyen0186s-projects.vercel.app
+     - API Docs: https://ai-tech-news-assistant-backend.onrender.com/docs
 
 ## 📊 Current Status
 
