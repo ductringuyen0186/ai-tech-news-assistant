@@ -10,6 +10,7 @@ from typing import Dict, Any, Optional, List
 from enum import Enum
 
 from .providers import LLMProvider, OllamaProvider, ClaudeProvider
+from .groq_provider import GroqProvider
 from utils.logger import get_logger
 from utils.config import get_settings
 
@@ -21,6 +22,7 @@ class LLMProviderType(Enum):
     """Supported LLM provider types."""
     OLLAMA = "ollama"
     CLAUDE = "claude"
+    GROQ = "groq"
     AUTO = "auto"  # Automatically select best available provider
 
 
@@ -46,6 +48,19 @@ class ArticleSummarizer:
     
     def _initialize_providers(self) -> None:
         """Initialize and test available LLM providers."""
+        # Initialize Groq provider (prioritize - fastest and free)
+        try:
+            if hasattr(settings, 'GROQ_API_KEY') and settings.GROQ_API_KEY:
+                groq = GroqProvider(
+                    api_key=settings.GROQ_API_KEY,
+                    model=getattr(settings, 'GROQ_MODEL', 'llama-3.2-3b-preview'),
+                    timeout=getattr(settings, 'LLM_TIMEOUT', 60)
+                )
+                self.providers[LLMProviderType.GROQ.value] = groq
+                logger.info("Groq provider initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize Groq provider: {str(e)}")
+        
         # Initialize Ollama provider
         try:
             ollama = OllamaProvider(

@@ -8,26 +8,38 @@ and documentation.
 """
 
 from fastapi import APIRouter
+import logging
 
-from .health import router as health_router
-from .news import router as news_router
-from .summarization import router as summarization_router
-from .embeddings import router as embeddings_router
-from .search import router as search_router
-from .ingestion import router as ingestion_router
+logger = logging.getLogger(__name__)
 
-# Create the main API router
+# Create routers
 api_router = APIRouter(prefix="/api")
-
-# Include all route modules
-api_router.include_router(news_router)
-api_router.include_router(summarization_router)
-api_router.include_router(embeddings_router)
-api_router.include_router(search_router)
-api_router.include_router(ingestion_router)
-
-# Create a separate router for health/root endpoints (no /api prefix)
 root_router = APIRouter()
-root_router.include_router(health_router)
+
+# Import and include routes with error handling
+def _safe_include_router(router, module_name, router_name):
+    """Safely import and include a router, logging errors."""
+    try:
+        module = __import__(f"src.api.routes.{module_name}", fromlist=[router_name])
+        route_router = getattr(module, router_name)
+        router.include_router(route_router)
+        logger.info(f"✅ Loaded {module_name} router")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Failed to load {module_name} router: {e}")
+        return False
+
+# Load health router (root level, no /api prefix)
+_safe_include_router(root_router, "health", "router")
+
+# Load API routers
+_safe_include_router(api_router, "news", "router")
+_safe_include_router(api_router, "summarization", "router")
+_safe_include_router(api_router, "embeddings", "router")
+_safe_include_router(api_router, "search", "router")
+_safe_include_router(api_router, "ingestion", "router")
+_safe_include_router(api_router, "rag", "router")
+
+logger.info("API routers initialization complete")
 
 __all__ = ["api_router", "root_router"]

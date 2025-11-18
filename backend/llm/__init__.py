@@ -16,11 +16,13 @@ Features:
 
 from .summarizer import ArticleSummarizer, LLMProviderType
 from .providers import LLMProvider, OllamaProvider, ClaudeProvider
+from .groq_provider import GroqProvider
 
 __all__ = [
     "ArticleSummarizer", 
     "LLMProviderType",
     "LLMProvider", 
     "OllamaProvider", 
-    "ClaudeProvider"
+    "ClaudeProvider",
+    "GroqProvider"
 ]
