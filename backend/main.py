@@ -12,7 +12,7 @@ Repository: https://github.com/ductringuyen0186/ai-tech-news-assistant
 from datetime import datetime
 from typing import Dict, Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
@@ -144,6 +144,66 @@ async def detailed_health_check() -> Dict[str, Any]:
         logger.error(f"Health check failed: {str(e)}")
         raise HTTPException(status_code=503, detail="Service unhealthy")
 
+
+# Temporary fallback API endpoint for articles (until routes are fixed)
+@app.get("/api/news", tags=["News"])
+async def get_articles_fallback(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100)
+):
+    """Temporary fallback endpoint to serve articles from database."""
+    try:
+        import os
+        from sqlalchemy import create_engine, text
+        from sqlalchemy.orm import sessionmaker
+        
+        database_url = os.getenv("DATABASE_URL", "")
+        if database_url.startswith("postgres://"):
+            database_url = database_url.replace("postgres://", "postgresql://", 1)
+        
+        engine = create_engine(database_url, echo=False)
+        Session = sessionmaker(bind=engine)
+        session = Session()
+        
+        offset = (page - 1) * page_size
+        
+        # Get articles
+        result = session.execute(text("""
+            SELECT id, title, content, url, source, author, published_date, created_at
+            FROM articles
+            ORDER BY published_date DESC
+            LIMIT :limit OFFSET :offset
+        """), {"limit": page_size, "offset": offset})
+        
+        articles = []
+        for row in result:
+            articles.append({
+                "id": row[0],
+                "title": row[1],
+                "content": row[2],
+                "url": row[3],
+                "source": row[4],
+                "author": row[5],
+                "published_date": row[6].isoformat() if row[6] else None,
+                "created_at": row[7].isoformat() if row[7] else None
+            })
+        
+        # Get total count
+        count_result = session.execute(text("SELECT COUNT(*) FROM articles"))
+        total = count_result.scalar()
+        
+        session.close()
+        
+        return {
+            "items": articles,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total + page_size - 1) // page_size
+        }
+    except Exception as e:
+        logger.error(f"Fallback API error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Include API routes
 if api_router is not None:
