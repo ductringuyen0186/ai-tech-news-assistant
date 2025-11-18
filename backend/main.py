@@ -146,72 +146,57 @@ async def detailed_health_check() -> Dict[str, Any]:
         raise HTTPException(status_code=503, detail="Service unhealthy")
 
 
-# Direct PostgreSQL API endpoint using psycopg2
+# Direct PostgreSQL API endpoint using psycopg3 (Python 3.13 compatible)
 @app.get("/api/news", tags=["News"])
 async def get_articles_fallback(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100)
 ):
-    """Get articles directly from PostgreSQL database using psycopg2."""
+    """Get articles directly from PostgreSQL database using psycopg3."""
     try:
         import os
-        import psycopg2
-        from psycopg2.extras import RealDictCursor
-        from urllib.parse import urlparse
+        import psycopg
+        from psycopg.rows import dict_row
         
         database_url = os.getenv("DATABASE_URL", "")
         if not database_url:
             raise HTTPException(status_code=500, detail="DATABASE_URL not configured")
         
-        # Parse PostgreSQL connection string
         # Handle both postgres:// and postgresql:// schemes
         if database_url.startswith("postgres://"):
             database_url = database_url.replace("postgres://", "postgresql://", 1)
         
-        result = urlparse(database_url)
-        
-        # Connect to PostgreSQL
-        conn = psycopg2.connect(
-            database=result.path[1:],
-            user=result.username,
-            password=result.password,
-            host=result.hostname,
-            port=result.port
-        )
-        
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        
         offset = (page - 1) * page_size
         
-        # Get articles
-        cursor.execute("""
-            SELECT id, title, content, url, source, author, published_date, created_at
-            FROM articles
-            ORDER BY published_date DESC
-            LIMIT %s OFFSET %s
-        """, (page_size, offset))
-        
-        rows = cursor.fetchall()
-        
-        articles = []
-        for row in rows:
-            articles.append({
-                "id": row['id'],
-                "title": row['title'],
-                "content": row['content'],
-                "url": row['url'],
-                "source": row['source'],
-                "author": row['author'],
-                "published_date": row['published_date'].isoformat() if row['published_date'] else None,
-                "created_at": row['created_at'].isoformat() if row['created_at'] else None
-            })
-        
-        # Get total count
-        cursor.execute("SELECT COUNT(*) as count FROM articles")
-        total = cursor.fetchone()['count']
-        
-        cursor.close()
-        conn.close()
+        # psycopg3 uses context managers and connection strings directly
+        with psycopg.connect(database_url, row_factory=dict_row) as conn:
+            with conn.cursor() as cursor:
+                # Get articles
+                cursor.execute("""
+                    SELECT id, title, content, url, source, author, published_date, created_at
+                    FROM articles
+                    ORDER BY published_date DESC
+                    LIMIT %s OFFSET %s
+                """, (page_size, offset))
+                
+                rows = cursor.fetchall()
+                
+                articles = []
+                for row in rows:
+                    articles.append({
+                        "id": row['id'],
+                        "title": row['title'],
+                        "content": row['content'],
+                        "url": row['url'],
+                        "source": row['source'],
+                        "author": row['author'],
+                        "published_date": row['published_date'].isoformat() if row['published_date'] else None,
+                        "created_at": row['created_at'].isoformat() if row['created_at'] else None
+                    })
+                
+                # Get total count
+                cursor.execute("SELECT COUNT(*) as count FROM articles")
+                total = cursor.fetchone()['count']
         
         return {
             "items": articles,

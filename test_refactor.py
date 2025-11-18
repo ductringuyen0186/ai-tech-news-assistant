@@ -14,43 +14,33 @@ print("=" * 60)
 # Test the database connection and query directly
 print("\n1. Testing direct database connection...")
 try:
-    import psycopg2
-    from urllib.parse import urlparse
+    import psycopg
     
     database_url = os.getenv("DATABASE_URL", "")
     if database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql://", 1)
     
-    result = urlparse(database_url)
-    conn = psycopg2.connect(
-        database=result.path[1:],
-        user=result.username,
-        password=result.password,
-        host=result.hostname,
-        port=result.port
-    )
-    cursor = conn.cursor()
+    # psycopg3 uses connection string directly
+    with psycopg.connect(database_url) as conn:
+        with conn.cursor() as cursor:
+            # Test query
+            cursor.execute("SELECT COUNT(*) FROM articles")
+            count = cursor.fetchone()[0]
+            print(f"   ✓ Connected to database")
+            print(f"   ✓ Total articles in DB: {count}")
+            
+            # Test paginated query
+            cursor.execute("""
+                SELECT id, title, content, url, source, author, published_date, created_at
+                FROM articles
+                ORDER BY published_date DESC
+                LIMIT 5 OFFSET 0
+            """)
+            articles = cursor.fetchall()
+            print(f"   ✓ Fetched {len(articles)} articles")
+            if articles:
+                print(f"   ✓ First article: {articles[0][1][:50]}...")
     
-    # Test query
-    cursor.execute("SELECT COUNT(*) FROM articles")
-    count = cursor.fetchone()[0]
-    print(f"   ✓ Connected to database")
-    print(f"   ✓ Total articles in DB: {count}")
-    
-    # Test paginated query
-    cursor.execute("""
-        SELECT id, title, content, url, source, author, published_date, created_at
-        FROM articles
-        ORDER BY published_date DESC
-        LIMIT 5 OFFSET 0
-    """)
-    articles = cursor.fetchall()
-    print(f"   ✓ Fetched {len(articles)} articles")
-    if articles:
-        print(f"   ✓ First article: {articles[0][1][:50]}...")
-    
-    cursor.close()
-    conn.close()
     print("   ✓ Database test PASSED\n")
     
 except Exception as e:
