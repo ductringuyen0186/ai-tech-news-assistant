@@ -39,6 +39,7 @@ _safe_include_router(api_router, "embeddings", "router")
 _safe_include_router(api_router, "search", "router")
 _safe_include_router(api_router, "ingestion", "router")
 _safe_include_router(api_router, "rag", "router")
+_safe_include_router(api_router, "agents", "router")  # Multi-agent system with LangChain
 
 logger.info("API routers initialization complete")
 

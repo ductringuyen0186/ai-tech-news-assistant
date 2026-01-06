@@ -25,17 +25,22 @@ beautifulsoup4==4.12.2
 newspaper3k==0.2.8
 lxml-html-clean==0.1.0  # Required by newspaper3k (lxml.html.clean is now separate)
 
-# AI/ML Libraries for Embeddings and Vector Search
-sentence-transformers>=3.0.0  # Python 3.13 compatible
-transformers>=4.40.0  # Latest stable version
+# AI/ML Libraries for Embeddings and Vector Search (100% FREE from HuggingFace)
+sentence-transformers>=3.0.0  # Python 3.13 compatible - uses HuggingFace models
+transformers>=4.40.0  # Latest stable version - HuggingFace Transformers
 torch>=2.3.0  # Python 3.13 compatible; uses CPU mode on Render
+huggingface-hub>=0.20.0  # Direct access to HuggingFace model hub (FREE)
 
-# Vector Database
-# chromadb==0.4.18
+# Vector Database - ChromaDB (100% FREE, local storage)
+chromadb>=0.4.22  # Python 3.13 compatible, persistent storage
 
-# Future LangChain integration
-# langchain==0.0.350
-# langchain-core==0.1.0
+# LangChain for Multi-Agent Orchestration (FREE, open source)
+langchain>=0.1.0  # Core LangChain framework
+langchain-community>=0.0.20  # Community integrations
+langchain-core>=0.1.23  # Core abstractions
+langchain-groq>=0.0.1  # Groq LLM integration
+langchain-chroma>=0.1.0  # ChromaDB integration
+# Note: All LangChain packages are FREE. Only pay for LLM API calls (Groq is cheapest)
 
 # Task Orchestration (for future implementation)
 # prefect==2.14.11
