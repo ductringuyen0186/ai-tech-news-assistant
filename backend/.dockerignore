@@ -1,0 +1,52 @@
+# Keep the build context small. Without this, the local virtualenv
+# (~2 GB) and pytest caches get shipped to the daemon and the image
+# build slows to a crawl.
+
+# Python tooling artefacts
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+
+# Local data — never bake into the image
+data/
+logs/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Local env (secrets) — env file is mounted into the container at runtime
+.env
+.env.*
+!.env.example
+!.env.testing
+
+# Tests — not strictly needed inside the production image
+tests/
+test_*.py
+*_test.py
+
+# Docker and git metadata
+.dockerignore
+Dockerfile
+.git/
+.gitignore
+
+# Misc
+*.log
+backend_log.txt
+models/

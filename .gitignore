@@ -258,12 +258,14 @@ docker-compose.override.yml
 docker-compose.*.yml
 !docker-compose.yml
 !docker-compose.*.example.yml
+!docker-compose.prod.yml
 
 # Docker volumes
 .docker/
 
 # Container runtime files
 *.dockerignore
+!backend/.dockerignore
 
 # =======================
 # AI/ML Specific
@@ -596,7 +598,4 @@ SCRATCH.md
 TODO.md
 TEMP*.md
 
-# Keep important docs (negative pattern to override above)
-!README.md
-!docs/**/*.md
-!.github/**/*.md
+# Keep important docs (negative pattern to override a

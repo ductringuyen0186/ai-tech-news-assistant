@@ -1,0 +1,57 @@
+# news-aggregator — host-level Caddy snippet
+#
+# This file is *not* loaded directly by Caddy. It's a snippet you merge into
+# the host's main Caddyfile (typically /etc/caddy/Caddyfile), which serves
+# multiple projects on the same VPS.
+#
+# Caddy auto-issues TLS via Let's Encrypt for the configured site address
+# the first time the site is reached. Until you point a real domain at the
+# VPS, the {$DOMAIN:news.localhost} default lets you `curl` the box from
+# inside (`curl -H "Host: news.localhost" http://127.0.0.1`) without any
+# DNS or TLS setup.
+#
+# Set DOMAIN once the subdomain is chosen, e.g.:
+#   export DOMAIN=news.example.com
+#   systemctl restart caddy
+# or put `DOMAIN=news.example.com` in /etc/default/caddy.
+#
+# How to integrate (see docs/runbooks/first-deploy.md for the full flow):
+#   1. Open /etc/caddy/Caddyfile
+#   2. Paste the block below at the bottom (alongside any other project blocks)
+#   3. `caddy validate --config /etc/caddy/Caddyfile`
+#   4. `systemctl reload caddy`
+#
+# Co-tenancy note:
+#   Each project on this VPS gets its own site block. Caddy multiplexes by
+#   Host header, so as long as each project binds its backend to a unique
+#   loopback port (this project uses 127.0.0.1:8000), they don't collide.
+
+{$DOMAIN:news.localhost} {
+	# Reverse-proxy into the backend container's loopback port.
+	reverse_proxy 127.0.0.1:8000
+
+	# Gzip responses where it helps (JSON, HTML, etc.).
+	encode gzip
+
+	# JSON access log — easy to ship to a log aggregator later.
+	# Make sure /var/log/caddy exists and is writable by the caddy user.
+	log {
+		output file /var/log/caddy/news-aggregator.log {
+			roll_size 10mb
+			roll_keep 5
+		}
+		format json
+	}
+
+	# Modest hardening. The backend already sets CORS via ALLOWED_ORIGINS;
+	# these are belt-and-braces headers for the browser-facing site.
+	header {
+		# Don't advertise the upstream stack.
+		-Server
+		# Standard security headers.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+}

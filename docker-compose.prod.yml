@@ -1,0 +1,99 @@
+# AI Tech News Assistant - Production Compose
+#
+# Deployed on a multi-project VPS where a host-level Caddy provides TLS and
+# subdomain routing. Containers in this stack bind to 127.0.0.1 only;
+# Caddy is the only public listener.
+#
+# Compose project name is pinned via the top-level `name:` so it doesn't
+# clash with sibling projects. If your local docker compose is older than
+# v2.20 and doesn't honour `name:`, export COMPOSE_PROJECT_NAME=news-aggregator
+# before running.
+#
+# Usage on the VPS (see docs/runbooks/first-deploy.md):
+#   cd /opt/news-aggregator
+#   docker compose -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Local dry-run:
+#   docker compose -f docker-compose.prod.yml config
+
+name: news-aggregator
+
+services:
+  backend:
+    # Pulled from GHCR by the deploy workflow. The :main tag is updated on
+    # every push to main; the :<sha> tag is what the workflow actually
+    # references for an atomic deploy.
+    image: ${BACKEND_IMAGE:-ghcr.io/ductringuyen0186/ai-tech-news-assistant:main}
+    # Allow `docker compose build` to fall back to a local build if the
+    # image isn't pullable (e.g. first-time setup before the workflow has run).
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: news-aggregator-backend
+    restart: unless-stopped
+    # Bind to loopback only. Caddy on the host reverse-proxies into this.
+    ports:
+      - "127.0.0.1:8000:8000"
+    env_file:
+      # Marked optional so `docker compose config` works for local dry-runs
+      # before the VPS-side env file is in place. On the VPS, this file
+      # MUST exist (see docs/runbooks/first-deploy.md, step 5).
+      - path: /etc/news/.env
+        required: false
+    environment:
+      # Sensible defaults; override via /etc/news/.env when needed.
+      ENVIRONMENT: production
+      DEBUG: "false"
+      HOST: 0.0.0.0
+      PORT: "8000"
+      DATABASE_TYPE: sqlite
+      SQLITE_DATABASE_PATH: /app/data/news.db
+      # Ollama runs as a sibling container; reach it on the compose network.
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_KEEP_ALIVE: 5m
+    volumes:
+      - news_db_data:/app/data
+      - news_logs:/app/logs
+    networks:
+      - news_net
+    depends_on:
+      - ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: news-aggregator-ollama
+    restart: unless-stopped
+    # Bind to loopback only; only the backend container needs to talk to it,
+    # and they share the news_net network.
+    ports:
+      - "127.0.0.1:11434:11434"
+    environment:
+      # Unload models from memory after 5 minutes of inactivity to keep RAM
+      # available for sibling projects on the host.
+      OLLAMA_KEEP_ALIVE: 5m
+    volumes:
+      - ollama_models:/root/.ollama
+    networks:
+      - news_net
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+volumes:
+  # Persistent SQLite database. Survives `docker compose down`.
+  news_db_data:
+    driver: local
+  # Persistent app logs (APScheduler retention runs etc.).
+  news_logs:
