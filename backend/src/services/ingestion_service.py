@@ -25,9 +25,9 @@ import httpx
 from sqlalchemy.orm import Session
 
 from src.database.models import Article, Source, Category
-from utils.logger import get_logger
+import logging
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class IngestionStatus(str, Enum):
@@ -101,9 +101,10 @@ class IngestionService:
     # Default RSS feeds to scrape
     DEFAULT_FEEDS = [
         {
+            # Hacker News' real front-page feed (the old feedburner URL is dead).
             "name": "Hacker News",
-            "url": "https://feeds.feedburner.com/oreilly/radar",
-            "category": "AI",
+            "url": "https://hnrss.org/frontpage",
+            "category": "tech",
         },
         {
             "name": "TechCrunch",
@@ -292,7 +293,15 @@ class IngestionService:
             except Exception as e:
                 logger.debug(f"Failed to parse date: {e}")
         
-        # Create article
+        # Create article.
+        #
+        # NOTE: ``Article.source`` is a *relationship* to the ``Source`` ORM
+        # model (see ``src/database/models.py``), not a plain string column,
+        # so passing ``source=source_name`` (a ``str``) caused SQLAlchemy to
+        # raise ``'str' object has no attribute '_sa_instance_state'`` during
+        # flush, which is why every entry crashed and zero articles were
+        # saved. The proper foreign key is set via ``source_id`` below; the
+        # human-readable name is recovered through ``article.source.name``.
         article = Article(
             title=title[:500],  # Truncate to max length
             url=url[:1000],
@@ -300,11 +309,12 @@ class IngestionService:
             summary=description[:500] if description else None,
             author=author[:200] if author else None,
             published_at=published_at,
-            source_id=self._get_source_id(source_name)
+            source_id=self._get_source_id(source_name),
         )
-        
-        # Add category
-        if category:
+
+        # Add category. Must be a ``Category`` ORM instance — never a string —
+        # for the same ``_sa_instance_state`` reason as above.
+        if category is not None and isinstance(category, Category):
             article.categories.append(category)
         
         # Add to session (will be committed after all entries)
