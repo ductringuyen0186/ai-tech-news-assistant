@@ -42,6 +42,7 @@ _safe_include_router(api_router, "rag", "router")
 _safe_include_router(api_router, "digest", "router")
 _safe_include_router(api_router, "settings", "router")
 _safe_include_router(api_router, "admin", "router")
+_safe_include_router(api_router, "knowledge_graph", "router")
 
 logger.info("API routers initialization complete")
 

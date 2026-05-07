@@ -52,6 +52,9 @@ export const API_ENDPOINTS = {
   // Settings (user preferences persisted server-side)
   settings: "/api/settings/",
 
+  // Knowledge graph (entity-extraction backed graph view)
+  knowledgeGraph: "/api/knowledge-graph/",
+
   // Health check
   health: "/health",
   healthDetailed: "/health/detailed",

@@ -229,6 +229,64 @@ class Embedding(Base):
     )
 
 
+class Entity(Base):
+    """
+    Named entity extracted from articles (companies, people, products,
+    technologies). Used to power the Knowledge Graph view.
+
+    Each unique ``(name)`` is one row; ``mention_count`` is the number of
+    times the entity has been seen across all articles. Together with
+    :class:`EntityMention` this forms a many-to-many between articles and
+    entities.
+
+    Note: the runtime path uses raw sqlite3 (matching ArticleRepository's
+    pattern) — this model is the canonical schema declaration but is not
+    used by the running app for inserts/queries.
+    """
+
+    __tablename__ = 'entities'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(200), unique=True, nullable=False)
+    type: Mapped[str] = mapped_column(String(50), nullable=False)
+    mention_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, nullable=False
+    )
+
+    __table_args__ = (
+        Index('idx_entities_name', 'name'),
+        Index('idx_entities_type', 'type'),
+        Index('idx_entities_mention_count', 'mention_count'),
+    )
+
+
+class EntityMention(Base):
+    """
+    Per-article mention of a named entity. ``(article_id, entity_id)``
+    is unique — re-extraction on the same article should not double-count.
+    """
+
+    __tablename__ = 'entity_mentions'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    article_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey('articles.id', ondelete='CASCADE'), nullable=False
+    )
+    entity_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey('entities.id', ondelete='CASCADE'), nullable=False
+    )
+    position: Mapped[Optional[int]] = mapped_column(Integer)
+
+    __table_args__ = (
+        Index('idx_entity_mentions_article', 'article_id'),
+        Index('idx_entity_mentions_entity', 'entity_id'),
+        UniqueConstraint(
+            'article_id', 'entity_id', name='uq_entity_mentions_article_entity'
+        ),
+    )
+
+
 class Settings(Base):
     """
     Single-row application settings model.

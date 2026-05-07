@@ -2,7 +2,7 @@
 Black-box end-to-end test runner for the AI Tech News Assistant.
 
 Talks to the running backend over HTTP and (optionally) checks the running
-frontend. Reads no application source code — failures here are based purely
+frontend. Reads no application source code ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â failures here are based purely
 on observable behaviour, which is exactly what a real user would experience.
 
 The runner is deliberately tolerant: each test is independent, failures are
@@ -74,7 +74,7 @@ class TestResult:
 
 
 # ---------------------------------------------------------------------- #
-#  Tiny HTTP client (stdlib only — no extra deps for the runner)
+#  Tiny HTTP client (stdlib only ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â no extra deps for the runner)
 # ---------------------------------------------------------------------- #
 
 def http_request(
@@ -455,7 +455,7 @@ class E2ESuite:
         (asserts it is listed), then run live (asserts it is gone).
 
         We talk to sqlite directly because the public API has no "insert
-        article with a custom published_at" affordance — that's the whole
+        article with a custom published_at" affordance ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â that's the whole
         point of retention being internal."""
         def _t():
             import os
@@ -632,6 +632,88 @@ class E2ESuite:
             return True, f"{len(stats)} sources reported", req, resp, None
         return self._run("news_sources_endpoint", "feature", SEVERITY_MEDIUM, _t)
 
+    def test_kg_endpoint(self):
+        """Milestone 6: GET /api/knowledge-graph/?limit=N returns a valid
+        {nodes, edges, total_entities} payload.
+
+        Nodes / edges may be empty on a fresh DB (no extraction has run).
+        The shape must hold either way.
+        """
+        def _t():
+            url = f"{self.backend}/api/knowledge-graph/?limit=10"
+            status, _, body_text = http_request("GET", url, timeout=10.0)
+            data = parse_json(body_text) or {}
+            req = {"method": "GET", "url": url}
+            resp = {"status": status, "body": data if isinstance(data, dict) else None}
+
+            if status != 200:
+                return False, f"GET /api/knowledge-graph/?limit=10 returned {status}: {body_text[:200]}", req, resp, "backend-routes-knowledge-graph"
+            if not isinstance(data, dict):
+                return False, f"response is not a JSON object: {type(data).__name__}", req, resp, "backend-routes-knowledge-graph"
+            if "nodes" not in data:
+                return False, "response missing 'nodes' field", req, resp, "backend-routes-knowledge-graph"
+            if "edges" not in data:
+                return False, "response missing 'edges' field", req, resp, "backend-routes-knowledge-graph"
+            if not isinstance(data["nodes"], list):
+                return False, f"'nodes' is not a list: {type(data['nodes']).__name__}", req, resp, "backend-routes-knowledge-graph"
+            if not isinstance(data["edges"], list):
+                return False, f"'edges' is not a list: {type(data['edges']).__name__}", req, resp, "backend-routes-knowledge-graph"
+            for n in data["nodes"]:
+                if not isinstance(n, dict):
+                    return False, f"node entry not a dict: {n!r}", req, resp, "backend-routes-knowledge-graph"
+                for k in ("id", "name", "type", "mention_count"):
+                    if k not in n:
+                        return False, f"node missing '{k}' field: {n!r}", req, resp, "backend-routes-knowledge-graph"
+            total = data.get("total_entities")
+            if total is not None and (not isinstance(total, int) or total < 0):
+                return False, f"total_entities invalid: {total!r}", req, resp, "backend-routes-knowledge-graph"
+            return True, (
+                f"kg ok ({len(data['nodes'])} nodes, "
+                f"{len(data['edges'])} edges, total={total})"
+            ), req, resp, None
+        return self._run("kg_endpoint", "feature", SEVERITY_HIGH, _t)
+
+    def test_kg_no_mock(self):
+        """Milestone 6: KnowledgeGraph.tsx must not contain a 'mockData'
+        constant or any hardcoded fallback in the production code path.
+        """
+        def _t():
+            import os
+            here = os.path.dirname(os.path.abspath(__file__))
+            repo_root = os.path.abspath(os.path.join(here, "..", "..", "..", ".."))
+            kg_path = os.path.join(
+                repo_root, "frontend", "src", "components", "KnowledgeGraph.tsx"
+            )
+            req = {"file": kg_path, "patterns": ["mockData", "hardcoded"]}
+            resp: Dict[str, Any] = {}
+
+            if not os.path.exists(kg_path):
+                return False, f"KnowledgeGraph.tsx not found at {kg_path}", req, resp, "frontend-knowledge-graph"
+
+            try:
+                with open(kg_path, "r", encoding="utf-8") as f:
+                    text = f.read()
+            except Exception as exc:
+                return False, f"failed to read KnowledgeGraph.tsx: {exc}", req, resp, "frontend-knowledge-graph"
+
+            offenders: List[Dict[str, Any]] = []
+            for lineno, line in enumerate(text.splitlines(), start=1):
+                lower = line.lower()
+                if "mockdata" in lower or "hardcoded" in lower:
+                    offenders.append({"line": lineno, "text": line.strip()[:120]})
+
+            resp["offenders"] = offenders
+            resp["lines_scanned"] = len(text.splitlines())
+
+            if offenders:
+                return False, (
+                    f"found {len(offenders)} mock/hardcoded reference(s) "
+                    f"in KnowledgeGraph.tsx (first: line {offenders[0]['line']}: "
+                    f"{offenders[0]['text']!r})"
+                ), req, resp, "frontend-knowledge-graph"
+            return True, "no mock/hardcoded references found", req, resp, None
+        return self._run("kg_no_mock", "config", SEVERITY_HIGH, _t)
+
     # -------------------------------------------------------------- #
     #  Run order
     # -------------------------------------------------------------- #
@@ -660,6 +742,8 @@ class E2ESuite:
         self.test_semantic_search_endpoint()
         self.test_chat_rag_endpoint()
         self.test_retention_dry_run()
+        self.test_kg_endpoint()
+        self.test_kg_no_mock()
 
         # The actual pipeline
         if not self.skip_pipeline:
