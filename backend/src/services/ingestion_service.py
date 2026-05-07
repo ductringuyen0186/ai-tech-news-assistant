@@ -16,12 +16,14 @@ Features:
 - Progress tracking and status reporting
 """
 
+import json
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from enum import Enum
 
 import feedparser
 import httpx
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from src.database.models import Article, Source, Category
@@ -98,33 +100,42 @@ class IngestionService:
     - Error handling and recovery
     """
     
-    # Default RSS feeds to scrape
+    # Default RSS feeds to scrape.
+    #
+    # Each ``category`` value MUST match one of the chip labels rendered by
+    # the frontend Topic Filter (see ``frontend/src/App.tsx``):
+    #   "AI/ML", "AI Agents", "Robotics", "Biotech", "Military Tech",
+    #   "Hardware", "Cloud", "Security", "Quantum Computing", "Healthcare"
+    # If they don't match, ``categories`` JSON written to the row will never
+    # intersect with the user's selected chips and the filter will return
+    # zero articles. Honesty over precision: each feed gets a single best-
+    # fit chip; downstream NLP can refine per-article tagging later.
     DEFAULT_FEEDS = [
         {
             # Hacker News' real front-page feed (the old feedburner URL is dead).
             "name": "Hacker News",
             "url": "https://hnrss.org/frontpage",
-            "category": "tech",
+            "category": "AI/ML",
         },
         {
             "name": "TechCrunch",
             "url": "https://techcrunch.com/feed/",
-            "category": "startups",
+            "category": "Cloud",
         },
         {
             "name": "Ars Technica",
             "url": "https://feeds.arstechnica.com/arstechnica/index",
-            "category": "technology",
+            "category": "Hardware",
         },
         {
             "name": "The Verge",
             "url": "https://www.theverge.com/rss/index.xml",
-            "category": "technology",
+            "category": "AI/ML",
         },
         {
             "name": "MIT Technology Review",
             "url": "https://www.technologyreview.com/feed/",
-            "category": "AI",
+            "category": "AI/ML",
         },
     ]
     
@@ -316,10 +327,49 @@ class IngestionService:
         # for the same ``_sa_instance_state`` reason as above.
         if category is not None and isinstance(category, Category):
             article.categories.append(category)
-        
+
         # Add to session (will be committed after all entries)
         self.db.add(article)
-        
+
+        # Also write the JSON-encoded ``categories`` TEXT column on the
+        # ``articles`` row. Reason: the live read path used by the frontend
+        # is ``ArticleRepository._row_to_article`` (raw sqlite3 in
+        # ``src/repositories/article_repository.py``), which ``json.loads``-es
+        # the ``categories`` column directly. The M2M ``article_categories``
+        # association table is invisible to that path. Without this write,
+        # every API response has ``categories=null`` and the frontend's Topic
+        # Filter chips never match anything.
+        #
+        # We can't expose this column via ``Article.categories`` on the ORM
+        # because that name is already the M2M relationship; assigning a
+        # string list there would silently target the relationship. We
+        # therefore flush to obtain ``article.id`` and UPDATE the column with
+        # raw SQL through the session's connection.
+        category_name = (
+            category.name if category is not None and hasattr(category, "name") else None
+        )
+        if category_name:
+            try:
+                self.db.flush()
+                self.db.execute(
+                    text(
+                        "UPDATE articles SET categories = :cats, source = :src "
+                        "WHERE id = :id"
+                    ),
+                    {
+                        "cats": json.dumps([category_name]),
+                        "src": source_name,
+                        "id": article.id,
+                    },
+                )
+            except Exception as e:
+                # Don't let a categories-write failure abort the whole entry —
+                # the row will just be returned with categories=NULL, which is
+                # the pre-fix behaviour, not a regression.
+                logger.warning(
+                    f"Failed to set categories JSON for article id={article.id}: {e}"
+                )
+
         self.result.total_articles_saved += 1
         logger.debug(f"Saved article: {title[:80]}...")
     
