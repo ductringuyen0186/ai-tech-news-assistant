@@ -23,10 +23,10 @@ def _safe_include_router(router, module_name, router_name):
         module = __import__(f"src.api.routes.{module_name}", fromlist=[router_name])
         route_router = getattr(module, router_name)
         router.include_router(route_router)
-        logger.info(f"✅ Loaded {module_name} router")
+        logger.info(f"Loaded {module_name} router")
         return True
     except Exception as e:
-        logger.error(f"❌ Failed to load {module_name} router: {e}")
+        logger.error(f"Failed to load {module_name} router: {e}")
         return False
 
 # Load health router (root level, no /api prefix)
@@ -39,7 +39,8 @@ _safe_include_router(api_router, "embeddings", "router")
 _safe_include_router(api_router, "search", "router")
 _safe_include_router(api_router, "ingestion", "router")
 _safe_include_router(api_router, "rag", "router")
-_safe_include_router(api_router, "agents", "router")  # Multi-agent system with LangChain
+_safe_include_router(api_router, "digest", "router")
+_safe_include_router(api_router, "settings", "router")
 
 logger.info("API routers initialization complete")
 

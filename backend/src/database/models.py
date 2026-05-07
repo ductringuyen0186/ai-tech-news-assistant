@@ -229,6 +229,26 @@ class Embedding(Base):
     )
 
 
+class Settings(Base):
+    """
+    Single-row application settings model.
+
+    Stores user-facing UI preferences (selected categories, view mode,
+    trending toggle) on the backend so they persist across browsers /
+    devices. The table holds at most one row, identified by ``id=1``.
+    """
+
+    __tablename__ = 'settings'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    categories: Mapped[Optional[List[str]]] = mapped_column(JSONEncodedDict)
+    view_mode: Mapped[str] = mapped_column(String(20), default='detailed', nullable=False)
+    show_trending_only: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+
 # Utility functions for JSON handling
 def serialize_embedding(vector: List[float]) -> str:
     """Serialize embedding vector to JSON string."""

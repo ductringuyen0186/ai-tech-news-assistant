@@ -139,19 +139,42 @@ export default function App() {
     }
   };
 
-  // Save preferences - Store locally for now
+  // Save preferences — write to the backend (source of truth) and mirror
+  // to localStorage as an offline cache so the next mount has something to
+  // fall back on if the network is down.
   const savePreferences = async () => {
     setIsSavingPreferences(true);
     try {
-      // Save to localStorage
-      localStorage.setItem('techpulse_categories', JSON.stringify(selectedCategories));
-      
-      // Update saved categories state
-      setSavedCategories([...selectedCategories]);
+      const body = {
+        categories: selectedCategories,
+        view_mode: viewMode,
+        show_trending_only: showTrendingOnly,
+      };
+
+      const envelope = await apiFetch<any>(API_ENDPOINTS.settings, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      });
+      const saved = envelope?.data ?? envelope;
+
+      // Mirror the persisted shape into local state + offline cache.
+      const persistedCategories: string[] = Array.isArray(saved?.categories)
+        ? saved.categories
+        : selectedCategories;
+      setSavedCategories([...persistedCategories]);
       setHasUnsavedChanges(false);
 
+      try {
+        localStorage.setItem(
+          'techpulse_categories',
+          JSON.stringify(persistedCategories)
+        );
+      } catch {
+        // Best-effort cache; ignore quota / privacy-mode failures.
+      }
+
       toast.success("Preferences saved successfully!", {
-        description: `Your feed will now show ${selectedCategories.length} selected topic${selectedCategories.length !== 1 ? 's' : ''}.`,
+        description: `Your feed will now show ${persistedCategories.length} selected topic${persistedCategories.length !== 1 ? 's' : ''}.`,
         duration: 3000,
       });
 
@@ -168,35 +191,78 @@ export default function App() {
     }
   };
 
-  // Ask question in chat - Can be connected to summarization API later
+  // Ask question in chat - calls FastAPI RAG endpoint (retrieval + LLM).
   const handleAskQuestion = async (question: string) => {
     try {
-      // Mock response for now
-      return {
-        answer: "This is a placeholder response. Connect to your FastAPI summarization endpoint for real AI responses.",
-        success: true
-      };
+      const envelope = await apiFetch<any>("/api/rag/query", {
+        method: "POST",
+        body: JSON.stringify({ question, top_k: 5, min_score: 0.3 }),
+      });
+      // Backend wraps RAG output in BaseResponse: { success, message, data: { answer, sources, ... } }
+      const data = envelope?.data ?? envelope;
+      const sources = (data.sources || []).map((s: any) => ({
+        id: String(s.id ?? ""),
+        title: s.title ?? "Untitled",
+        summaryShort: s.title ?? "",
+      }));
+      return { answer: data.answer ?? "(no answer returned)", relevantArticles: sources, success: true };
     } catch (error) {
       console.error("Error processing question:", error);
-      throw error;
+      return { answer: "Sorry - the chat backend is unreachable right now.", success: false };
     }
   };
 
-  // Load preferences and articles on mount
+  // Load preferences and articles on mount.
+  //
+  // Source-of-truth order:
+  //   1. Backend GET /api/settings (authoritative — wins on success)
+  //   2. localStorage 'techpulse_categories' cache (offline fallback)
+  //   3. Hard-coded defaults already in component state
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Load from localStorage
-        const saved = localStorage.getItem('techpulse_categories');
-        if (saved) {
-          const cats = JSON.parse(saved);
-          setSelectedCategories(cats);
-          setSavedCategories(cats);
+        const envelope = await apiFetch<any>(API_ENDPOINTS.settings);
+        const data = envelope?.data ?? envelope;
+        if (data && typeof data === 'object') {
+          if (Array.isArray(data.categories)) {
+            setSelectedCategories(data.categories);
+            setSavedCategories(data.categories);
+            // Refresh the offline cache with the authoritative value.
+            try {
+              localStorage.setItem(
+                'techpulse_categories',
+                JSON.stringify(data.categories)
+              );
+            } catch {
+              // Ignore cache write failures.
+            }
+          }
+          if (data.view_mode === 'compact' || data.view_mode === 'detailed') {
+            setViewMode(data.view_mode);
+          }
+          if (typeof data.show_trending_only === 'boolean') {
+            setShowTrendingOnly(data.show_trending_only);
+          }
         }
-      } catch (error) {
-        console.error("Error loading preferences:", error);
+      } catch (backendError) {
+        console.warn(
+          'Backend settings unreachable; falling back to localStorage cache',
+          backendError
+        );
+        try {
+          const saved = localStorage.getItem('techpulse_categories');
+          if (saved) {
+            const cats = JSON.parse(saved);
+            if (Array.isArray(cats)) {
+              setSelectedCategories(cats);
+              setSavedCategories(cats);
+            }
+          }
+        } catch (cacheError) {
+          console.error('Error loading preferences from cache:', cacheError);
+        }
       }
-      
+
       fetchArticles();
       fetchDigest();
     };
@@ -419,16 +485,4 @@ export default function App() {
               <div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center shadow-md">
                 <Newspaper className="w-4 h-4 text-white" />
               </div>
-              <span className="text-sm text-gray-700">
-                TechPulse AI - Your personalized tech news hub
-              </span>
-            </div>
-            <p className="text-sm text-gray-500">
-              Aggregating from TechCrunch, The Verge, Wired, Ars Technica & more
-            </p>
-          </div>
-        </div>
-      </footer>
-    </div>
-  );
-}
+              <span className="text-sm text-gray-7
