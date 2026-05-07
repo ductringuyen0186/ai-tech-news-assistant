@@ -117,12 +117,17 @@ def parse_json(text: str) -> Optional[Any]:
 
 class E2ESuite:
     def __init__(self, backend: str, frontend: Optional[str], ollama: str,
-                 skip_pipeline: bool, skip_frontend: bool):
+                 skip_pipeline: bool, skip_frontend: bool,
+                 include_live_ingest: bool = False):
         self.backend = backend.rstrip("/")
         self.frontend = frontend.rstrip("/") if frontend else None
         self.ollama = ollama.rstrip("/")
         self.skip_pipeline = skip_pipeline
         self.skip_frontend = skip_frontend
+        # live_ingest_smoke is opt-in: it hits real RSS feeds and takes
+        # 1-5 minutes. Off by default so the standard run stays fast
+        # even when --skip-pipeline is not passed.
+        self.include_live_ingest = include_live_ingest
         self.results: List[TestResult] = []
 
     # -------------------------------------------------------------- #
@@ -548,6 +553,68 @@ class E2ESuite:
                     pass
         return self._run("retention_dry_run", "feature", SEVERITY_HIGH, _t)
 
+    def test_live_ingest_smoke(self):
+        """Milestone 5: real ingest round-trip.
+
+        Hits live RSS feeds via POST /api/ingest/ (foreground,
+        auto_summarize=false to keep the test reasonably fast), waits
+        for completion, and asserts that total_articles strictly
+        increased OR the ingest reported zero new articles (which is
+        valid on a clean run if every feed item already exists).
+
+        Marked opt-in via --include-live-ingest because:
+          * it hits the real internet,
+          * it takes 30s-5min depending on CPU,
+          * it mutates the DB.
+        """
+        def _t():
+            stats_url = f"{self.backend}/api/news/stats"
+            ingest_url = f"{self.backend}/api/ingest/"
+            status_url = f"{self.backend}/api/ingest/status"
+
+            _, _, before_body = http_request("GET", stats_url, timeout=10.0)
+            before = (parse_json(before_body) or {}).get("data", {})
+            before_total = before.get("total_articles", 0)
+
+            body = {"background": False, "auto_summarize": False}
+            req = {"method": "POST", "url": ingest_url, "body": body}
+
+            # Foreground call -- blocks until ingest finishes. Long
+            # timeout because slow CPUs + RSS latency add up.
+            status, _, ingest_body = http_request(
+                "POST", ingest_url, body=body, timeout=600.0
+            )
+            ingest_data = parse_json(ingest_body) or {}
+            resp: Dict[str, Any] = {
+                "status": status,
+                "ingest_body": ingest_data,
+            }
+            if status != 200:
+                return False, f"POST /api/ingest/ returned {status}", req, resp, "backend-routes-ingest"
+
+            # Even though the foreground call already completed, hit
+            # /status once for parity with a future async path.
+            poll_status, _, poll_body = http_request("GET", status_url, timeout=10.0)
+            resp["poll_status"] = poll_status
+            resp["poll_body"] = parse_json(poll_body)
+
+            _, _, after_body = http_request("GET", stats_url, timeout=10.0)
+            after = (parse_json(after_body) or {}).get("data", {})
+            after_total = after.get("total_articles", 0)
+            resp["before"] = {"total_articles": before_total}
+            resp["after"] = {"total_articles": after_total}
+
+            if after_total < before_total:
+                return False, (
+                    f"total_articles went DOWN: {before_total} -> {after_total}"
+                ), req, resp, "backend-orchestrator"
+
+            return True, (
+                f"live ingest ok: total {before_total} -> {after_total} "
+                f"(delta={after_total - before_total})"
+            ), req, resp, None
+        return self._run("live_ingest_smoke", "pipeline", SEVERITY_HIGH, _t)
+
     def test_news_sources_endpoint(self):
         """Filter / Topic tab: GET /api/news/sources should list configured sources."""
         def _t():
@@ -598,6 +665,10 @@ class E2ESuite:
         if not self.skip_pipeline:
             self.test_pipeline_summarize_pending()
 
+        # Live ingest smoke (Milestone 5) -- opt-in, slow.
+        if self.include_live_ingest:
+            self.test_live_ingest_smoke()
+
         # Frontend (if running)
         if not self.skip_frontend and self.frontend:
             self.test_frontend_reachable()
@@ -645,6 +716,10 @@ def main() -> int:
     p.add_argument("--ollama-host", default="http://127.0.0.1:11434", dest="ollama")
     p.add_argument("--skip-pipeline", action="store_true",
                    help="Don't run the orchestrator round-trip test")
+    p.add_argument("--include-live-ingest", action="store_true",
+                   dest="include_live_ingest",
+                   help="Include the live RSS ingest round-trip test "
+                        "(slow; off by default).")
     p.add_argument("--skip-frontend", action="store_true",
                    help="Skip the frontend reachability test")
     p.add_argument("--json", action="store_true",
@@ -656,6 +731,7 @@ def main() -> int:
     suite = E2ESuite(
         backend=args.backend, frontend=args.frontend, ollama=args.ollama,
         skip_pipeline=args.skip_pipeline, skip_frontend=args.skip_frontend,
+        include_live_ingest=args.include_live_ingest,
     )
     results = suite.run_all()
     payload = {
