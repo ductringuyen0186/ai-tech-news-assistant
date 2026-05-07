@@ -485,4 +485,16 @@ export default function App() {
               <div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center shadow-md">
                 <Newspaper className="w-4 h-4 text-white" />
               </div>
-              <span className="text-sm text-gray-7
+              <span className="text-sm text-gray-700">
+                TechPulse AI - Your personalized tech news hub
+              </span>
+            </div>
+            <p className="text-sm text-gray-500">
+              Aggregating from TechCrunch, The Verge, Wired, Ars Technica & more
+            </p>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
