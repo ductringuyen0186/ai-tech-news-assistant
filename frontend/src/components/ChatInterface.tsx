@@ -4,7 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { ScrollArea } from "./ui/scroll-area";
 
 interface Message {
   id: string;
@@ -86,13 +85,19 @@ export function ChatInterface({ onAskQuestion }: ChatInterfaceProps) {
         </div>
       </CardHeader>
 
-      <CardContent className="flex-1 flex flex-col p-0">
-        <ScrollArea className="flex-1 p-4">
+      <CardContent
+        className="flex-1 flex flex-col p-0 overflow-hidden"
+        style={{ minHeight: 0, height: "100%" }}
+      >
+        <div
+          className="flex-1 p-4"
+          style={{ minHeight: 0, height: 0, overflowY: "auto" }}
+        >
           <div className="space-y-4">
             {messages.map((message) => (
               <div
                 key={message.id}
-                className={`flex gap-3 ${
+                className={`flex gap-3 min-w-0 ${
                   message.role === "user" ? "justify-end" : "justify-start"
                 }`}
               >
@@ -101,15 +106,16 @@ export function ChatInterface({ onAskQuestion }: ChatInterfaceProps) {
                     <Bot className="w-4 h-4 text-white" />
                   </div>
                 )}
-                
+
                 <div
-                  className={`max-w-[80%] rounded-lg p-3 ${
+                  className={`max-w-[80%] min-w-0 rounded-lg p-3 break-words ${
                     message.role === "user"
                       ? "bg-blue-600 text-white"
                       : "bg-gray-100 text-gray-900"
                   }`}
+                  style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
                 >
-                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                  <p className="text-sm whitespace-pre-wrap break-words" style={{ overflowWrap: "anywhere" }}>{message.content}</p>
                   
                   {message.relevantArticles && message.relevantArticles.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-gray-300 space-y-2">
@@ -148,7 +154,7 @@ export function ChatInterface({ onAskQuestion }: ChatInterfaceProps) {
               </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
 
         <div className="border-t p-4">
           <form onSubmit={handleSubmit} className="flex gap-2">

@@ -26,6 +26,7 @@ export default function App() {
   const [isSavingPreferences, setIsSavingPreferences] = useState(false);
   const [savedCategories, setSavedCategories] = useState<string[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [totalArticleCount, setTotalArticleCount] = useState<number>(0);
 
   // Fetch articles
   const fetchArticles = async () => {
@@ -79,63 +80,32 @@ export default function App() {
     }
   };
 
-  // Fetch digest - Create mock data for now (can be implemented later)
+  // Fetch stats - powers the "Articles Today" / total-count badge in the header.
+  // Backend wraps ArticleStats in BaseResponse: { success, message, data: { total_articles, recent_articles, ... } }
+  // We prefer recent_articles (last-24h) when populated, else fall back to total_articles
+  // so the header shows a meaningful number instead of 0.
+  const fetchStats = async () => {
+    try {
+      const envelope = await apiFetch<any>(API_ENDPOINTS.newsStats);
+      const data = envelope?.data ?? envelope;
+      const recent = Number(data?.recent_articles ?? 0);
+      const total = Number(data?.total_articles ?? 0);
+      setTotalArticleCount(recent > 0 ? recent : total);
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+    }
+  };
+
+  // Fetch digest - calls the real /api/digest/ endpoint which builds
+  // top stories, category breakdown, and trending topics from the DB.
   const fetchDigest = async () => {
     try {
-      // Mock digest data matching DigestView expected structure
-      setDigest({
-        date: new Date().toISOString(),
-        topStories: [
-          {
-            id: "digest-1",
-            title: "AI Breakthrough in Natural Language Understanding",
-            source: "TechCrunch",
-            summaryShort: "Researchers achieve significant improvements in LLM reasoning capabilities, bringing AI closer to human-level understanding.",
-            category: ["AI", "Machine Learning"]
-          },
-          {
-            id: "digest-2",
-            title: "New Security Vulnerability Affects Major Cloud Providers",
-            source: "SecurityWeek",
-            summaryShort: "Critical security flaw discovered in major cloud infrastructure, prompting immediate patches across the industry.",
-            category: ["Security", "Cloud"]
-          },
-          {
-            id: "digest-3",
-            title: "Quantum Computing Makes Significant Progress",
-            source: "Nature",
-            summaryShort: "Scientists demonstrate quantum advantage in practical applications, marking a milestone in quantum computing development.",
-            category: ["Quantum", "Hardware"]
-          }
-        ],
-        categoryBreakdown: {
-          "AI": 15,
-          "Machine Learning": 12,
-          "Security": 8,
-          "Cloud": 6,
-          "Quantum": 4,
-          "Hardware": 5
-        },
-        trendingTopics: [
-          {
-            id: "trend-1",
-            title: "Large Language Models",
-            category: ["AI", "Machine Learning"]
-          },
-          {
-            id: "trend-2",
-            title: "Zero-Day Exploits",
-            category: ["Security"]
-          },
-          {
-            id: "trend-3",
-            title: "Quantum Supremacy",
-            category: ["Quantum"]
-          }
-        ]
-      });
+      const data = await apiFetch<any>(API_ENDPOINTS.digest);
+      // Endpoint returns the DigestView-shaped payload directly (no envelope).
+      setDigest(data);
     } catch (error) {
       console.error("Error fetching digest:", error);
+      toast.error("Failed to fetch digest. Please try again.");
     }
   };
 
@@ -200,11 +170,21 @@ export default function App() {
       });
       // Backend wraps RAG output in BaseResponse: { success, message, data: { answer, sources, ... } }
       const data = envelope?.data ?? envelope;
-      const sources = (data.sources || []).map((s: any) => ({
+      const rawSources = (data.sources || []).map((s: any) => ({
         id: String(s.id ?? ""),
+        url: s.url ?? "",
         title: s.title ?? "Untitled",
         summaryShort: s.title ?? "",
       }));
+      // Dedup by id (fallback to url) so repeated retrieval hits on the same
+      // article render only once in the "Related articles" section.
+      const seen = new Set<string>();
+      const sources = rawSources.filter((s: any) => {
+        const key = s.id || s.url;
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
       return { answer: data.answer ?? "(no answer returned)", relevantArticles: sources, success: true };
     } catch (error) {
       console.error("Error processing question:", error);
@@ -265,6 +245,7 @@ export default function App() {
 
       fetchArticles();
       fetchDigest();
+      fetchStats();
     };
 
     loadData();
@@ -302,7 +283,7 @@ export default function App() {
                 {articles.filter((a) => a.trending).length} Trending
               </Badge>
               <Badge variant="outline" className="gap-1 border-blue-200 bg-blue-50 text-blue-700">
-                {articles.length} Articles Today
+                {totalArticleCount || articles.length} Articles Today
               </Badge>
             </div>
           </div>

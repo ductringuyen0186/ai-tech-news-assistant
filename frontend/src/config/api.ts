@@ -55,6 +55,9 @@ export const API_ENDPOINTS = {
   // Knowledge graph (entity-extraction backed graph view)
   knowledgeGraph: "/api/knowledge-graph/",
 
+  // Daily digest (top stories + breakdown + trending built from DB)
+  digest: "/api/digest/",
+
   // Health check
   health: "/health",
   healthDetailed: "/health/detailed",
