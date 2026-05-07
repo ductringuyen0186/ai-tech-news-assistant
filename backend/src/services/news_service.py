@@ -10,7 +10,6 @@ import asyncio
 import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
-import xml.etree.ElementTree as ET
 
 import httpx
 import feedparser
@@ -264,131 +263,6 @@ class NewsService:
         except Exception as e:
             logger.warning(f"Failed to parse feed entry: {e}")
             return None
-    
-    async def _parse_rss_content(self, xml_content: str, source_url: str) -> List[ArticleCreate]:
-        """
-        Parse RSS XML content and extract articles.
-        
-        Args:
-            xml_content: Raw XML content from RSS feed
-            source_url: URL of the RSS feed source
-            
-        Returns:
-            List of parsed articles
-        """
-        try:
-            root = ET.fromstring(xml_content)
-            articles = []
-            
-            # Handle both RSS and Atom feeds
-            items = root.findall('.//item') or root.findall('.//{http://www.w3.org/2005/Atom}entry')
-            
-            for item in items:
-                try:
-                    article = await self._parse_rss_item(item, source_url)
-                    if article:
-                        articles.append(article)
-                except Exception as e:
-                    logger.warning(f"Failed to parse RSS item: {e}")
-                    continue
-            
-            logger.debug(f"Parsed {len(articles)} articles from {source_url}")
-            return articles
-            
-        except ET.ParseError as e:
-            logger.error(f"Failed to parse RSS XML from {source_url}: {e}")
-            return []
-    
-    async def _parse_rss_item(self, item: ET.Element, source_url: str) -> Optional[ArticleCreate]:
-        """
-        Parse a single RSS item into an Article.
-        
-        Args:
-            item: XML element representing RSS item
-            source_url: URL of the RSS feed source
-            
-        Returns:
-            Parsed article or None if parsing fails
-        """
-        try:
-            # Extract basic fields (handle both RSS and Atom)
-            title = self._get_element_text(item, ['title', '{http://www.w3.org/2005/Atom}title'])
-            link = self._get_element_text(item, ['link', 'guid', '{http://www.w3.org/2005/Atom}id'])
-            description = self._get_element_text(item, [
-                'description', 
-                'summary',
-                '{http://www.w3.org/2005/Atom}summary',
-                '{http://www.w3.org/2005/Atom}content'
-            ])
-            
-            # Parse publication date
-            pub_date_str = self._get_element_text(item, [
-                'pubDate', 
-                'published',
-                '{http://www.w3.org/2005/Atom}published'
-            ])
-            
-            if not title or not link:
-                return None
-            
-            # Clean and process content
-            title = self._clean_text(title)
-            description = self._clean_html(description) if description else ""
-            
-            # Parse publication date
-            published_at = self._parse_date(pub_date_str)
-            
-            # Extract additional metadata
-            author = self._get_element_text(item, [
-                'author', 
-                'dc:creator',
-                '{http://www.w3.org/2005/Atom}author/{http://www.w3.org/2005/Atom}name'
-            ])
-            
-            categories = self._extract_categories(item)
-            
-            return ArticleCreate(
-                title=title,
-                url=link,
-                content=description,
-                author=author,
-                published_at=published_at,
-                source=self._extract_domain(source_url),
-                categories=categories,
-                metadata={
-                    "rss_source": source_url,
-                    "content_type": "rss"
-                }
-            )
-            
-        except Exception as e:
-            logger.warning(f"Failed to parse RSS item: {e}")
-            return None
-    
-    def _get_element_text(self, parent: ET.Element, tag_names: List[str]) -> Optional[str]:
-        """Get text from the first matching element."""
-        for tag in tag_names:
-            element = parent.find(tag)
-            if element is not None and element.text:
-                return element.text.strip()
-        return None
-    
-    def _extract_categories(self, item: ET.Element) -> List[str]:
-        """Extract categories/tags from RSS item."""
-        categories = []
-        
-        # Look for category elements
-        for cat_elem in item.findall('category'):
-            if cat_elem.text:
-                categories.append(cat_elem.text.strip())
-        
-        # Look for Atom categories
-        for cat_elem in item.findall('{http://www.w3.org/2005/Atom}category'):
-            term = cat_elem.get('term')
-            if term:
-                categories.append(term.strip())
-        
-        return list(set(categories))  # Remove duplicates
     
     def _clean_text(self, text: str) -> str:
         """Clean and normalize text content."""
