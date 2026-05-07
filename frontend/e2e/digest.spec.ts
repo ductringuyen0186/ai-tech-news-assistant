@@ -1,4 +1,10 @@
 import { test, expect } from "@playwright/test";
+import {
+  assertNoHtmlEntities,
+  assertNoMojibake,
+  assertNoUndefinedNullObjectObject,
+  assertNoMockDataLeak,
+} from "./_lib/rubric";
 
 /**
  * Digest tab - asserts the digest is wired to the real /api/digest endpoint
@@ -67,5 +73,89 @@ test.describe("Digest tab", () => {
     } else {
       await expect(trendingItems.first()).toBeVisible();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rubric — categories 1, 3, 7 applied to the Digest tab.
+// ---------------------------------------------------------------------------
+
+test.describe("rubric — Digest", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: /TechPulse AI/i })).toBeVisible();
+    await page.getByRole("tab", { name: /Digest/i }).click();
+    await expect(page.getByText(/Daily Tech Digest/i)).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator(".animate-spin").first()).toBeHidden({ timeout: 20_000 });
+  });
+
+  test("category 1 — digest text has no HTML entities, mojibake, or stringified placeholders", async ({
+    page,
+  }) => {
+    const scope = '[data-state="active"][role="tabpanel"]';
+    await assertNoHtmlEntities(page, scope);
+    await assertNoMojibake(page, scope);
+    await assertNoUndefinedNullObjectObject(page, scope);
+  });
+
+  test("category 3 — top-story chip rows have unique chip values (source not duplicated as category)", async ({
+    page,
+  }) => {
+    // Each top story is a `.border-l-4` block; chips inside it are
+    // descendants matching `[data-slot="badge"]`. We collect chip text
+    // PER STORY and assert no story has the same string twice.
+    const stories = page.locator(".border-l-4");
+    const storyCount = await stories.count();
+    expect(storyCount, "Digest needs at least one top story").toBeGreaterThan(0);
+
+    for (let i = 0; i < storyCount; i++) {
+      const chipsInStory = await stories
+        .nth(i)
+        .locator('[data-slot="badge"]')
+        .evaluateAll((els) =>
+          (els as HTMLElement[]).map((e) => (e.innerText || "").trim())
+        );
+      const filtered = chipsInStory.filter((t) => t.length > 0);
+      const dupes = filtered.filter(
+        (t, idx) => filtered.indexOf(t) !== idx
+      );
+      expect(
+        dupes,
+        `Top story #${i} renders the same chip text twice — the source name was probably ` +
+          `also injected into the category list. Chips: ${JSON.stringify(filtered)}`
+      ).toHaveLength(0);
+    }
+  });
+
+  test("category 3 — trending topics chips have unique labels", async ({ page }) => {
+    const trending = page.locator(".bg-orange-50.rounded-lg");
+    const count = await trending.count();
+    if (count === 0) {
+      test.skip(true, "No trending topics rendered — covered by the existing 'Top Stories' test");
+    }
+
+    // Across ALL trending topic cards, the visible card text (which is
+    // basically the topic title) should be unique. We collect the FIRST <p>
+    // per card to avoid pulling chip badges into the comparison.
+    const titles = await trending.evaluateAll((els) =>
+      (els as HTMLElement[]).map((el) => {
+        const p = el.querySelector("p");
+        return p ? (p.innerText || "").trim() : "";
+      })
+    );
+    const filtered = titles.filter((t) => t.length > 0);
+    const seen = new Map<string, number>();
+    for (const t of filtered) seen.set(t, (seen.get(t) ?? 0) + 1);
+    const dupes = Array.from(seen.entries()).filter(([, n]) => n > 1);
+    expect(
+      dupes,
+      `Trending topics list has duplicate titles: ${JSON.stringify(dupes)}`
+    ).toHaveLength(0);
+  });
+
+  test("category 7 — digest renders no mock/seed/example/epoch data", async ({
+    page,
+  }) => {
+    await assertNoMockDataLeak(page, '[data-state="active"][role="tabpanel"]');
   });
 });

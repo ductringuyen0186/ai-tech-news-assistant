@@ -97,3 +97,136 @@ test.describe("Settings tab", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Rubric — category 5 (state persistence) applied to Settings.
+//
+// The strongest persistence test: open a SECOND browser context with no
+// shared cookies/localStorage and verify the toggle is still set. If the
+// app stored the value only in localStorage, the second context would
+// see the default instead, and this test would fail.
+// ---------------------------------------------------------------------------
+
+const FRESH_CONTEXT_TARGET = "Hardware";
+
+test.describe("rubric — Settings persistence (category 5)", () => {
+  test("category 5 — saved category survives a fresh browser context (server-side, not localStorage)", async ({
+    browser,
+    request,
+  }) => {
+    test.setTimeout(60_000);
+
+    const backendBase = process.env.BACKEND_URL || "http://127.0.0.1:8000";
+
+    // Capture initial settings so we can restore them after the test, and
+    // seed a baseline that GUARANTEES Hardware is NOT selected. Starting
+    // from a known state lets us prove "click → check → save" works
+    // regardless of what previous tests left behind.
+    const initialSettings = await (async () => {
+      try {
+        const r = await request.get(`${backendBase}/api/settings`);
+        if (!r.ok()) return null;
+        const env = await r.json();
+        return env?.data ?? env;
+      } catch {
+        return null;
+      }
+    })();
+
+    await request.put(`${backendBase}/api/settings`, {
+      data: {
+        // Seed a non-empty baseline that does NOT include Hardware so the
+        // test can flip it to checked and the Save button is reachable.
+        categories: ["AI/ML"],
+        view_mode: "detailed",
+        show_trending_only: false,
+      },
+    });
+
+    try {
+      // ---- Stage 1: in context A, check Hardware and save --------------
+      const ctxA = await browser.newContext();
+      const pageA = await ctxA.newPage();
+      await pageA.goto("/");
+      await expect(pageA.getByRole("heading", { name: /TechPulse AI/i })).toBeVisible();
+      await pageA.getByRole("tab", { name: /Settings/i }).click();
+      await expect(pageA.getByText(/Topic Preferences/i)).toBeVisible({
+        timeout: 10_000,
+      });
+
+      const rowA = pageA.locator("label").filter({ hasText: FRESH_CONTEXT_TARGET });
+      await expect(rowA).toBeVisible({ timeout: 10_000 });
+      const checkboxA = rowA.locator('button[role="checkbox"]');
+
+      // We seeded Hardware as NOT selected. Confirm and then check it.
+      await expect(checkboxA).toHaveAttribute("aria-checked", "false");
+      await checkboxA.click();
+      await expect(checkboxA).toHaveAttribute("aria-checked", "true");
+
+      await pageA.getByRole("button", { name: /Save Preferences/i }).click();
+      await expect(pageA.getByText(/Preferences saved successfully/i)).toBeVisible({
+        timeout: 15_000,
+      });
+      const endStateInA = "true";
+
+      await ctxA.close();
+
+      // ---- Stage 2: in context B (fresh storage), reload and verify ----
+      const ctxB = await browser.newContext();
+      const pageB = await ctxB.newPage();
+
+      // Sanity check: localStorage should be empty in this context. If the
+      // app is reading from localStorage, the toggle will revert to the
+      // default — which is what category 5 requires us to detect.
+      const lsLength = await pageB.evaluate(() => {
+        try {
+          return window.localStorage.length;
+        } catch {
+          return -1;
+        }
+      });
+      expect(
+        lsLength,
+        "Fresh browser context unexpectedly has localStorage entries — test setup wrong"
+      ).toBeLessThanOrEqual(0);
+
+      await pageB.goto("/");
+      await expect(pageB.getByRole("heading", { name: /TechPulse AI/i })).toBeVisible();
+      await pageB.getByRole("tab", { name: /Settings/i }).click();
+      await expect(pageB.getByText(/Topic Preferences/i)).toBeVisible({
+        timeout: 10_000,
+      });
+
+      const rowB = pageB.locator("label").filter({ hasText: FRESH_CONTEXT_TARGET });
+      await expect(rowB).toBeVisible({ timeout: 10_000 });
+      const checkboxB = rowB.locator('button[role="checkbox"]');
+      const stateInB = await checkboxB.getAttribute("aria-checked");
+
+      expect(
+        stateInB,
+        `${FRESH_CONTEXT_TARGET} state did NOT persist across a fresh browser context. ` +
+          `Saved "${endStateInA}" in context A, but context B (no cookies, no localStorage) ` +
+          `sees "${stateInB}". This means the value lives in localStorage, not on the server — ` +
+          `category 5 violation.`
+      ).toBe(endStateInA);
+
+      await ctxB.close();
+    } finally {
+      // Restore the original settings so the next test run sees the same
+      // initial state the user expected. Best-effort.
+      if (initialSettings && Array.isArray(initialSettings.categories)) {
+        try {
+          await request.put(`${backendBase}/api/settings`, {
+            data: {
+              categories: initialSettings.categories,
+              view_mode: initialSettings.view_mode || "detailed",
+              show_trending_only: !!initialSettings.show_trending_only,
+            },
+          });
+        } catch {
+          // ignore
+        }
+      }
+    }
+  });
+});
