@@ -131,8 +131,8 @@ export function NewsCard({ article, viewMode }: NewsCardProps) {
                   {timeAgo(article.publishedAt)}
                 </span>
               </div>
-              <CardTitle className="text-lg leading-snug mb-2">{article.title}</CardTitle>
-              <CardDescription>{article.summaryShort}</CardDescription>
+              <CardTitle style={{ overflowWrap: "anywhere", wordBreak: "break-word" }} className="text-lg leading-snug mb-2">{article.title}</CardTitle>
+              <CardDescription style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>{article.summaryShort}</CardDescription>
             </div>
             <ImageWithFallback
               src={article.imageUrl}
@@ -226,8 +226,8 @@ export function NewsCard({ article, viewMode }: NewsCardProps) {
             {timeAgo(article.publishedAt)}
           </span>
         </div>
-        <CardTitle className="text-xl leading-snug">{article.title}</CardTitle>
-        <CardDescription className="mt-2">{article.summaryShort}</CardDescription>
+        <CardTitle style={{ overflowWrap: "anywhere", wordBreak: "break-word" }} className="text-xl leading-snug">{article.title}</CardTitle>
+        <CardDescription style={{ overflowWrap: "anywhere", wordBreak: "break-word" }} className="mt-2">{article.summaryShort}</CardDescription>
       </CardHeader>
       <CardContent>
         {expanded ? (
