@@ -15,7 +15,7 @@ import time
 from src.core.config import get_settings
 from src.core.logging import setup_logging, get_logger
 from src.core.middleware import (
-    ErrorHandlingMiddleware, 
+    ErrorHandlingMiddleware,
     HealthCheckMiddleware,
     create_custom_error_handlers
 )
@@ -31,14 +31,35 @@ settings = get_settings()
 # Global health check middleware instance for metrics
 health_middleware = None
 
+# Global APScheduler instance (Milestone 3 retention cron). None when
+# retention is disabled or we're running under ENVIRONMENT=test/testing.
+_scheduler = None
+
+
+def _should_start_scheduler() -> bool:
+    """Decide whether to start the retention cron at app startup.
+
+    Skipped when ``RETENTION_ENABLED=false`` or when the app is running
+    in a test environment (the E2E suite triggers retention via the
+    admin route in dry-run mode and must not race a background job).
+    """
+    if not getattr(settings, "retention_enabled", True):
+        return False
+    env = str(getattr(settings, "environment", "")).lower()
+    if env in ("test", "testing"):
+        return False
+    return True
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
     Application lifespan events.
-    
+
     Handles startup and shutdown tasks for the application.
     """
+    global _scheduler
+
     # Startup
     logger.info(
         "Starting AI Tech News Assistant API",
@@ -48,7 +69,7 @@ async def lifespan(app: FastAPI):
             "version": app.version
         }
     )
-    
+
     # Log important configuration
     logger.info(
         "Application configuration loaded",
@@ -60,19 +81,55 @@ async def lifespan(app: FastAPI):
             "metrics_enabled": settings.enable_metrics
         }
     )
-    
-    # Initialize services (if needed)
-    # This is where you could initialize shared resources like:
-    # - Database connections
-    # - External service clients
-    # - Cache instances
-    # - Background tasks
-    
+
+    # Retention cron (Milestone 3). Daily at 00:00 UTC. The job itself is
+    # defined in src.services.retention_service.run_retention_job.
+    if _should_start_scheduler():
+        try:
+            from apscheduler.schedulers.asyncio import AsyncIOScheduler
+            from apscheduler.triggers.cron import CronTrigger
+            from src.services.retention_service import run_retention_job
+
+            _scheduler = AsyncIOScheduler(timezone="UTC")
+            _scheduler.add_job(
+                run_retention_job,
+                trigger=CronTrigger(hour=0, minute=0, timezone="UTC"),
+                id="retention_daily",
+                name="Daily article retention sweep",
+                replace_existing=True,
+                misfire_grace_time=3600,
+            )
+            _scheduler.start()
+            logger.info(
+                "Retention scheduler started (days=%d, max=%d, daily 00:00 UTC)",
+                settings.retention_days,
+                settings.retention_max_deletes,
+            )
+        except Exception as exc:  # noqa: BLE001
+            # APScheduler missing or scheduler init failed — log and keep
+            # serving requests. Manual route still works.
+            logger.error(
+                "Failed to start retention scheduler: %s. Manual route still available.",
+                exc,
+            )
+            _scheduler = None
+    else:
+        logger.info(
+            "Retention scheduler disabled (enabled=%s, environment=%s)",
+            getattr(settings, "retention_enabled", True),
+            settings.environment,
+        )
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down AI Tech News Assistant API")
-    # Cleanup resources here
+    if _scheduler is not None:
+        try:
+            _scheduler.shutdown(wait=False)
+            logger.info("Retention scheduler stopped")
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Error shutting down scheduler: %s", exc)
 
 
 # Create FastAPI application with enhanced configuration
@@ -142,7 +199,7 @@ async def startup_event():
     )
 
 
-@app.on_event("shutdown") 
+@app.on_event("shutdown")
 async def shutdown_event():
     """Log shutdown event."""
     logger.info(
@@ -155,7 +212,7 @@ async def shutdown_event():
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     # Enhanced uvicorn configuration
     uvicorn_config = {
         "app": "src.main:app",
@@ -167,7 +224,7 @@ if __name__ == "__main__":
         "server_header": False,  # Don't expose server details
         "date_header": False     # Don't add date header
     }
-    
+
     logger.info(
         "Starting uvicorn server",
         extra={
@@ -177,6 +234,6 @@ if __name__ == "__main__":
             "log_level": settings.log_level
         }
     )
-    
+
     # Run the application
     uvicorn.run(**uvicorn_config)

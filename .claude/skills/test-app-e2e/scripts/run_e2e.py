@@ -445,6 +445,109 @@ class E2ESuite:
             ), req, resp, None
         return self._run("settings_persistence", "feature", SEVERITY_HIGH, _t)
 
+    def test_retention_dry_run(self):
+        """Milestone 3: insert a back-dated article, run retention dry-run
+        (asserts it is listed), then run live (asserts it is gone).
+
+        We talk to sqlite directly because the public API has no "insert
+        article with a custom published_at" affordance — that's the whole
+        point of retention being internal."""
+        def _t():
+            import os
+            import sqlite3
+
+            # Resolve the same db path the backend uses. The backend's
+            # cwd is backend/, and DATABASE_URL=sqlite:///./news.db so the
+            # absolute path is backend/news.db relative to repo root.
+            here = os.path.dirname(os.path.abspath(__file__))
+            repo_root = os.path.abspath(os.path.join(here, "..", "..", "..", ".."))
+            db_path = os.path.join(repo_root, "backend", "news.db")
+            req: Dict[str, Any] = {"db_path": db_path}
+            resp: Dict[str, Any] = {}
+
+            if not os.path.exists(db_path):
+                return False, f"backend DB not found at {db_path}", req, resp, "backend-startup"
+
+            test_url = "https://test.local/retention-e2e-marker"
+            inserted_id: Optional[int] = None
+
+            try:
+                con = sqlite3.connect(db_path)
+                # Make sure no leftover row from a previous run skews us.
+                con.execute("DELETE FROM articles WHERE url = ?", (test_url,))
+                con.execute(
+                    "INSERT INTO articles (title, url, source, published_at, content) "
+                    "VALUES (?, ?, ?, datetime('now', '-31 days'), ?)",
+                    ("retention-e2e", test_url, "e2e-test", "old test content"),
+                )
+                con.commit()
+                inserted_id = con.execute(
+                    "SELECT id FROM articles WHERE url = ?", (test_url,)
+                ).fetchone()[0]
+                con.close()
+                req["inserted_id"] = inserted_id
+            except Exception as exc:  # noqa: BLE001
+                return False, f"failed to seed back-dated article: {exc}", req, resp, "backend-routes-admin"
+
+            try:
+                # Dry-run: should list the inserted ID
+                dry_url = f"{self.backend}/api/admin/retention/run?dry_run=true"
+                status, _, body = http_request("POST", dry_url, timeout=15.0)
+                data = parse_json(body) or {}
+                resp["dry_run"] = {"status": status, "body": data}
+                if status != 200:
+                    return False, f"POST /api/admin/retention/run?dry_run=true returned {status}: {body[:200]}", req, resp, "backend-routes-admin"
+                inner = data.get("data", data)
+                if not inner.get("dry_run"):
+                    return False, "dry-run response did not flag dry_run=true", req, resp, "backend-routes-admin"
+                would = inner.get("would_delete") or []
+                if inserted_id not in would:
+                    return False, (
+                        f"dry-run did not include inserted id {inserted_id}; "
+                        f"would_delete={would[:10]}"
+                    ), req, resp, "backend-routes-admin"
+
+                # Confirm the article still exists after dry-run
+                con = sqlite3.connect(db_path)
+                row = con.execute(
+                    "SELECT id FROM articles WHERE url = ?", (test_url,)
+                ).fetchone()
+                con.close()
+                if row is None:
+                    return False, "dry-run unexpectedly deleted the article", req, resp, "backend-routes-admin"
+
+                # Live run
+                live_url = f"{self.backend}/api/admin/retention/run"
+                status, _, body = http_request("POST", live_url, timeout=15.0)
+                data = parse_json(body) or {}
+                resp["live"] = {"status": status, "body": data}
+                if status != 200:
+                    return False, f"POST /api/admin/retention/run returned {status}: {body[:200]}", req, resp, "backend-routes-admin"
+
+                # Confirm row is gone
+                con = sqlite3.connect(db_path)
+                row = con.execute(
+                    "SELECT id FROM articles WHERE url = ?", (test_url,)
+                ).fetchone()
+                con.close()
+                if row is not None:
+                    return False, f"article {inserted_id} still present after live retention run", req, resp, "backend-routes-admin"
+
+                return True, (
+                    f"retention ok: dry-run listed id {inserted_id}, "
+                    f"live deleted {(data.get('data') or {}).get('deleted_articles', 0)} article(s)"
+                ), req, resp, None
+            finally:
+                # Best-effort cleanup in case anything above bailed out.
+                try:
+                    con = sqlite3.connect(db_path)
+                    con.execute("DELETE FROM articles WHERE url = ?", (test_url,))
+                    con.commit()
+                    con.close()
+                except Exception:  # noqa: BLE001
+                    pass
+        return self._run("retention_dry_run", "feature", SEVERITY_HIGH, _t)
+
     def test_news_sources_endpoint(self):
         """Filter / Topic tab: GET /api/news/sources should list configured sources."""
         def _t():
@@ -489,6 +592,7 @@ class E2ESuite:
         self.test_settings_persistence()
         self.test_semantic_search_endpoint()
         self.test_chat_rag_endpoint()
+        self.test_retention_dry_run()
 
         # The actual pipeline
         if not self.skip_pipeline:

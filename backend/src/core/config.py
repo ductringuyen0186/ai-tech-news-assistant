@@ -154,6 +154,11 @@ class Settings(BaseSettings):
     
     # Cache settings
     cache_expiry_hours: int = Field(default=6, alias="CACHE_EXPIRY_HOURS", ge=1, le=168)
+
+    # Retention settings (Milestone 3 — daily retention cron)
+    retention_enabled: bool = Field(default=True, alias="RETENTION_ENABLED")
+    retention_days: int = Field(default=30, alias="RETENTION_DAYS", ge=1, le=3650)
+    retention_max_deletes: int = Field(default=500, alias="RETENTION_MAX_DELETES", ge=1, le=100000)
     
     # News sources settings
     rss_sources: List[Dict[str, str]] = Field(
@@ -350,7 +355,7 @@ class Settings(BaseSettings):
         "case_sensitive": False,
         "use_enum_values": True,
         "validate_assignment": True,
-        "populate_by_name": True,  # Allows using both field names and aliases
+        "populate_by_name": True,
         "extra": "ignore"  # Ignore unknown environment variables (e.g., deprecated LLM_PROVIDER)
     }
 

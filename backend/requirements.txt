@@ -59,3 +59,6 @@ psycopg[binary]==3.2.12
 
 # Logging and Monitoring
 structlog==23.2.0
+
+# Scheduler (daily retention cron, Milestone 3)
+APScheduler>=3.10
