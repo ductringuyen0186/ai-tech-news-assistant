@@ -43,10 +43,14 @@ def _should_start_scheduler() -> bool:
     in a test environment (the E2E suite triggers retention via the
     admin route in dry-run mode and must not race a background job).
     """
+    from src.core.config import Environment
+
     if not getattr(settings, "retention_enabled", True):
         return False
-    env = str(getattr(settings, "environment", "")).lower()
-    if env in ("test", "testing"):
+    # Compare against the enum directly. ``str(Environment.TESTING)`` is
+    # ``"Environment.TESTING"`` on Python 3.11+, so a string compare on
+    # str(env) silently never matches "testing". Use the enum value.
+    if getattr(settings, "environment", None) == Environment.TESTING:
         return False
     return True
 
@@ -82,10 +86,12 @@ async def lifespan(app: FastAPI):
         }
     )
 
-    # Retention cron (Milestone 3). Daily at 00:00 UTC. The job itself is
-    # defined in src.services.retention_service.run_retention_job.
+    # Retention cron (Milestone 3). Runs once on startup AND daily at
+    # 00:00 UTC. The job itself is defined in
+    # src.services.retention_service.run_retention_job.
     if _should_start_scheduler():
         try:
+            from datetime import datetime, timedelta, timezone as _tz
             from apscheduler.schedulers.asyncio import AsyncIOScheduler
             from apscheduler.triggers.cron import CronTrigger
             from src.services.retention_service import run_retention_job
@@ -99,9 +105,20 @@ async def lifespan(app: FastAPI):
                 replace_existing=True,
                 misfire_grace_time=3600,
             )
+            # Acceptance criterion: also run once on startup, shortly
+            # after the app is up so we don't block the boot path.
+            _scheduler.add_job(
+                run_retention_job,
+                trigger="date",
+                run_date=datetime.now(_tz.utc) + timedelta(seconds=15),
+                id="retention_startup",
+                name="Startup article retention sweep",
+                replace_existing=True,
+                misfire_grace_time=60,
+            )
             _scheduler.start()
             logger.info(
-                "Retention scheduler started (days=%d, max=%d, daily 00:00 UTC)",
+                "Retention scheduler started (days=%d, max=%d, daily 00:00 UTC + startup run in 15s)",
                 settings.retention_days,
                 settings.retention_max_deletes,
             )
