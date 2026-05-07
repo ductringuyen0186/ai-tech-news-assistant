@@ -3,14 +3,14 @@ fastapi==0.104.1
 uvicorn[standard]==0.24.0
 # Removed pydantic - uses pre-built wheel in FastAPI dependency
 # pydantic==2.6.4
-pydantic-settings==2.2.1
+pydantic-settings>=2.4.0  # >=2.4.0 needed by langchain-community>=0.3.20 (numpy 2.x compat)
 
 # Environment and Configuration
 python-dotenv==1.0.0
 
 # HTTP and API
 httpx==0.25.2
-requests==2.31.0
+requests>=2.32.5  # >=2.32.5 needed by langchain-community>=0.3.28 (numpy 2.x compat)
 
 # CORS and Middleware
 python-multipart==0.0.6
@@ -36,7 +36,7 @@ chromadb>=0.4.22  # Python 3.13 compatible, persistent storage
 
 # LangChain for Multi-Agent Orchestration (FREE, open source)
 langchain>=0.1.0  # Core LangChain framework
-langchain-community>=0.0.20  # Community integrations
+langchain-community>=0.3.20  # Community integrations (>=0.3.20 dropped numpy<2 cap)
 langchain-core>=0.1.23  # Core abstractions
 langchain-groq>=0.0.1  # Groq LLM integration
 langchain-chroma>=0.1.0  # ChromaDB integration
