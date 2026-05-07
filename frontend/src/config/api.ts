@@ -28,6 +28,7 @@ export const API_ENDPOINTS = {
   newsIngest: "/api/news/ingest",
   newsSources: "/api/news/sources",
   newsStats: "/api/news/stats",
+  newsCategories: "/api/news/categories",
 
   // Search endpoints
   search: "/api/search",

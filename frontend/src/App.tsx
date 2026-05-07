@@ -52,23 +52,43 @@ export default function App() {
       // Map FastAPI response to expected format
       // Backend returns PaginatedResponse with "data" field containing articles
       const articles = data.data || data.items || [];
-      const mappedArticles = articles.map((article: any) => ({
-        id: article.id,
-        title: article.title,
-        content: article.content,
-        summaryShort: article.summary || article.content?.substring(0, 200) + '...',
-        summaryMedium: article.summary || article.content?.substring(0, 400) + '...',
-        url: article.url,
-        publishedAt: article.published_at,
-        imageUrl: article.image_url || 'https://via.placeholder.com/400x300?text=Tech+News',
-        category: article.categories || [],
-        source: article.source,
-        credibilityScore: 85, // Default score
-        trending: false,
-        sentiment: 'neutral',
-        keyInsights: [],
-        sourcesUsed: [article.source],
-      })) || [];
+      // Build summaryShort + summaryMedium as truly distinct slices so the
+      // NewsCard expanded view doesn't render the same text twice. The
+      // backend's ``summary`` column for RSS-only rows is the same string as
+      // ``content`` (we only get one body per entry), so we truncate the
+      // available body to two different lengths instead of falling back to
+      // the same value.
+      const buildSummaries = (a: any): { summaryShort: string; summaryMedium: string } => {
+        const body: string = (a.summary || a.content || '').toString().trim();
+        if (!body) {
+          return { summaryShort: '', summaryMedium: '' };
+        }
+        const short =
+          body.length > 200 ? body.slice(0, 200).trimEnd() + '...' : body;
+        const medium =
+          body.length > 600 ? body.slice(0, 600).trimEnd() + '...' : body;
+        return { summaryShort: short, summaryMedium: medium };
+      };
+      const mappedArticles = articles.map((article: any) => {
+        const { summaryShort, summaryMedium } = buildSummaries(article);
+        return {
+          id: article.id,
+          title: article.title,
+          content: article.content,
+          summaryShort,
+          summaryMedium,
+          url: article.url,
+          publishedAt: article.published_at,
+          imageUrl: article.image_url || 'https://via.placeholder.com/400x300?text=Tech+News',
+          category: article.categories || [],
+          source: article.source,
+          credibilityScore: 85, // Default score
+          trending: false,
+          sentiment: 'neutral',
+          keyInsights: [],
+          sourcesUsed: [article.source],
+        };
+      }) || [];
       
       setArticles(mappedArticles);
       setFilteredArticles(mappedArticles);
@@ -176,13 +196,19 @@ export default function App() {
         title: s.title ?? "Untitled",
         summaryShort: s.title ?? "",
       }));
-      // Dedup by id (fallback to url) so repeated retrieval hits on the same
-      // article render only once in the "Related articles" section.
-      const seen = new Set<string>();
+      // Dedup by id, url, AND title so repeated retrieval hits on the same
+      // article — including duplicates with different ids but identical
+      // titles (which previously slipped through and rendered the same card
+      // twice in the "Related articles" section) — render only once.
+      const seenIds = new Set<string>();
+      const seenTitles = new Set<string>();
       const sources = rawSources.filter((s: any) => {
-        const key = s.id || s.url;
-        if (!key || seen.has(key)) return false;
-        seen.add(key);
+        const idKey = s.id || s.url;
+        const titleKey = (s.title || "").trim().toLowerCase();
+        if (idKey && seenIds.has(idKey)) return false;
+        if (titleKey && seenTitles.has(titleKey)) return false;
+        if (idKey) seenIds.add(idKey);
+        if (titleKey) seenTitles.add(titleKey);
         return true;
       });
       return { answer: data.answer ?? "(no answer returned)", relevantArticles: sources, success: true };

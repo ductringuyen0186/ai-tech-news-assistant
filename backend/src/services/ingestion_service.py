@@ -16,7 +16,9 @@ Features:
 - Progress tracking and status reporting
 """
 
+import html
 import json
+import re
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from enum import Enum
@@ -270,20 +272,126 @@ class IngestionService:
                 "timestamp": datetime.utcnow().isoformat()
             })
     
+    @staticmethod
+    def _clean_text(value: Optional[str]) -> str:
+        """
+        Decode HTML entities and strip HTML tags from a feed text field.
+
+        RSS feeds routinely embed entities like ``&#8217;`` (right single
+        quote), ``&#8230;`` (ellipsis), and ``&#160;`` (nbsp), plus inline
+        ``<p>`` / ``<a>`` markup in summary blocks. Storing those raw caused
+        the frontend cards to literally render ``It&#8217;s`` instead of
+        ``It's``. We unescape entities first, then strip remaining tags, then
+        collapse whitespace.
+        """
+        if not value:
+            return ""
+        # Decode HTML entities (&#8217; -> right single quote, &amp; -> &, ...)
+        decoded = html.unescape(value)
+        # Strip HTML tags that survived feed parsing.
+        decoded = re.sub(r"<[^>]+>", "", decoded)
+        # Collapse runs of whitespace (incl. newlines) into single spaces.
+        return re.sub(r"\s+", " ", decoded).strip()
+
+    @staticmethod
+    def _extract_image_url(entry: Any, description: Optional[str]) -> Optional[str]:
+        """
+        Find the best representative image URL for an RSS entry.
+
+        feedparser exposes images in several places depending on the feed:
+        ``media_thumbnail`` (Media RSS), ``media_content`` (Media RSS), and
+        sometimes only as an ``<img src="...">`` inside the summary HTML.
+        We try each in turn and return the first hit, or ``None`` if no image
+        can be found.
+        """
+        # 1. Media RSS thumbnail
+        thumbs = getattr(entry, "media_thumbnail", None) or entry.get("media_thumbnail") if isinstance(entry, dict) else getattr(entry, "media_thumbnail", None)
+        if thumbs:
+            try:
+                first = thumbs[0]
+                url = first.get("url") if isinstance(first, dict) else getattr(first, "url", None)
+                if url:
+                    return url
+            except (IndexError, AttributeError, TypeError):
+                pass
+
+        # 2. Media RSS content
+        media_content = (
+            entry.get("media_content") if isinstance(entry, dict) else getattr(entry, "media_content", None)
+        )
+        if media_content:
+            try:
+                for m in media_content:
+                    mime = (m.get("type") or "") if isinstance(m, dict) else (getattr(m, "type", "") or "")
+                    url = (m.get("url") or "") if isinstance(m, dict) else (getattr(m, "url", "") or "")
+                    if mime.startswith("image/") or url.lower().endswith((".jpg", ".jpeg", ".png", ".webp", ".gif")):
+                        if url:
+                            return url
+            except (TypeError, AttributeError):
+                pass
+
+        # 3. Enclosures (some feeds put images here)
+        enclosures = (
+            entry.get("enclosures") if isinstance(entry, dict) else getattr(entry, "enclosures", None)
+        )
+        if enclosures:
+            try:
+                for enc in enclosures:
+                    mime = (enc.get("type") or "") if isinstance(enc, dict) else (getattr(enc, "type", "") or "")
+                    url = (enc.get("href") or enc.get("url") or "") if isinstance(enc, dict) else (getattr(enc, "href", "") or getattr(enc, "url", "") or "")
+                    if mime.startswith("image/") or url.lower().endswith((".jpg", ".jpeg", ".png", ".webp", ".gif")):
+                        if url:
+                            return url
+            except (TypeError, AttributeError):
+                pass
+
+        # 4. Atom-style ``content`` block (a list of {value: html, type: ...}).
+        #    Many WordPress / Atom feeds (MIT Tech Review, The Verge, ...)
+        #    embed the hero image inside the first ``content[0].value`` block
+        #    rather than in summary or media tags.
+        atom_content = (
+            entry.get("content") if isinstance(entry, dict) else getattr(entry, "content", None)
+        )
+        if atom_content and isinstance(atom_content, list):
+            try:
+                first = atom_content[0]
+                value = first.get("value") if isinstance(first, dict) else getattr(first, "value", "")
+                if value:
+                    m = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', value)
+                    if m:
+                        return m.group(1)
+            except (IndexError, AttributeError, TypeError):
+                pass
+
+        # 5. First <img> in description HTML (note: must run BEFORE we strip tags)
+        if description:
+            m = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', description)
+            if m:
+                return m.group(1)
+
+        return None
+
     def _process_entry(self, entry: Dict[str, Any], source_name: str, category) -> None:
         """
         Process a single RSS entry and save to database.
-        
+
         Args:
             entry: RSS entry from feedparser
             source_name: Name of the source
             category: Category object
         """
-        # Extract article data
-        title = entry.get("title", "").strip()
-        url = entry.get("link", "").strip()
-        description = entry.get("summary", "").strip()
-        author = entry.get("author", "").strip() or None
+        # Extract article data. Capture the raw description first so we can
+        # mine it for an <img src> before tag-stripping clobbers the markup.
+        raw_description = (entry.get("summary") or "").strip()
+        image_url = self._extract_image_url(entry, raw_description)
+
+        # Decode HTML entities + strip tags up-front so what we store is what
+        # the user will see in the UI — no more ``&#8217;`` showing up as
+        # literal text in cards/digest.
+        title = self._clean_text(entry.get("title") or "")
+        url = (entry.get("link") or "").strip()
+        description = self._clean_text(raw_description)
+        author = (entry.get("author") or "").strip() or None
         
         if not title or not url:
             logger.debug("Skipping entry with missing title or URL")
@@ -348,27 +456,43 @@ class IngestionService:
         category_name = (
             category.name if category is not None and hasattr(category, "name") else None
         )
-        if category_name:
-            try:
-                self.db.flush()
+        try:
+            self.db.flush()
+            # Always write source + image_url; conditionally write categories.
+            # We use a single UPDATE because the ``image_url`` column was added
+            # via lightweight migration and isn't on the SQLAlchemy ``Article``
+            # model here. Wrapped in try/except so a missing column on a stale
+            # DB schema (or any other transient failure) never aborts the
+            # ingestion of a whole entry.
+            params: Dict[str, Any] = {
+                "src": source_name,
+                "img": image_url,
+                "id": article.id,
+            }
+            if category_name:
+                params["cats"] = json.dumps([category_name])
                 self.db.execute(
                     text(
-                        "UPDATE articles SET categories = :cats, source = :src "
+                        "UPDATE articles SET categories = :cats, source = :src, "
+                        "image_url = :img WHERE id = :id"
+                    ),
+                    params,
+                )
+            else:
+                self.db.execute(
+                    text(
+                        "UPDATE articles SET source = :src, image_url = :img "
                         "WHERE id = :id"
                     ),
-                    {
-                        "cats": json.dumps([category_name]),
-                        "src": source_name,
-                        "id": article.id,
-                    },
+                    params,
                 )
-            except Exception as e:
-                # Don't let a categories-write failure abort the whole entry —
-                # the row will just be returned with categories=NULL, which is
-                # the pre-fix behaviour, not a regression.
-                logger.warning(
-                    f"Failed to set categories JSON for article id={article.id}: {e}"
-                )
+        except Exception as e:
+            # Don't let an UPDATE failure abort the whole entry — the row will
+            # just be returned with categories=NULL / image_url=NULL, which is
+            # the pre-fix behaviour, not a regression.
+            logger.warning(
+                f"Failed to update categories/image for article id={article.id}: {e}"
+            )
 
         self.result.total_articles_saved += 1
         logger.debug(f"Saved article: {title[:80]}...")

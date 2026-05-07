@@ -18,6 +18,7 @@ class ArticleBase(BaseModel):
     source: str = Field(..., min_length=1, max_length=100)
     url: str = Field(..., description="Original article URL")
     published_date: Optional[datetime] = Field(None, description="Publication date")
+    image_url: Optional[str] = Field(None, description="Hero/thumbnail image URL extracted from the feed")
 
 
 class ArticleCreate(ArticleBase):
@@ -51,7 +52,8 @@ class Article(ArticleBase):
     is_archived: Optional[bool] = Field(False, description="Whether article is archived")
     view_count: Optional[int] = Field(0, description="Number of times article has been viewed")
     embedding_generated: Optional[bool] = Field(False, description="Whether embedding has been generated")
-    
+    summary_generated: Optional[bool] = Field(False, description="Whether AI summary has been generated")
+
     model_config = {"from_attributes": True}
 
 

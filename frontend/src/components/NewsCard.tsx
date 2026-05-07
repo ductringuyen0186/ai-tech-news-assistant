@@ -232,18 +232,30 @@ export function NewsCard({ article, viewMode }: NewsCardProps) {
       <CardContent>
         {expanded ? (
           <>
-            <p className="text-gray-700 mb-4">{article.summaryMedium}</p>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h4 className="font-semibold mb-2">Key Insights</h4>
-              <ul className="space-y-1">
-                {article.keyInsights.map((insight, idx) => (
-                  <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
-                    <span className="text-blue-500 mt-1">•</span>
-                    <span>{insight}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            {/*
+              Only render the longer body if it's actually longer than the
+              short summary already shown above. When the backend's summary
+              and content are identical (which they are for RSS-only rows),
+              ``summaryShort`` and ``summaryMedium`` collapse to the same
+              text and rendering both produced a visible duplicate paragraph.
+            */}
+            {article.summaryMedium &&
+              article.summaryMedium.trim() !== (article.summaryShort || "").trim() && (
+                <p className="text-gray-700 mb-4">{article.summaryMedium}</p>
+              )}
+            {article.keyInsights && article.keyInsights.length > 0 && (
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-semibold mb-2">Key Insights</h4>
+                <ul className="space-y-1">
+                  {article.keyInsights.map((insight, idx) => (
+                    <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
+                      <span className="text-blue-500 mt-1">•</span>
+                      <span>{insight}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <Button
               variant="ghost"
               size="sm"

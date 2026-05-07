@@ -6,6 +6,8 @@ API routes for news article operations including ingestion,
 retrieval, filtering, and statistics.
 """
 
+import json
+import sqlite3
 from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import Dict, Any, List, Optional
 
@@ -190,6 +192,60 @@ async def get_news_sources(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get news sources: {str(e)}"
+        )
+
+
+@router.get("/categories", response_model=BaseResponse[Dict[str, Any]])
+async def get_news_categories() -> BaseResponse[Dict[str, Any]]:
+    """
+    Return the distinct categories actually present in the article DB.
+
+    This powers the frontend Topic Filter chips so it only ever shows
+    categories that have live articles backing them - no more orphaned
+    "Robotics" / "Biotech" chips that filter to zero results because no
+    feed maps to them. As ingestion adds new categories the chip list
+    grows automatically.
+    """
+    try:
+        from ...core.config import get_settings
+        settings = get_settings()
+        db_path = settings.get_database_path()
+        if db_path.startswith("sqlite:///"):
+            db_path = db_path.replace("sqlite:///", "")
+
+        seen: set[str] = set()
+        with sqlite3.connect(db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT DISTINCT categories FROM articles "
+                "WHERE is_archived = 0 AND categories IS NOT NULL"
+            ).fetchall()
+
+        for row in rows:
+            raw = row["categories"]
+            if not raw:
+                continue
+            try:
+                parsed = json.loads(raw)
+            except (json.JSONDecodeError, TypeError):
+                continue
+            if isinstance(parsed, list):
+                for c in parsed:
+                    if c:
+                        seen.add(str(c))
+
+        # Sorted for stable UI rendering.
+        categories = sorted(seen)
+
+        return BaseResponse(
+            success=True,
+            message=f"Retrieved {len(categories)} categor{'y' if len(categories) == 1 else 'ies'}",
+            data={"categories": categories},
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get categories: {str(e)}",
         )
 
 

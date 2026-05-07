@@ -3,9 +3,16 @@ import { test, expect } from "@playwright/test";
 /**
  * Settings tab - asserts category preferences persist across page reload,
  * proving the backend write actually happened (not just optimistic UI).
+ *
+ * Uses "Hardware" as the toggle target because the chip list is now
+ * dynamically derived from /api/news/categories (the union of category
+ * tags actually present in the article DB), so the previous "Robotics"
+ * choice would not appear unless an ingested feed maps to it. "Hardware"
+ * matches the Ars Technica feed mapping in IngestionService.DEFAULT_FEEDS
+ * and is reliably present.
  */
 
-const TARGET_CATEGORY = "Robotics";
+const TARGET_CATEGORY = "Hardware";
 
 test.describe("Settings tab", () => {
   test("toggling a category and saving persists across reload", async ({ page }) => {

@@ -45,9 +45,26 @@ class ArticleRepository:
                     metadata TEXT,
                     is_archived BOOLEAN DEFAULT FALSE,
                     view_count INTEGER DEFAULT 0,
-                    embedding_generated BOOLEAN DEFAULT FALSE
+                    embedding_generated BOOLEAN DEFAULT FALSE,
+                    summary_generated BOOLEAN DEFAULT FALSE
                 )
             """)
+            # Lightweight migration: older DBs may be missing summary_generated.
+            existing_cols = {
+                row[1]
+                for row in conn.execute("PRAGMA table_info(articles)").fetchall()
+            }
+            if "summary_generated" not in existing_cols:
+                conn.execute(
+                    "ALTER TABLE articles ADD COLUMN summary_generated "
+                    "BOOLEAN DEFAULT FALSE"
+                )
+            if "summary" not in existing_cols:
+                conn.execute("ALTER TABLE articles ADD COLUMN summary TEXT")
+            if "image_url" not in existing_cols:
+                # Hero/thumbnail URL extracted from RSS feed media tags.
+                # Frontend NewsCard falls back to a placeholder when null.
+                conn.execute("ALTER TABLE articles ADD COLUMN image_url TEXT")
     
     def _row_to_article(self, row):
         if not row:
@@ -68,6 +85,20 @@ class ArticleRepository:
             except (json.JSONDecodeError, TypeError):
                 metadata = None
         
+        # `summary_generated` may not exist on legacy rows fetched before the
+        # ALTER TABLE migration ran on the connected DB; default to False.
+        try:
+            summary_generated = bool(row["summary_generated"])
+        except (IndexError, KeyError):
+            summary_generated = False
+
+        # ``image_url`` was added later via lightweight ALTER TABLE; older
+        # rows may simply not have the column populated. Read defensively.
+        try:
+            image_url = row["image_url"]
+        except (IndexError, KeyError):
+            image_url = None
+
         return Article(
             id=row["id"],
             title=row["title"],
@@ -79,11 +110,13 @@ class ArticleRepository:
             published_at=row["published_at"],
             categories=categories,
             metadata=metadata,
+            image_url=image_url,
             created_at=row["created_at"],
             updated_at=row["updated_at"],
             is_archived=bool(row["is_archived"]),
             view_count=row["view_count"] or 0,
             embedding_generated=bool(row["embedding_generated"]),
+            summary_generated=summary_generated,
             published_date=row["published_at"]
         )
     
@@ -198,27 +231,63 @@ class ArticleRepository:
             conn.row_factory = sqlite3.Row
             rows = conn.execute("SELECT * FROM articles WHERE embedding_generated = FALSE ORDER BY created_at ASC LIMIT ?", (limit,)).fetchall()
             return [self._row_to_article(row) for row in rows]
-    
+
     async def mark_embedding_generated(self, article_id):
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute("UPDATE articles SET embedding_generated = TRUE WHERE id = ?", (article_id,))
             return cursor.rowcount > 0
-    
+
+    async def get_articles_without_summary(self, limit: int = 100):
+        """
+        Return articles still needing an AI summary (excludes archived).
+
+        We trust `summary_generated` as the source of truth: articles whose
+        content was too short to summarize are still marked TRUE so we don't
+        re-process them on every run.
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT * FROM articles "
+                "WHERE is_archived = FALSE "
+                "  AND summary_generated = FALSE "
+                "ORDER BY created_at ASC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            return [self._row_to_article(row) for row in rows]
+
+    async def mark_summary_generated(self, article_id, summary=None):
+        """Flip summary_generated to TRUE; optionally write the summary text."""
+        with sqlite3.connect(self.db_path) as conn:
+            if summary is not None:
+                cursor = conn.execute(
+                    "UPDATE articles SET summary = ?, summary_generated = TRUE, "
+                    "    updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (summary, article_id),
+                )
+            else:
+                cursor = conn.execute(
+                    "UPDATE articles SET summary_generated = TRUE, "
+                    "    updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (article_id,),
+                )
+            return cursor.rowcount > 0
+
     async def get_stats(self):
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             total = conn.execute("SELECT COUNT(*) as count FROM articles").fetchone()["count"]
             with_embeddings = conn.execute("SELECT COUNT(*) as count FROM articles WHERE embedding_generated = TRUE").fetchone()["count"]
-            with_summaries = conn.execute("SELECT COUNT(*) as count FROM articles WHERE summary IS NOT NULL AND summary != ''").fetchone()["count"]
-            
-            # Get top sources
+            with_summaries = conn.execute("SELECT COUNT(*) as count FROM articles WHERE summary IS NOT NULL AND TRIM(summary) != ''").fetchone()["count"]
+
             top_sources_rows = conn.execute("SELECT source, COUNT(*) as count FROM articles GROUP BY source ORDER BY count DESC LIMIT 5").fetchall()
             top_sources = {row["source"]: row["count"] for row in top_sources_rows}
-            
+
             return {
                 "total_articles": total,
                 "articles_with_embeddings": with_embeddings,
                 "articles_without_embeddings": total - with_embeddings,
                 "articles_with_summaries": with_summaries,
-                "top_sources": top_sources
+                "articles_without_summaries": total - with_summaries,
+                "top_sources": top_sources,
             }
