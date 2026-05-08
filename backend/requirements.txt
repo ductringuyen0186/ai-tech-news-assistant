@@ -42,6 +42,15 @@ langchain-groq>=0.0.1  # Groq LLM integration
 langchain-chroma>=0.1.0  # ChromaDB integration
 # Note: All LangChain packages are FREE. Only pay for LLM API calls (Groq is cheapest)
 
+# Deep Agents SDK (Mission 2 - per-article subagents). The deepagents
+# package wraps LangGraph + LangChain into a deep-agent harness; we use
+# it for orchestration of the agentic research loop. langchain-ollama
+# provides the ChatOllama adapter so the agent talks to local Ollama
+# (gpt-oss:20b). See docs/notes/deepagents-api-surface.md for the M1
+# spike + integration contract.
+deepagents==0.5.7
+langchain-ollama>=1.1.0
+
 # Task Orchestration (for future implementation)
 # prefect==2.14.11
 
