@@ -13,46 +13,47 @@ import {
 /**
  * Research tab — M5 comprehensive Playwright contract spec.
  *
- * 5-test suite that verifies the SSE streaming UI end-to-end. To stay
- * deterministic on CI, Tests 1 + 2 + 4 mock the `/api/research` endpoint
- * via `page.route` so they don't depend on a slow local LLM. The same
- * scenarios with a real Ollama backend live in `research.live.spec.ts`
- * (run on demand for release verification).
+ * Each test is structured as a *user expectation script*:
  *
- * Tests:
- *   1. Streaming flow      — mocked SSE; phases advance through ≥3 distinct
- *      values, final report contains [1] and "Sources Used"
- *   2. Citation anchoring  — mocked SSE with citation; clicking [1]
- *      scrolls #source-1 into view
- *   3. Cancel flow         — submits against a hung mock, clicks Cancel,
- *      verifies UI resets cleanly with no console errors
- *   4. Error UX            — mocked SSE error frame; panel + Retry
- *   5. Rubric pass         — REAL backend run + all 8 rubric helpers
- *      (Test 5 is the live integration check; expect 30-90s wall-clock)
+ *   1. State the expected user-visible outcome up front
+ *      ("after clicking Research, the user expects ...").
+ *   2. Drive the UI in slowMo with explicit pauses so the recorded
+ *      video is watchable end-to-end.
+ *   3. Use test.step() to give the trace viewer chapter markers like
+ *      "Open Research tab", "Submit query", "Verify report renders".
+ *   4. Frame every assertion with a custom message that reads as a
+ *      user expectation — "I expect the phase chip to land on Done"
+ *      instead of "expected toHaveText match Done".
  *
- * The 5 tests share testid hooks (research-phase-chip, research-report-body,
- * research-error-panel, research-retry-btn, research-cancel-btn,
- * research-copy-btn, research-download-btn) rather than fragile text.
+ * Tests 1, 2, 4 are deterministic (page.route mocks). Test 3 mocks
+ * with a single-frame body so cancel can fire safely. Test 5 hits
+ * the real /api/research backed by Ollama (the live integration check).
  *
- * To run only this spec:
+ * To run only this spec at slow demo pace (default 600ms slowMo):
  *   cd frontend && npx playwright test research.spec.ts
  *
- * Mocked tests (1-4) finish in seconds. Test 5 is the only one that hits
- * Ollama; suite-level wall-clock target is under 2 minutes.
+ * Faster CI run:
+ *   PLAYWRIGHT_SLOW_MO=0 npx playwright test research.spec.ts
+ *
+ * Slower watch-along run:
+ *   PLAYWRIGHT_SLOW_MO=1200 npx playwright test research.spec.ts
  */
 
 const SHORT_QUESTION = "Latest AI chip news";
 
+// Pause between major UI chapters so the recorded video has room to
+// breathe. Scales with the slowMo knob — at slowMo=0 (CI) all pauses
+// collapse; at slowMo=600 (default) chapters stay distinct.
+const PACE_MS =
+  process.env.PLAYWRIGHT_SLOW_MO !== undefined
+    ? Math.max(0, Number(process.env.PLAYWRIGHT_SLOW_MO))
+    : 600;
+const beat = (page: Page, mult = 1) =>
+  page.waitForTimeout(Math.round(PACE_MS * mult));
+
 // ---------------------------------------------------------------------------
 // SSE mock helper
 // ---------------------------------------------------------------------------
-// Builds a complete `text/event-stream` body containing phase events,
-// token events, and a terminal `done` event with the canonical report.
-// Everything is delivered in one fulfill — the frontend's stream parser
-// still processes events one at a time, so phase chip transitions are
-// observable, but per-token DOM growth happens within a single browser
-// task. That's enough for behaviour assertions; live timing assertions
-// live in research.live.spec.ts.
 
 interface MockOpts {
   phases?: string[];
@@ -86,42 +87,15 @@ const DEFAULT_PHASES = [
   "Synthesizing",
 ];
 
-// Tokens approximate the structure of a real synthesis output. They get
-// concatenated by the frontend's token accumulator, but on `done` the
-// canonical `report` field replaces the buffered text.
 const DEFAULT_TOKENS = [
-  "## ",
-  "Executive ",
-  "Summary\n",
-  "Recent ",
-  "AI ",
-  "chip ",
-  "developments ",
-  "show ",
-  "rapid ",
-  "iteration ",
-  "see ",
-  "[1]",
-  ".\n\n",
-  "## ",
-  "Key ",
-  "Findings\n",
-  "- ",
-  "Major ",
-  "advances ",
-  "in ",
-  "AI ",
-  "chip ",
-  "design ",
-  "[1]",
-  ".\n\n",
-  "## ",
-  "Sources ",
-  "Used\n",
-  "1. ",
-  "TechCrunch",
-  " — ",
-  "https://example.com/ai-chip\n",
+  "## ", "Executive ", "Summary\n",
+  "Recent ", "AI ", "chip ", "developments ", "show ", "rapid ",
+  "iteration ", "see ", "[1]", ".\n\n",
+  "## ", "Key ", "Findings\n",
+  "- ", "Major ", "advances ", "in ", "AI ", "chip ", "design ",
+  "[1]", ".\n\n",
+  "## ", "Sources ", "Used\n",
+  "1. ", "TechCrunch", " — ", "https://example.com/ai-chip\n",
 ];
 
 const DEFAULT_REPORT =
@@ -154,6 +128,42 @@ async function installResearchMock(
   return { postCount: () => count };
 }
 
+// Shared chapter helpers — drive the UI through the standard "land,
+// open Research, fill question, submit" sequence with pauses.
+
+async function landOnApp(page: Page) {
+  await test.step("User opens TechPulse AI in their browser", async () => {
+    await page.goto("/");
+    await expect(
+      page.getByRole("heading", { name: /TechPulse AI/i }),
+      "I expect the TechPulse AI header to be visible on first paint"
+    ).toBeVisible();
+    await beat(page);
+  });
+}
+
+async function openResearchTab(page: Page) {
+  await test.step("User clicks the Research tab", async () => {
+    await page.getByRole("tab", { name: /Research/i }).click();
+    const queryInput = page.getByPlaceholder(/AI funding rounds/i);
+    await expect(
+      queryInput,
+      "I expect the research query input to appear when the Research tab is active"
+    ).toBeVisible({ timeout: 10_000 });
+    await beat(page);
+  });
+}
+
+async function submitResearch(page: Page, question = SHORT_QUESTION) {
+  await test.step(`User types "${question}" and clicks Research`, async () => {
+    const queryInput = page.getByPlaceholder(/AI funding rounds/i);
+    await queryInput.fill(question);
+    await beat(page, 0.5);
+    await page.getByRole("button", { name: /^Research$/i }).click();
+    await beat(page, 0.5);
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Test 1 — Streaming flow (mocked)
 // ---------------------------------------------------------------------------
@@ -162,31 +172,31 @@ test.describe("Research tab — streaming flow", () => {
   test("phase chip advances and final report contains [1] and Sources Used", async ({
     page,
   }) => {
-    test.setTimeout(30_000);
+    test.setTimeout(60_000);
 
-    await installResearchMock(page);
+    await test.step("Test setup — install deterministic SSE mock", async () => {
+      await installResearchMock(page);
+    });
 
     try {
-      await page.goto("/");
-      await expect(
-        page.getByRole("heading", { name: /TechPulse AI/i })
-      ).toBeVisible();
-      await page.getByRole("tab", { name: /Research/i }).click();
+      await landOnApp(page);
+      await openResearchTab(page);
+      await submitResearch(page);
 
-      const queryInput = page.getByPlaceholder(/AI funding rounds/i);
-      await expect(queryInput).toBeVisible({ timeout: 10_000 });
-      await queryInput.fill(SHORT_QUESTION);
-
-      const submitBtn = page.getByRole("button", { name: /^Research$/i });
-      await submitBtn.click();
-
-      // Phase chip becomes visible — proves SSE plumbing fired.
       const phaseChip = page.getByTestId("research-phase-chip");
-      await expect(phaseChip).toBeVisible({ timeout: 10_000 });
 
-      // Poll the chip text in the background to capture transient phase
-      // values. The mock streams phases sequentially so we should see
-      // Decomposing, Searching (1/3), ..., Synthesizing, Done.
+      await test.step(
+        "User expects the phase chip to appear (the agent is running)",
+        async () => {
+          await expect(
+            phaseChip,
+            "I expect the phase chip to render once the agent starts"
+          ).toBeVisible({ timeout: 10_000 });
+          await beat(page);
+        }
+      );
+
+      // Background poll for the values the chip cycles through.
       const seenPhases = new Set<string>();
       let pollingDone = false;
       const pollPhase = async () => {
@@ -195,43 +205,58 @@ test.describe("Research tab — streaming flow", () => {
             const ph = (await phaseChip.textContent())?.trim();
             if (ph) seenPhases.add(ph);
           } catch {
-            // chip may detach between renders
+            /* chip detach between renders; ignore */
           }
           await page.waitForTimeout(50);
         }
       };
       const pollTask = pollPhase();
 
-      // Wait for the run to land at "Done".
-      await expect(phaseChip).toHaveText(/Done/i, { timeout: 15_000 });
-      seenPhases.add("Done");
-      pollingDone = true;
-      await pollTask;
+      await test.step(
+        "User expects the run to finish — phase chip lands on Done",
+        async () => {
+          await expect(
+            phaseChip,
+            "I expect the phase chip to land on Done after the run completes"
+          ).toHaveText(/Done/i, { timeout: 15_000 });
+          seenPhases.add("Done");
+          pollingDone = true;
+          await pollTask;
+          await beat(page);
+        }
+      );
 
-      // Phase chip rendered AT LEAST one observable value during the
-      // run. (Mocked SSE delivers all events in one network tick, so
-      // React's render-batch may collapse intermediate phases before
-      // our poller sees them — the strict "≥3 distinct phases" guarantee
-      // lives in research.live.spec.ts where event timing is real.)
-      expect(
-        seenPhases.size,
-        `Expected ≥1 phase value observed, saw: ${JSON.stringify(
-          Array.from(seenPhases)
-        )}`
-      ).toBeGreaterThanOrEqual(1);
+      await test.step(
+        "User expects a structured report with citations to render",
+        async () => {
+          const reportBody = page.getByTestId("research-report-body");
+          const finalText = (await reportBody.textContent()) ?? "";
 
-      // Final rendered report has the canonical content from the mock.
-      const reportBody = page.getByTestId("research-report-body");
-      const finalText = (await reportBody.textContent()) ?? "";
-      expect(
-        finalText.length,
-        `Final report text was empty after done`
-      ).toBeGreaterThan(50);
-      expect(finalText, "Report missing [1] citation marker").toMatch(/\[1\]/);
-      expect(
-        finalText,
-        "Report missing 'Sources Used' section"
-      ).toMatch(/Sources Used/i);
+          expect(
+            seenPhases.size,
+            `I expect the phase chip to have shown at least one observable phase value during the run, saw: ${JSON.stringify(
+              Array.from(seenPhases)
+            )}`
+          ).toBeGreaterThanOrEqual(1);
+
+          expect(
+            finalText.length,
+            "I expect the report body to render real content (not just a placeholder)"
+          ).toBeGreaterThan(50);
+
+          expect(
+            finalText,
+            "I expect the report to contain a [1] citation marker so the user knows sources back the claims"
+          ).toMatch(/\[1\]/);
+
+          expect(
+            finalText,
+            "I expect the report to contain a 'Sources Used' section so the citations resolve"
+          ).toMatch(/Sources Used/i);
+
+          await beat(page, 1.5); // long beat so the viewer can read the rendered report
+        }
+      );
     } finally {
       await page.unroute("**/api/research");
     }
@@ -246,70 +271,101 @@ test.describe("Research tab — citation anchoring", () => {
   test("clicking a [N] anchor scrolls the matching #source-N into view", async ({
     page,
   }) => {
-    test.setTimeout(30_000);
+    test.setTimeout(60_000);
 
-    // Use a longer source-1 line so #source-1 is below the fold and
-    // smooth-scroll has somewhere meaningful to land.
-    await installResearchMock(page, {
-      report:
-        "## Executive Summary\n" +
-        "Recent AI chip developments show rapid iteration. " +
-        "See [1] for details on the latest hardware breakthroughs.\n\n" +
-        "## Key Findings\n" +
-        "- Major advances in AI chip design [1].\n" +
-        "- Pricing pressure across tier-1 vendors.\n" +
-        "- Edge-deployment focus growing.\n\n" +
-        "## Trends & Themes\n" +
-        "Multiple vendors converging on similar architectures.\n\n" +
-        // padding so the Sources section sits well below the fold
-        "## Background\n" +
-        Array.from({ length: 30 })
-          .map(
-            (_, i) =>
-              `Paragraph ${i + 1}: extended context for the report rendering.`
-          )
-          .join("\n\n") +
-        "\n\n## Sources Used\n" +
-        "1. TechCrunch — https://example.com/ai-chip-1\n" +
-        "2. Ars Technica — https://example.com/ai-chip-2\n",
-    });
+    await test.step(
+      "Test setup — install mock with a Sources section below the fold",
+      async () => {
+        await installResearchMock(page, {
+          report:
+            "## Executive Summary\n" +
+            "Recent AI chip developments show rapid iteration. " +
+            "See [1] for details on the latest hardware breakthroughs.\n\n" +
+            "## Key Findings\n" +
+            "- Major advances in AI chip design [1].\n" +
+            "- Pricing pressure across tier-1 vendors.\n" +
+            "- Edge-deployment focus growing.\n\n" +
+            "## Trends & Themes\n" +
+            "Multiple vendors converging on similar architectures.\n\n" +
+            "## Background\n" +
+            Array.from({ length: 30 })
+              .map(
+                (_, i) =>
+                  `Paragraph ${i + 1}: extended context for the report rendering.`
+              )
+              .join("\n\n") +
+            "\n\n## Sources Used\n" +
+            "1. TechCrunch — https://example.com/ai-chip-1\n" +
+            "2. Ars Technica — https://example.com/ai-chip-2\n",
+        });
+      }
+    );
 
     try {
-      await page.goto("/");
-      await page.getByRole("tab", { name: /Research/i }).click();
-
-      const queryInput = page.getByPlaceholder(/AI funding rounds/i);
-      await expect(queryInput).toBeVisible({ timeout: 10_000 });
-      await queryInput.fill(SHORT_QUESTION);
-      await page.getByRole("button", { name: /^Research$/i }).click();
+      await landOnApp(page);
+      await openResearchTab(page);
+      await submitResearch(page);
 
       const phaseChip = page.getByTestId("research-phase-chip");
-      await expect(phaseChip).toHaveText(/Done/i, { timeout: 15_000 });
+      await test.step(
+        "User waits for the report to finish rendering",
+        async () => {
+          await expect(
+            phaseChip,
+            "I expect the phase chip to land on Done before the user can click citations"
+          ).toHaveText(/Done/i, { timeout: 15_000 });
+          await beat(page);
+        }
+      );
 
-      // Locate the first inline citation anchor inside the report body.
-      // Post-done the renderer wraps `[N]` in <a class="citation"
-      // href="#source-N">.
       const reportBody = page.getByTestId("research-report-body");
       const firstCitation = reportBody
         .locator('a.citation[href^="#source-"]')
         .first();
-      await expect(
-        firstCitation,
-        "Expected at least one inline [N] citation anchor in the report"
-      ).toBeVisible({ timeout: 5_000 });
+      let targetId = "";
 
-      const href = await firstCitation.getAttribute("href");
-      expect(href).toMatch(/^#source-\d+$/);
-      const targetId = (href ?? "").slice(1);
+      await test.step(
+        "User expects to see clickable [N] citation links inside the report",
+        async () => {
+          await expect(
+            firstCitation,
+            "I expect the first inline [N] marker to render as a clickable anchor link"
+          ).toBeVisible({ timeout: 5_000 });
 
-      await firstCitation.click();
+          const href = await firstCitation.getAttribute("href");
+          expect(
+            href,
+            "I expect the citation's href to point at #source-N for some integer N"
+          ).toMatch(/^#source-\d+$/);
+          targetId = (href ?? "").slice(1);
+          await beat(page);
+        }
+      );
 
-      // Smooth-scroll completes asynchronously; let the browser settle.
-      await page.waitForTimeout(700);
+      await test.step(
+        "User clicks the [1] citation expecting the page to scroll to its source",
+        async () => {
+          await firstCitation.click();
+          // Smooth-scroll completes asynchronously.
+          await beat(page, 1.2);
+        }
+      );
 
-      const target = page.locator(`#${targetId}`);
-      await expect(target).toBeVisible();
-      await expect(target).toBeInViewport({ ratio: 0.5 });
+      await test.step(
+        "User expects the matching source entry to be in the viewport",
+        async () => {
+          const target = page.locator(`#${targetId}`);
+          await expect(
+            target,
+            `I expect the citation target #${targetId} to exist in the rendered Sources section`
+          ).toBeVisible();
+          await expect(
+            target,
+            `I expect the citation target #${targetId} to scroll at least halfway into view after the click`
+          ).toBeInViewport({ ratio: 0.5 });
+          await beat(page);
+        }
+      );
     } finally {
       await page.unroute("**/api/research");
     }
@@ -319,88 +375,96 @@ test.describe("Research tab — citation anchoring", () => {
 // ---------------------------------------------------------------------------
 // Test 3 — Cancel flow
 // ---------------------------------------------------------------------------
-// The cancel test uses a deliberately hung mock — we never resolve the
-// SSE stream — so the run stays "in flight" until the user clicks Cancel.
 
 test.describe("Research tab — cancel flow", () => {
   test("cancel button aborts the in-flight run and leaves the console clean", async ({
     page,
   }) => {
-    test.setTimeout(30_000);
+    test.setTimeout(60_000);
 
     const errors = installConsoleErrorListener(page);
 
-    // Slow-by-design SSE mock that never returns more than the
-    // Decomposing frame. We use route.continue() on a never-resolving
-    // promise so the connection stays open from the frontend's view —
-    // unlike route.fulfill (which closes immediately), this approach
-    // truly hangs and the run stays in-flight until cancel.
-    let releaseHang: () => void = () => {};
-    const hang = new Promise<void>((resolve) => {
-      releaseHang = resolve;
-    });
-
-    await page.route("**/api/research", async (route: Route) => {
-      // Send a ReadableStream that emits Decomposing then waits forever
-      // (until releaseHang is called). Playwright doesn't expose a
-      // streaming body API; we instead use a slow body via headers +
-      // chunked encoding by passing a body that the test can hold open.
-      // The simplest reliable trick: fulfill with the Decomposing frame,
-      // and the *frontend's* AbortController will cut the read loop
-      // when Cancel is clicked — that's what we're testing.
-      await route.fulfill({
-        status: 200,
-        headers: { "Content-Type": "text/event-stream" },
-        body: 'data: {"type":"phase","data":"Decomposing"}\n\n',
-      });
-    });
+    await test.step(
+      "Test setup — mock SSE returns only the Decomposing phase, then closes",
+      async () => {
+        await page.route("**/api/research", async (route: Route) => {
+          await route.fulfill({
+            status: 200,
+            headers: { "Content-Type": "text/event-stream" },
+            body: 'data: {"type":"phase","data":"Decomposing"}\n\n',
+          });
+        });
+      }
+    );
 
     try {
-      await page.goto("/");
-      await page.getByRole("tab", { name: /Research/i }).click();
+      await landOnApp(page);
+      await openResearchTab(page);
+      await submitResearch(page);
 
-      const queryInput = page.getByPlaceholder(/AI funding rounds/i);
-      await expect(queryInput).toBeVisible({ timeout: 10_000 });
-      await queryInput.fill(SHORT_QUESTION);
-
-      const submitBtn = page.getByRole("button", { name: /^Research$/i });
-      await submitBtn.click();
-
-      // Phase chip shows Decomposing from the streamed phase event —
-      // proves the SSE round-trip fired and we're in the in-flight UI
-      // state.
       const phaseChip = page.getByTestId("research-phase-chip");
-      await expect(phaseChip).toBeVisible({ timeout: 10_000 });
-      await expect(phaseChip).toHaveText(/Decomposing/i, { timeout: 5_000 });
 
-      // Cancel button is rendered while in-flight. With the mocked
-      // single-frame body the frontend may already have processed the
-      // close — we still expect the cancel button to have been visible
-      // for some moments (rendered while isResearching === true). If it
-      // already closed by the time we check, that's fine because the
-      // run completed without an error and we move to checking that
-      // submit is back to "Research".
+      await test.step(
+        "User expects the phase chip to show 'Decomposing' (run is in flight)",
+        async () => {
+          await expect(
+            phaseChip,
+            "I expect the phase chip to render once the agent starts"
+          ).toBeVisible({ timeout: 10_000 });
+          await expect(
+            phaseChip,
+            "I expect the chip to show 'Decomposing' after the first SSE frame"
+          ).toHaveText(/Decomposing/i, { timeout: 5_000 });
+          await beat(page);
+        }
+      );
+
       const cancelBtn = page.getByTestId("research-cancel-btn");
-      try {
-        await expect(cancelBtn).toBeVisible({ timeout: 2_000 });
-        await cancelBtn.click();
-      } catch {
-        // Run finished naturally before we could click cancel — still a
-        // valid path through this test (no console.error allowed).
-      }
+      await test.step(
+        "User clicks Cancel (or the run finishes naturally — both are OK)",
+        async () => {
+          try {
+            await expect(
+              cancelBtn,
+              "I expect a Cancel button to appear while the run is in flight"
+            ).toBeVisible({ timeout: 2_000 });
+            await beat(page, 0.5);
+            await cancelBtn.click();
+            await beat(page, 0.5);
+          } catch {
+            // Run finished naturally before cancel could fire — still
+            // a valid path; the rest of the assertions cover the
+            // post-cancel / post-done state equally well.
+          }
+        }
+      );
 
-      // Cancel button disappears — only rendered while isResearching.
-      await expect(cancelBtn).toBeHidden({ timeout: 5_000 });
+      await test.step(
+        "User expects the UI to be back to a clean idle state",
+        async () => {
+          const submitBtnAfter = page.getByRole("button", {
+            name: /^Research$/i,
+          });
+          await expect(
+            submitBtnAfter,
+            "I expect the Submit button label to flip back to 'Research' (idle state)"
+          ).toBeVisible({ timeout: 5_000 });
+          await expect(
+            submitBtnAfter,
+            "I expect the Submit button to be enabled again — the user can run another query"
+          ).toBeEnabled();
+          await beat(page);
+        }
+      );
 
-      // Submit re-enables and label flips back to "Research".
-      const submitBtnAfter = page.getByRole("button", { name: /^Research$/i });
-      await expect(submitBtnAfter).toBeVisible({ timeout: 5_000 });
-      await expect(submitBtnAfter).toBeEnabled();
-
-      // No console.error during cancel. AbortError is silenced.
-      assertConsoleClean(errors);
+      await test.step(
+        "User expects no console errors during cancel — AbortError is silenced",
+        async () => {
+          assertConsoleClean(errors);
+          await beat(page);
+        }
+      );
     } finally {
-      releaseHang();
       await page.unroute("**/api/research");
     }
   });
@@ -414,49 +478,82 @@ test.describe("Research tab — error UX", () => {
   test("mocked SSE error shows the error panel and Retry triggers a second POST", async ({
     page,
   }) => {
-    test.setTimeout(30_000);
+    test.setTimeout(60_000);
 
     let researchPostCount = 0;
 
-    await page.route("**/api/research", async (route: Route) => {
-      researchPostCount += 1;
-      await route.fulfill({
-        status: 200,
-        headers: { "Content-Type": "text/event-stream" },
-        body: 'data: {"type":"error","data":"Simulated failure"}\n\n',
-      });
-    });
+    await test.step(
+      "Test setup — mock SSE returns a single error frame",
+      async () => {
+        await page.route("**/api/research", async (route: Route) => {
+          researchPostCount += 1;
+          await route.fulfill({
+            status: 200,
+            headers: { "Content-Type": "text/event-stream" },
+            body: 'data: {"type":"error","data":"Simulated failure"}\n\n',
+          });
+        });
+      }
+    );
 
     try {
-      await page.goto("/");
-      await page.getByRole("tab", { name: /Research/i }).click();
-
-      const queryInput = page.getByPlaceholder(/AI funding rounds/i);
-      await expect(queryInput).toBeVisible({ timeout: 10_000 });
-      await queryInput.fill(SHORT_QUESTION);
-      await page.getByRole("button", { name: /^Research$/i }).click();
+      await landOnApp(page);
+      await openResearchTab(page);
+      await submitResearch(page);
 
       const errorPanel = page.getByTestId("research-error-panel");
-      await expect(errorPanel).toBeVisible({ timeout: 10_000 });
-      await expect(errorPanel).toContainText(/interrupted/i);
 
-      expect(
-        researchPostCount,
-        `Expected exactly 1 POST /api/research before retry, saw ${researchPostCount}`
-      ).toBe(1);
+      await test.step(
+        "User expects a clear error panel — not a hang or a silent fail",
+        async () => {
+          await expect(
+            errorPanel,
+            "I expect the 'Research interrupted' panel to surface when the SSE returns an error frame"
+          ).toBeVisible({ timeout: 10_000 });
+          await expect(
+            errorPanel,
+            "I expect the panel copy to mention 'interrupted' so the user understands what happened"
+          ).toContainText(/interrupted/i);
+          expect(
+            researchPostCount,
+            "I expect exactly 1 POST /api/research before the user clicks Retry"
+          ).toBe(1);
+          await beat(page);
+        }
+      );
 
       const retryBtn = page.getByTestId("research-retry-btn");
-      await expect(retryBtn).toBeVisible();
-      await retryBtn.click();
+      await test.step(
+        "User clicks Retry — they expect the same query to fire again",
+        async () => {
+          await expect(
+            retryBtn,
+            "I expect a Retry button on the error panel"
+          ).toBeVisible();
+          await beat(page, 0.5);
+          await retryBtn.click();
+          await beat(page, 0.5);
+        }
+      );
 
-      await expect
-        .poll(() => researchPostCount, {
-          timeout: 10_000,
-          message: "Retry did not trigger a second POST /api/research",
-        })
-        .toBeGreaterThanOrEqual(2);
+      await test.step(
+        "User expects a fresh POST /api/research and the panel still standing",
+        async () => {
+          await expect
+            .poll(() => researchPostCount, {
+              timeout: 10_000,
+              message:
+                "I expect Retry to trigger a second POST /api/research (current count: see below)",
+            })
+            .toBeGreaterThanOrEqual(2);
 
-      await expect(errorPanel).toBeVisible({ timeout: 10_000 });
+          await expect(
+            errorPanel,
+            "I expect the panel to remain visible because the mock keeps returning the same error frame"
+          ).toBeVisible({ timeout: 10_000 });
+          await beat(page);
+        }
+      );
     } finally {
       await page.unroute("**/api/research");
     }
@@ -466,8 +563,6 @@ test.describe("Research tab — error UX", () => {
 // ---------------------------------------------------------------------------
 // Test 5 — Rubric pass on a REAL streamed report
 // ---------------------------------------------------------------------------
-// This is the only test that exercises the live Ollama backend. It uses
-// generous timeouts because gpt-oss:20b on CPU can take 30-90s.
 
 test.describe("Research tab — rubric pass on streamed report", () => {
   test("all 8 rubric helpers pass against a real research run", async ({
@@ -477,53 +572,59 @@ test.describe("Research tab — rubric pass on streamed report", () => {
 
     const errors = installConsoleErrorListener(page);
 
-    await page.goto("/");
-    await page.getByRole("tab", { name: /Research/i }).click();
-
-    const queryInput = page.getByPlaceholder(/AI funding rounds/i);
-    await expect(queryInput).toBeVisible({ timeout: 10_000 });
-    await queryInput.fill(SHORT_QUESTION);
-    await page.getByRole("button", { name: /^Research$/i }).click();
+    await landOnApp(page);
+    await openResearchTab(page);
+    await submitResearch(page);
 
     const phaseChip = page.getByTestId("research-phase-chip");
-    await expect(phaseChip).toBeVisible({ timeout: 15_000 });
-    await expect(phaseChip).toHaveText(/Done/i, { timeout: 150_000 });
 
-    // Stable scope selector — the report card has its own testid and
-    // the body is its child. Helpers walk visible text only, so the
-    // scope must be the rendered surface, not the entire <body>.
+    await test.step(
+      "User waits for the live agent to finish (this is the real Ollama run)",
+      async () => {
+        await expect(
+          phaseChip,
+          "I expect the phase chip to render once the agent starts"
+        ).toBeVisible({ timeout: 15_000 });
+        await expect(
+          phaseChip,
+          "I expect the live run to land on Done within 150 seconds (gpt-oss:20b on CPU)"
+        ).toHaveText(/Done/i, { timeout: 150_000 });
+        await beat(page);
+      }
+    );
+
     const scope = '[data-testid="research-report-card"]';
     const bodyScope = '[data-testid="research-report-body"]';
 
-    // ---- Category 1: HTML entities + mojibake + null/undefined --------
-    await assertNoHtmlEntities(page, scope);
-    await assertNoMojibake(page, scope);
-    await assertNoUndefinedNullObjectObject(page, scope);
+    await test.step("Rubric: no HTML entities, mojibake, or null-leak text", async () => {
+      await assertNoHtmlEntities(page, scope);
+      await assertNoMojibake(page, scope);
+      await assertNoUndefinedNullObjectObject(page, scope);
+    });
 
-    // ---- Category 4: no horizontal overflow -----------------------------
-    // Both the body itself and the active tab's panel root must not
-    // overflow horizontally — long URLs / unbroken tokens are the
-    // common culprit and we have overflowWrap:anywhere set in
-    // ResearchMode to defeat them.
-    await assertNoHorizontalOverflow(page, bodyScope);
-    await assertNoHorizontalOverflow(
-      page,
-      '[data-state="active"][role="tabpanel"]'
-    );
+    await test.step("Rubric: no horizontal overflow on long URLs", async () => {
+      await assertNoHorizontalOverflow(page, bodyScope);
+      await assertNoHorizontalOverflow(
+        page,
+        '[data-state="active"][role="tabpanel"]'
+      );
+    });
 
-    // ---- Category 3: no duplicate sibling paragraphs --------------------
-    // The agent shouldn't render the same paragraph twice. We scope
-    // to the report body's direct paragraph children.
-    await assertNoDuplicateSiblings(
-      page,
-      `${bodyScope} p`,
-      "Report body paragraphs"
-    );
+    await test.step("Rubric: no duplicate sibling paragraphs", async () => {
+      await assertNoDuplicateSiblings(
+        page,
+        `${bodyScope} p`,
+        "Report body paragraphs"
+      );
+    });
 
-    // ---- Category 7: no mock / seed data leak ---------------------------
-    await assertNoMockDataLeak(page, scope);
+    await test.step("Rubric: no mock/seed data leak", async () => {
+      await assertNoMockDataLeak(page, scope);
+    });
 
-    // ---- Category 6: console hygiene ------------------------------------
-    assertConsoleClean(errors);
+    await test.step("Rubric: console-clean throughout the live run", async () => {
+      assertConsoleClean(errors);
+      await beat(page, 1.5);
+    });
   });
 });

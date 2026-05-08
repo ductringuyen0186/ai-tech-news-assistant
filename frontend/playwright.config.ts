@@ -8,34 +8,40 @@ import { defineConfig, devices } from "@playwright/test";
  *   - backend at http://127.0.0.1:8000
  *   - Ollama at http://localhost:11434 (only used by `*.live.spec.ts`)
  *
- * Default `npx playwright test` runs the deterministic spec suite (no
- * Ollama dependency for tests 1-4 of research.spec.ts; Test 5 is the
- * single live integration test).
+ * Default `npx playwright test` runs the deterministic suite.
  *
- * To run the slow live-Ollama integration spec on demand:
+ * To make the recorded videos *watchable by a human*, every user action
+ * is throttled by SLOW_MO (default 600ms). Override per-run:
+ *   PLAYWRIGHT_SLOW_MO=0    — fast CI mode
+ *   PLAYWRIGHT_SLOW_MO=1200 — slow demo mode
+ *
+ * Live integration spec (Ollama-dependent):
  *   npx playwright test research.live.spec.ts --grep @live
- *
- * Video is recorded for EVERY test (video: "on") so regressions are
- * obvious visually, not just as failed assertions.
  */
+const SLOW_MO = process.env.PLAYWRIGHT_SLOW_MO !== undefined
+  ? Number(process.env.PLAYWRIGHT_SLOW_MO)
+  : 600;
+
 export default defineConfig({
   testDir: "./e2e",
-  // Skip the slow live-Ollama spec on the default run. Override with
-  // `--testIgnore="" research.live.spec.ts` (or rely on --grep @live)
-  // to opt in.
   testIgnore: ["**/*.live.spec.ts"],
-  timeout: 60_000,
-  fullyParallel: false, // serial; this is a small suite
+  // Watching a video is the verification — bump per-test budget so the
+  // pacing pauses don't blow the default 60s.
+  timeout: 120_000,
+  fullyParallel: false,
   workers: 1,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: "http://localhost:3000",
-    headless: false, // visible — user wants to watch
-    video: "on", // record EVERY test
+    headless: false,
+    video: "on",
     screenshot: "only-on-failure",
     trace: "retain-on-failure",
     viewport: { width: 1440, height: 900 },
-    actionTimeout: 15_000,
+    actionTimeout: 20_000,
+    launchOptions: {
+      slowMo: SLOW_MO,
+    },
   },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
