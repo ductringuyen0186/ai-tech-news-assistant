@@ -149,6 +149,52 @@ class ArticleRepository:
                 raise NotFoundError(f"Article with id {article_id} not found")
             return self._row_to_article(row)
     
+    async def get_summary_only(self, article_id: int):
+        """Fast cache-lookup helper: returns ``articles.summary`` for the
+        given id, or ``None`` if no row matches or the column is empty.
+
+        This is the read-side primitive used by the ``summarize_article``
+        agent skill (Mission 2, M2) before deciding whether to call the
+        LLM. It is deliberately cheap: a single ``SELECT summary`` with no
+        view-count side-effect, so it's safe to call from inside a tight
+        agent loop.
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT summary FROM articles WHERE id = ?",
+                (article_id,),
+            ).fetchone()
+        if not row:
+            return None
+        summary = row[0]
+        if summary is None:
+            return None
+        if isinstance(summary, str) and not summary.strip():
+            return None
+        return summary
+
+    async def get_content_only(self, article_id: int):
+        """Read the article body for summarization.
+
+        Mirrors :meth:`get_summary_only` but returns the ``content`` field
+        (full body), or ``None`` when the article has no usable body.
+        Used by ``summarize_article`` on cache miss to feed the LLM.
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT title, content FROM articles WHERE id = ?",
+                (article_id,),
+            ).fetchone()
+        if not row:
+            return None
+        body = (row["content"] or "").strip()
+        if not body:
+            # Fall back to title alone -- better than nothing for short feed items.
+            title = (row["title"] or "").strip()
+            return title or None
+        return body
+    
     async def get_by_url(self, url: str):
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
