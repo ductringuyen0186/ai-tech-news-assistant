@@ -194,28 +194,49 @@ class ArticleRepository:
             cursor = conn.execute("UPDATE articles SET is_archived = TRUE WHERE id = ?", (article_id,))
             return cursor.rowcount > 0
     
-    async def list_articles(self, limit=50, offset=0, source=None):
+    async def list_articles(self, limit=50, offset=0, source=None, categories=None):
+        """List non-archived articles, optionally filtered by source and/or
+        category tags.
+
+        ``categories`` is an iterable of category names to match against the
+        article's stored ``categories`` JSON-array column. Matching is OR-ed
+        across the supplied values (an article needs to have ANY of the
+        listed categories to match) and is implemented with a JSON LIKE
+        pattern that anchors on the quoted token so substring collisions
+        (e.g. "AI" matching "AI/ML") don't false-positive.
+        """
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            
-            # Build query with optional source filter
+
+            # Build query with optional source + category filters
             base_query = "FROM articles WHERE is_archived = FALSE"
-            params = []
-            
+            params: list = []
+
             if source:
                 base_query += " AND source = ?"
                 params.append(source)
-            
+
+            # Categories are stored as a JSON array string (e.g.
+            # '["AI/ML"]'). We match on the exact quoted token so "AI"
+            # doesn't accidentally match "AI/ML" via substring.
+            cat_list = [c for c in (categories or []) if c]
+            if cat_list:
+                clauses = []
+                for c in cat_list:
+                    clauses.append("categories LIKE ?")
+                    params.append(f'%"{c}"%')
+                base_query += " AND (" + " OR ".join(clauses) + ")"
+
             # Get total count
             count_query = f"SELECT COUNT(*) as count {base_query}"
             total_count = conn.execute(count_query, params).fetchone()["count"]
-            
+
             # Get articles with pagination
             query = f"SELECT * {base_query} ORDER BY created_at DESC LIMIT ? OFFSET ?"
             params.extend([limit, offset])
             rows = conn.execute(query, params).fetchall()
             articles = [self._row_to_article(row) for row in rows]
-            
+
             return articles, total_count
     
     async def search_articles(self, query, limit=50, offset=0):

@@ -88,22 +88,47 @@ test.describe("Chat / Ask AI tab", () => {
         `scrollWidth=${overflow.scrollWidth}, clientWidth=${overflow.clientWidth}`
     ).toBeLessThanOrEqual(overflow.clientWidth + 4);
 
-    // If a "Related articles" list was rendered, its titles should be unique.
-    // Each related-article card is a div.bg-white.p-2 inside the bubble; the
-    // first <p> in each card is the title.
-    const articleCards = latestBubble.locator("div.bg-white.p-2");
+    // If a "Related articles" list was rendered, its titles should be
+    // unique AND each card should be a clickable <a href="..."> so the
+    // user can jump to the source. We accept either an <a> or a <div>
+    // wrapping the card so the selector survives the "make cards
+    // clickable" change without going blind to the old layout.
+    const articleCards = latestBubble.locator(
+      'a.bg-white.p-2, div.bg-white.p-2'
+    );
     const articleCount = await articleCards.count();
     if (articleCount > 0) {
       const titles: string[] = [];
+      const urls: string[] = [];
       for (let i = 0; i < articleCount; i++) {
-        const t = await articleCards.nth(i).locator("p").first().innerText();
+        const card = articleCards.nth(i);
+        const t = await card.locator("p").first().innerText();
         titles.push(t.trim());
+        // Anchor cards expose the source URL via href; div fallbacks
+        // legitimately have no href.
+        const href = await card.getAttribute("href");
+        if (href) urls.push(href);
       }
       const unique = new Set(titles);
       expect(
         unique.size,
         `Related articles should have unique titles - saw duplicates: ${titles.join(" | ")}`
       ).toBe(titles.length);
+
+      // Every card with an href should be a real http(s) link AND the
+      // hrefs themselves should be unique — same dedup contract as
+      // titles, but on the canonical URL the user actually clicks.
+      for (const u of urls) {
+        expect(
+          /^https?:\/\//.test(u),
+          `Related-article href is not an http(s) URL: ${u}`
+        ).toBe(true);
+      }
+      const uniqueUrls = new Set(urls);
+      expect(
+        uniqueUrls.size,
+        `Related-article hrefs should be unique - saw duplicates: ${urls.join(" | ")}`
+      ).toBe(urls.length);
     }
     // If no related articles section, that's fine - we don't require it.
   });
@@ -189,7 +214,11 @@ test.describe("rubric — Chat / Ask AI", () => {
     await assertNoHorizontalOverflow(page, scope);
 
     // ---- Category 3: related-article cards have unique titles ------------
-    const cardSelector = `${scope} div.bg-white.p-2 > p:first-child`;
+    // Cards now render as either <a class="bg-white p-2"> (clickable) or
+    // <div class="bg-white p-2"> (legacy fallback when no URL).
+    const cardSelector =
+      `${scope} a.bg-white.p-2 > p:first-child, ` +
+      `${scope} div.bg-white.p-2 > p:first-child`;
     const cardCount = await page.locator(cardSelector).count();
     if (cardCount > 0) {
       await assertNoDuplicateSiblings(

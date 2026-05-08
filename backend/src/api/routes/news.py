@@ -42,6 +42,7 @@ async def get_articles(
     page: int = Query(default=1, ge=1, description="Page number"),
     page_size: int = Query(default=20, ge=1, le=100, description="Items per page"),
     source: Optional[str] = Query(default=None, description="Filter by news source"),
+    category: Optional[List[str]] = Query(default=None, description="Filter by category tag (repeatable; OR-ed)"),
     author: Optional[str] = Query(default=None, description="Filter by author"),
     has_summary: Optional[bool] = Query(default=None, description="Filter by summary presence"),
     sort_by: Optional[str] = Query(default="created_at", description="Sort field"),
@@ -50,16 +51,19 @@ async def get_articles(
 ) -> PaginatedResponse[Article]:
     """
     Get paginated list of news articles with optional filtering.
-    
+
     Args:
         page: Page number (starting from 1)
         page_size: Number of articles per page (1-100)
         source: Optional source filter
+        category: Optional category filter — matches articles whose
+            ``categories`` JSON-array contains any of the supplied values.
+            Repeatable, OR-ed across values (?category=AI/ML&category=Cloud).
         author: Optional author filter
         has_summary: Filter by presence of summary
         sort_by: Field to sort by (created_at, published_date, title, views)
         sort_desc: Sort in descending order
-        
+
     Returns:
         Paginated response with articles and pagination info
     """
@@ -72,15 +76,20 @@ async def get_articles(
             sort_by=sort_by,
             sort_desc=sort_desc
         )
-        
+
         # Calculate offset
         offset = (page - 1) * page_size
-        
+
+        # Normalize category filter: drop empties so an explicit ?category=
+        # (no value) doesn't accidentally filter every article out.
+        categories_filter = [c for c in (category or []) if c and c.strip()] or None
+
         # Get articles and total count
         articles, total_count = await repo.list_articles(
             limit=page_size,
             offset=offset,
-            source=source
+            source=source,
+            categories=categories_filter,
         )
         
         # Calculate pagination info

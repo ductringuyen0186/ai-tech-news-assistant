@@ -13,6 +13,13 @@ interface Message {
     id: string;
     title: string;
     summaryShort: string;
+    /**
+     * Canonical URL of the source article. The chat bubble wraps each
+     * related-article card in an `<a href={url} target="_blank">` so users
+     * can click through to the source. Empty string means we render the
+     * card as a non-link fallback (still readable, just not clickable).
+     */
+    url?: string;
   }>;
 }
 
@@ -122,15 +129,46 @@ export function ChatInterface({ onAskQuestion }: ChatInterfaceProps) {
                       <p className="text-xs text-gray-600 mb-2">
                         Related articles:
                       </p>
-                      {message.relevantArticles.map((article) => (
-                        <div
-                          key={article.id}
-                          className="bg-white p-2 rounded text-xs text-gray-800"
-                        >
-                          <p className="mb-1">{article.title}</p>
-                          <p className="text-gray-600">{article.summaryShort}</p>
-                        </div>
-                      ))}
+                      {message.relevantArticles.map((article) => {
+                        const hasUrl =
+                          typeof article.url === "string" && article.url.length > 0;
+                        const cardClass =
+                          "bg-white p-2 rounded text-xs text-gray-800 block transition-colors " +
+                          (hasUrl
+                            ? "cursor-pointer hover:bg-blue-50 hover:text-blue-700"
+                            : "");
+                        const titleClass =
+                          "mb-1 " +
+                          (hasUrl ? "underline-offset-2 hover:underline" : "");
+                        const inner = (
+                          <>
+                            <p className={titleClass}>{article.title}</p>
+                            {article.summaryShort && (
+                              <p className="text-gray-600">
+                                {article.summaryShort}
+                              </p>
+                            )}
+                          </>
+                        );
+                        if (hasUrl) {
+                          return (
+                            <a
+                              key={article.id || article.url}
+                              href={article.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={cardClass}
+                            >
+                              {inner}
+                            </a>
+                          );
+                        }
+                        return (
+                          <div key={article.id} className={cardClass}>
+                            {inner}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

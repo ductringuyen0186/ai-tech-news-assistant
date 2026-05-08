@@ -34,13 +34,22 @@ export default function App() {
       setLoading(true);
       const params = new URLSearchParams();
       
-      // Backend expects page_size, page, source (not limit, q, category)
+      // Backend expects page_size, page, and an OR-ed `category` repeatable
+      // query param for category filtering. We previously sent
+      // `source=<category>` which never matched (categories live in the
+      // categories JSON column, not the source column) and forced the feed
+      // to "0 articles" the moment a chip was selected.
       params.append("page", "1");
       params.append("page_size", "50");
-      
+
       if (selectedCategories.length > 0) {
-        // Backend uses 'source' parameter for filtering, not 'category'
-        params.append("source", selectedCategories[0]);
+        // Send each selected chip as its own ?category= entry so the
+        // backend OR-matches them (?category=AI/ML&category=Cloud).
+        for (const cat of selectedCategories) {
+          if (cat && cat.trim()) {
+            params.append("category", cat);
+          }
+        }
       }
       if (searchQuery) {
         params.append("author", searchQuery);
@@ -79,7 +88,16 @@ export default function App() {
           summaryMedium,
           url: article.url,
           publishedAt: article.published_at,
-          imageUrl: article.image_url || 'https://via.placeholder.com/400x300?text=Tech+News',
+          // Inline SVG fallback. Was previously
+          // `https://via.placeholder.com/400x300?text=Tech+News`, but that
+          // host has gone unreachable in our environment, which (a) lit up
+          // the rubric "console must be clean" check with a real
+          // `net::ERR_CONNECTION_CLOSED` for every imageless article on the
+          // feed, and (b) made the empty-state-or-results gate on the News
+          // Feed flap. A data: URI never round-trips and renders deterministically.
+          imageUrl:
+            article.image_url ||
+            "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'><rect width='400' height='300' fill='%23e5e7eb'/><text x='50%25' y='50%25' font-family='sans-serif' font-size='24' fill='%236b7280' text-anchor='middle' dominant-baseline='middle'>Tech News</text></svg>",
           category: article.categories || [],
           source: article.source,
           credibilityScore: 85, // Default score
@@ -192,21 +210,29 @@ export default function App() {
       const data = envelope?.data ?? envelope;
       const rawSources = (data.sources || []).map((s: any) => ({
         id: String(s.id ?? ""),
-        url: s.url ?? "",
+        url: typeof s.url === "string" ? s.url : "",
         title: s.title ?? "Untitled",
-        summaryShort: s.title ?? "",
+        summaryShort: s.source ?? "",
       }));
-      // Dedup by id, url, AND title so repeated retrieval hits on the same
-      // article — including duplicates with different ids but identical
-      // titles (which previously slipped through and rendered the same card
-      // twice in the "Related articles" section) — render only once.
+      // Dedup by url FIRST (canonical identity — two retrieval hits that
+      // point at the same article URL are the same article even if the
+      // backend issued different ids), then fall back to id and title.
+      // Worker A's previous dedup was id+title only, but the user kept
+      // seeing duplicates because identical titles can vary by trailing
+      // whitespace / quote style — and the same canonical article can
+      // come back with different DB ids if it was re-ingested. URL is
+      // the only stable key the backend guarantees per article.
+      const seenUrls = new Set<string>();
       const seenIds = new Set<string>();
       const seenTitles = new Set<string>();
       const sources = rawSources.filter((s: any) => {
-        const idKey = s.id || s.url;
-        const titleKey = (s.title || "").trim().toLowerCase();
+        const urlKey = (s.url || "").trim().toLowerCase();
+        const idKey = (s.id || "").trim();
+        const titleKey = (s.title || "").trim().toLowerCase().replace(/\s+/g, " ");
+        if (urlKey && seenUrls.has(urlKey)) return false;
         if (idKey && seenIds.has(idKey)) return false;
         if (titleKey && seenTitles.has(titleKey)) return false;
+        if (urlKey) seenUrls.add(urlKey);
         if (idKey) seenIds.add(idKey);
         if (titleKey) seenTitles.add(titleKey);
         return true;
