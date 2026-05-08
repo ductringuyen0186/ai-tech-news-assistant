@@ -49,7 +49,7 @@ langchain-chroma>=0.1.0  # ChromaDB integration
 # (gpt-oss:20b). See docs/notes/deepagents-api-surface.md for the M1
 # spike + integration contract.
 deepagents==0.5.7
-langchain-ollama>=1.1.0
+langchain-ollama==1.1.0
 
 # Task Orchestration (for future implementation)
 # prefect==2.14.11
