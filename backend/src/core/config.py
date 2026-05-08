@@ -160,6 +160,17 @@ class Settings(BaseSettings):
     retention_days: int = Field(default=30, alias="RETENTION_DAYS", ge=1, le=3650)
     retention_max_deletes: int = Field(default=500, alias="RETENTION_MAX_DELETES", ge=1, le=100000)
 
+    # Per-article subagents settings (Mission 2, Milestone 3 — SubagentPool)
+    # Caps the number of in-flight per-article skill dispatches running
+    # concurrently inside the agent's fan-out step. Default 4 keeps Ollama
+    # latency reasonable on a single-GPU box; bump for more cores.
+    max_concurrent_subagents: int = Field(
+        default=4,
+        alias="MAX_CONCURRENT_SUBAGENTS",
+        ge=1,
+        le=64,
+    )
+
     # News sources settings
     rss_sources: List[Dict[str, str]] = Field(
         default=[
