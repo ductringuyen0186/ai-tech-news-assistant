@@ -18,12 +18,14 @@ import {
   RefreshCw,
   Copy,
   Download,
+  X,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import { API_BASE_URL, API_ENDPOINTS } from "../config/api";
 
 /**
- * ResearchMode — M3 of the Agentic Research mission.
+ * ResearchMode — M3 + M4 of the Agentic Research mission.
  *
  * Submits the user's question to ``POST /api/research`` (SSE stream) and
  * renders the streamed report token-by-token alongside a phase chip.
@@ -42,6 +44,11 @@ import { API_BASE_URL, API_ENDPOINTS } from "../config/api";
  * EventSource cannot send a POST body. The parser splits on the SSE frame
  * delimiter ``\n\n`` and keeps any trailing partial frame as the new buffer
  * for the next chunk.
+ *
+ * M4 adds: clickable inline ``[N]`` citation anchors that smooth-scroll to
+ * the matching ``#source-N`` entry in the ``Sources Used`` section, an
+ * in-flight Cancel button, a transient "Copied!" indicator on the copy
+ * button, and a properly-named ``research-<ISO timestamp>.md`` download.
  */
 
 // ---------------------------------------------------------------------------
@@ -51,14 +58,42 @@ import { API_BASE_URL, API_ENDPOINTS } from "../config/api";
 // and the M3 constraint is explicit: do NOT introduce a new lib. We render the
 // subset of markdown the agent actually emits — headings (#–######), unordered
 // lists (- ), ordered lists (1. ), bold (**…**), italic (*…* / _…_), inline
-// code (`…`), links ([t](u)), and paragraphs separated by blank lines. Raw
-// citation markers like ``[3]`` pass through untouched (M4 wires them).
+// code (`…`), links ([t](u)), and paragraphs separated by blank lines. Inline
+// citation markers like ``[3]`` pass through untouched while the report is
+// still streaming, then become anchor links once ``linkifyCitations`` is on
+// (the parent flips this on the ``done`` phase).
 // ---------------------------------------------------------------------------
 
-function renderInline(text: string, keyPrefix: string): React.ReactNode[] {
+/**
+ * Smooth-scroll to a ``#source-N`` anchor when an inline citation link is
+ * clicked. Falls back gracefully (no-op) if the anchor was never rendered —
+ * for example, when the model omits the ``Sources Used`` section.
+ */
+function handleCitationClick(
+  event: React.MouseEvent<HTMLAnchorElement>,
+  n: number
+): void {
+  event.preventDefault();
+  const target = document.getElementById(`source-${n}`);
+  if (target) {
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+function renderInline(
+  text: string,
+  keyPrefix: string,
+  opts?: { linkifyCitations?: boolean }
+): React.ReactNode[] {
+  const linkifyCitations = opts?.linkifyCitations === true;
   const nodes: React.ReactNode[] = [];
-  const pattern =
-    /(\*\*([^*\n]+)\*\*)|(\*([^*\n]+)\*)|(_([^_\n]+)_)|(`([^`\n]+)`)|(\[([^\]\n]+)\]\(([^)\s]+)\))/;
+  // Order matters — the link-with-URL branch must sit BEFORE the bare
+  // ``[N]`` citation branch so that ``[label](url)`` isn't mis-detected as a
+  // citation. The citation branch only fires when the alt text is purely
+  // numeric and no ``(`` follows.
+  const pattern = linkifyCitations
+    ? /(\*\*([^*\n]+)\*\*)|(\*([^*\n]+)\*)|(_([^_\n]+)_)|(`([^`\n]+)`)|(\[([^\]\n]+)\]\(([^)\s]+)\))|(\[(\d+)\])/
+    : /(\*\*([^*\n]+)\*\*)|(\*([^*\n]+)\*)|(_([^_\n]+)_)|(`([^`\n]+)`)|(\[([^\]\n]+)\]\(([^)\s]+)\))/;
   let remaining = text;
   let i = 0;
   while (remaining.length > 0) {
@@ -98,6 +133,18 @@ function renderInline(text: string, keyPrefix: string): React.ReactNode[] {
           {m[10]}
         </a>
       );
+    } else if (linkifyCitations && m[12]) {
+      const n = parseInt(m[13], 10);
+      nodes.push(
+        <a
+          key={key}
+          href={`#source-${n}`}
+          className="citation text-blue-600 hover:underline cursor-pointer"
+          onClick={(e) => handleCitationClick(e, n)}
+        >
+          [{n}]
+        </a>
+      );
     }
     remaining = remaining.slice(m.index + m[0].length);
   }
@@ -106,13 +153,32 @@ function renderInline(text: string, keyPrefix: string): React.ReactNode[] {
 
 interface MarkdownReportProps {
   text: string;
+  /**
+   * When true (post-``done``), inline ``[N]`` markers become anchor links
+   * targeting ``#source-N`` and entries inside the ``Sources Used`` section
+   * receive matching ``id="source-N"`` attributes. Off during streaming to
+   * avoid flicker as the markers appear mid-token.
+   */
+  linkifyCitations?: boolean;
 }
 
-function MarkdownReport({ text }: MarkdownReportProps): JSX.Element {
+function MarkdownReport({
+  text,
+  linkifyCitations = false,
+}: MarkdownReportProps): JSX.Element {
   const lines = text.split("\n");
   const blocks: React.ReactNode[] = [];
   let i = 0;
   let blockIdx = 0;
+  // Tracks whether the current section is the "Sources Used" section. When
+  // true, the next list (ul/ol) we emit gets sequential ``id="source-N"``
+  // anchors on each list item, regardless of the model's own numbering.
+  let inSourcesSection = false;
+  // Counter for source anchor IDs. Only the FIRST list under the Sources
+  // heading claims anchors; a malformed report with multiple lists won't
+  // produce duplicate IDs.
+  let sourceCounter = 0;
+  const inlineOpts = { linkifyCitations };
 
   while (i < lines.length) {
     const line = lines[i];
@@ -126,6 +192,15 @@ function MarkdownReport({ text }: MarkdownReportProps): JSX.Element {
     if (headingMatch) {
       const level = headingMatch[1].length;
       const content = headingMatch[2].trim();
+      // A heading boundary always closes the previous section. We re-detect
+      // the Sources marker each time so a nested ``### Sources`` would also
+      // open the anchor numbering.
+      if (linkifyCitations && /^sources?\b/i.test(content)) {
+        inSourcesSection = true;
+        sourceCounter = 0;
+      } else {
+        inSourcesSection = false;
+      }
       const cls =
         level === 1
           ? "text-2xl font-bold mt-4 mb-2 text-gray-900"
@@ -137,7 +212,7 @@ function MarkdownReport({ text }: MarkdownReportProps): JSX.Element {
       const Tag = (`h${level}` as unknown) as keyof JSX.IntrinsicElements;
       blocks.push(
         <Tag key={`b-${blockIdx++}`} className={cls}>
-          {renderInline(content, `b-${blockIdx}`)}
+          {renderInline(content, `b-${blockIdx}`, inlineOpts)}
         </Tag>
       );
       i++;
@@ -149,12 +224,25 @@ function MarkdownReport({ text }: MarkdownReportProps): JSX.Element {
       let j = i;
       while (j < lines.length && /^\s*[-*]\s+/.test(lines[j])) {
         const itemText = lines[j].replace(/^\s*[-*]\s+/, "");
+        const anchorId =
+          inSourcesSection && sourceCounter < 1000
+            ? `source-${++sourceCounter}`
+            : undefined;
         items.push(
-          <li key={`li-${blockIdx}-${j}`} className="ml-6 list-disc">
-            {renderInline(itemText, `li-${blockIdx}-${j}`)}
+          <li
+            key={`li-${blockIdx}-${j}`}
+            id={anchorId}
+            className="ml-6 list-disc"
+          >
+            {renderInline(itemText, `li-${blockIdx}-${j}`, inlineOpts)}
           </li>
         );
         j++;
+      }
+      // The Sources list has been consumed — close out so a stray bullet
+      // list later in the document doesn't claim more anchor IDs.
+      if (inSourcesSection) {
+        inSourcesSection = false;
       }
       blocks.push(
         <ul key={`b-${blockIdx++}`} className="my-2 space-y-1 text-gray-800">
@@ -170,12 +258,23 @@ function MarkdownReport({ text }: MarkdownReportProps): JSX.Element {
       let j = i;
       while (j < lines.length && /^\s*\d+\.\s+/.test(lines[j])) {
         const itemText = lines[j].replace(/^\s*\d+\.\s+/, "");
+        const anchorId =
+          inSourcesSection && sourceCounter < 1000
+            ? `source-${++sourceCounter}`
+            : undefined;
         items.push(
-          <li key={`oli-${blockIdx}-${j}`} className="ml-6 list-decimal">
-            {renderInline(itemText, `oli-${blockIdx}-${j}`)}
+          <li
+            key={`oli-${blockIdx}-${j}`}
+            id={anchorId}
+            className="ml-6 list-decimal"
+          >
+            {renderInline(itemText, `oli-${blockIdx}-${j}`, inlineOpts)}
           </li>
         );
         j++;
+      }
+      if (inSourcesSection) {
+        inSourcesSection = false;
       }
       blocks.push(
         <ol key={`b-${blockIdx++}`} className="my-2 space-y-1 text-gray-800">
@@ -203,7 +302,7 @@ function MarkdownReport({ text }: MarkdownReportProps): JSX.Element {
         className="my-2 leading-relaxed text-gray-800"
         style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
       >
-        {renderInline(paraLines.join(" "), `p-${blockIdx}`)}
+        {renderInline(paraLines.join(" "), `p-${blockIdx}`, inlineOpts)}
       </p>
     );
   }
@@ -228,8 +327,10 @@ export function ResearchMode({}: ResearchModeProps) {
   const [reportText, setReportText] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lastSubmittedQuery, setLastSubmittedQuery] = useState<string>("");
+  const [copied, setCopied] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const suggestedQueries = [
     "Summarize the biggest AI funding rounds in the past 2 weeks",
@@ -244,6 +345,10 @@ export function ResearchMode({}: ResearchModeProps) {
       if (abortRef.current) {
         abortRef.current.abort();
         abortRef.current = null;
+      }
+      if (copiedTimerRef.current) {
+        clearTimeout(copiedTimerRef.current);
+        copiedTimerRef.current = null;
       }
     };
   }, []);
@@ -290,6 +395,7 @@ export function ResearchMode({}: ResearchModeProps) {
     setReportText("");
     setErrorMessage(null);
     setLastSubmittedQuery(question);
+    setCopied(false);
 
     const ac = new AbortController();
     abortRef.current = ac;
@@ -397,24 +503,95 @@ export function ResearchMode({}: ResearchModeProps) {
     }
   };
 
+  /**
+   * User-initiated cancel. Aborts the in-flight fetch (the SSE reader sees
+   * an ``AbortError`` and exits silently in the catch block above), then
+   * resets the UI to idle so the submit button re-enables and the phase
+   * chip disappears. Server-side cancel of the Ollama generation is handled
+   * in M2 via the StreamingResponse ``is_disconnected`` callback.
+   */
+  const handleCancel = () => {
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
+    setIsResearching(false);
+    setPhase("");
+    setErrorMessage(null);
+    // Keep ``reportText`` so any partial output the user already sees is
+    // preserved — they can read what arrived before cancelling. The phase
+    // chip resetting to empty is enough signal that the run is done.
+  };
+
   const onCopyMarkdown = () => {
     if (!reportText) return;
-    try {
-      void navigator.clipboard?.writeText(reportText);
+    const writeToClipboard = async (): Promise<boolean> => {
+      try {
+        if (
+          navigator.clipboard &&
+          typeof navigator.clipboard.writeText === "function"
+        ) {
+          await navigator.clipboard.writeText(reportText);
+          return true;
+        }
+      } catch {
+        // Fall through to legacy path.
+      }
+      // Fallback for older browsers / non-secure contexts.
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = reportText;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        return ok;
+      } catch {
+        return false;
+      }
+    };
+    void writeToClipboard().then((ok) => {
+      if (!ok) {
+        toast.error("Copy failed");
+        return;
+      }
+      setCopied(true);
       toast.success("Report copied to clipboard");
-    } catch {
-      toast.error("Copy failed");
-    }
+      if (copiedTimerRef.current) {
+        clearTimeout(copiedTimerRef.current);
+      }
+      copiedTimerRef.current = setTimeout(() => {
+        setCopied(false);
+        copiedTimerRef.current = null;
+      }, 2000);
+    });
   };
+
   const onDownloadMarkdown = () => {
     if (!reportText) return;
-    const blob = new Blob([reportText], { type: "text/markdown" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `techpulse-research-${Date.now()}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const blob = new Blob([reportText], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      // ``research-<ISO timestamp>.md`` per the M4 contract. Colons and
+      // dots are stripped on Windows; replace them so the saved file looks
+      // tidy in Explorer.
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      a.download = `research-${stamp}.md`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      // Defer revocation so Safari has time to start the download.
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn("research download failed:", err);
+      toast.error("Download failed");
+    }
   };
 
   const phaseVariant: "default" | "secondary" | "destructive" | "outline" =
@@ -511,28 +688,52 @@ export function ResearchMode({}: ResearchModeProps) {
                   </Badge>
                 )}
               </div>
-              {showReport && phase === "done" && (
-                <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
+                {isResearching && (
                   <Button
-                    onClick={onCopyMarkdown}
+                    onClick={handleCancel}
                     variant="outline"
                     size="sm"
-                    data-testid="research-copy-btn"
+                    data-testid="research-cancel-btn"
+                    aria-label="Cancel research"
                   >
-                    <Copy className="w-4 h-4 mr-2" />
-                    Copy markdown
+                    <X className="w-4 h-4 mr-2" />
+                    Cancel
                   </Button>
-                  <Button
-                    onClick={onDownloadMarkdown}
-                    variant="outline"
-                    size="sm"
-                    data-testid="research-download-btn"
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    Download .md
-                  </Button>
-                </div>
-              )}
+                )}
+                {showReport && phase === "done" && (
+                  <>
+                    <Button
+                      onClick={onCopyMarkdown}
+                      variant="outline"
+                      size="sm"
+                      data-testid="research-copy-btn"
+                      aria-live="polite"
+                    >
+                      {copied ? (
+                        <>
+                          <Check className="w-4 h-4 mr-2" />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4 mr-2" />
+                          Copy markdown
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      onClick={onDownloadMarkdown}
+                      variant="outline"
+                      size="sm"
+                      data-testid="research-download-btn"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download .md
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -573,7 +774,10 @@ export function ResearchMode({}: ResearchModeProps) {
                 style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
               >
                 {reportText.length > 0 ? (
-                  <MarkdownReport text={reportText} />
+                  <MarkdownReport
+                    text={reportText}
+                    linkifyCitations={phase === "done"}
+                  />
                 ) : (
                   <div className="flex items-center gap-2 text-gray-500 py-4">
                     <Loader2 className="w-4 h-4 animate-spin" />
