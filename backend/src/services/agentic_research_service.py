@@ -3,8 +3,8 @@ Agentic Research Service
 ========================
 
 Multi-step LLM agent that turns a single research question into a structured
-markdown report. Replaces the misnamed "Agentic Research Mode" tab — which
-today fires one semantic-search query and renders an empty stub — with a
+markdown report. Replaces the misnamed "Agentic Research Mode" tab -- which
+today fires one semantic-search query and renders an empty stub -- with a
 real decompose -> search -> synthesize loop.
 
 Loop semantics
@@ -27,10 +27,12 @@ Loop semantics
     citations matching a numbered ``## Sources Used`` section. For
     sub-questions with zero hits, the prompt explicitly tells the model to
     write "Could not find data on X".
-6.  Call Ollama (non-streaming for M1 — streaming is M2's job) and
-    assemble the final report.
-7.  Emit a single ``phase: "done"`` event whose ``data`` field is the full
-    report string.
+6.  Call Ollama via the streaming variant (M2): ``_call_ollama_stream``
+    yields token chunks which ``run`` forwards as ``phase: "token"``
+    events. The non-streaming :py:meth:`_synthesize` is preserved for
+    legacy callers and the M1 unit-test contract.
+7.  Emit a single ``phase: "done"`` event whose ``data`` field is "done"
+    and whose ``report`` field carries the full markdown report.
 
 Retry behaviour
 ---------------
@@ -38,17 +40,17 @@ The decomposer is the one stage with retries. There is exactly one retry,
 and it uses a stricter prompt (no preamble, no markdown fences, JSON only).
 Anywhere else, a failure surfaces as ``phase: "error"`` and ends the run.
 
-The service is unaware of SSE / HTTP / streaming. The async generator is
-the contract; M2 wraps it in an SSE response and M2 is also where the
-synthesis call switches to a streaming variant.
+The service is unaware of SSE / HTTP. The async generator is the contract;
+M2 wraps it in an SSE response.
 
-Every Ollama call is wrapped by :py:meth:`_ollama_call` — an async context
+Every Ollama call is wrapped by :py:meth:`_ollama_call` -- an async context
 manager that logs ``start / end / duration / token_count`` so wall-clock
 behaviour is observable in production logs without needing extra tracing.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -168,7 +170,8 @@ class AgenticResearchService:
             phase: "Searching (1/N)"
             ... (one per sub-question)
             phase: "Synthesizing"
-            phase: "done"        # data = full markdown report
+            token: <chunk>     (zero or more, M2-streaming)
+            phase: "done"      (carries the full report under "report")
 
         On a fatal error (Ollama unreachable during synthesis, etc.) a
         single ``phase: "error"`` event is yielded and the generator ends.
@@ -190,7 +193,7 @@ class AgenticResearchService:
             return
 
         if not sub_questions:
-            # Final safety net — should never trigger because
+            # Final safety net -- should never trigger because
             # `_decompose` already falls back to [question] on parse failure,
             # but cheap belt-and-braces.
             sub_questions = [question]
@@ -210,17 +213,28 @@ class AgenticResearchService:
                 hits = await self._search_one(sub)
             except Exception as exc:  # noqa: BLE001 - search must not abort run
                 logger.warning(
-                    "Search failed for sub-question %r: %s — treating as zero-hit",
+                    "Search failed for sub-question %r: %s -- treating as zero-hit",
                     sub,
                     exc,
                 )
                 hits = []
             sub_results.append(_SubQuestionResult(question=sub, hits=hits))
 
-        # ------- Phase 3: Synthesize -------
+        # ------- Phase 3: Synthesize (streaming) -------
         yield self._event("phase", "Synthesizing")
         try:
-            report = await self._synthesize(question, sub_results)
+            # Streaming synthesis: forward each token chunk as a
+            # ``type: "token"`` event so SSE clients can render the
+            # report progressively. The final assembled report is
+            # built from the accumulated chunks via _finalize_report
+            # and carried by the terminal ``phase: "done"`` event.
+            assembled_chunks: List[str] = []
+            async for chunk in self._synthesize_streaming(question, sub_results):
+                assembled_chunks.append(chunk)
+                yield self._event("token", chunk)
+            report = self._finalize_report(
+                "".join(assembled_chunks), question, sub_results
+            )
         except LLMError as exc:
             logger.error("Synthesis failed: %s", exc)
             yield self._event(
@@ -246,7 +260,7 @@ class AgenticResearchService:
         try:
             raw = await self._call_ollama(prompt, num_predict=512, temperature=0.2)
         except LLMError:
-            # Ollama itself is down — propagate; this is fatal for the run.
+            # Ollama itself is down -- propagate; this is fatal for the run.
             raise
 
         parsed = self._parse_subquestions(raw)
@@ -271,7 +285,7 @@ class AgenticResearchService:
         if parsed_retry:
             return parsed_retry[:MAX_SUBQUESTIONS]
 
-        # Both attempts failed — fall through to single-question mode.
+        # Both attempts failed -- fall through to single-question mode.
         logger.warning(
             "Decomposer failed JSON parse twice; falling back to single-question mode"
         )
@@ -302,7 +316,7 @@ class AgenticResearchService:
             "Return ONLY a JSON object with this exact schema:\n"
             "{\"sub_questions\": [\"first sub-question\", \"second sub-question\", ...]}\n"
             "\n"
-            "Do not include markdown fences, explanations, or preamble — JSON "
+            "Do not include markdown fences, explanations, or preamble -- JSON "
             "only.\n"
             "\n"
             f"User question: {question}\n"
@@ -335,7 +349,7 @@ class AgenticResearchService:
             candidate = re.sub(r"^```[a-zA-Z0-9]*\n?", "", candidate)
             candidate = re.sub(r"\n?```\s*$", "", candidate)
 
-        # Extract the first balanced { ... } block. Cheap heuristic — the
+        # Extract the first balanced { ... } block. Cheap heuristic -- the
         # decomposer prompt only asks for one object, so first/last brace
         # bounds the JSON.
         start = candidate.find("{")
@@ -395,7 +409,7 @@ class AgenticResearchService:
             # Initialise-time failures are logged but not fatal; per-search
             # fallbacks below cope with a partially-broken backend.
             logger.warning(
-                "SearchService.initialize failed: %s — search will degrade",
+                "SearchService.initialize failed: %s -- search will degrade",
                 exc,
             )
         self._search_service = svc
@@ -409,13 +423,13 @@ class AgenticResearchService:
         keeps the synthesis logic dependency-free and trivially testable.
         """
         svc = await self._get_search_service()
-        # Build a SearchRequest. Local import — same reason as above.
+        # Build a SearchRequest. Local import -- same reason as above.
         from ..models.search import SearchRequest
 
         req = SearchRequest(
             query=query,
             limit=TOP_K_PER_SUBQUESTION,
-            min_score=0.0,  # don't drop hits — let the LLM filter
+            min_score=0.0,  # don't drop hits -- let the LLM filter
             use_reranking=True,
             include_summary=True,
         )
@@ -452,6 +466,10 @@ class AgenticResearchService:
         LLM) so ``[N]`` citations and the ``## Sources Used`` section can
         never drift out of sync. The model receives the list pre-numbered
         and is instructed to cite only those numbers.
+
+        This non-streaming variant is preserved for backward compatibility
+        with M1 unit tests; the streaming variant in M2 collects chunks via
+        :py:meth:`_synthesize_streaming`.
         """
         # Build a flat, deduped, numbered source list across all sub-questions.
         sources = self._build_source_list(sub_results)
@@ -476,6 +494,64 @@ class AgenticResearchService:
         # when the model misbehaves.
         report = self._ensure_sources_section(body, sources, question)
         return report
+
+    async def _synthesize_streaming(
+        self,
+        question: str,
+        sub_results: List[_SubQuestionResult],
+    ) -> AsyncGenerator[str, None]:
+        """Streaming variant of :py:meth:`_synthesize`.
+
+        Yields raw token chunks (``str``) as they arrive from Ollama. The
+        caller (``run``) accumulates the chunks, then runs them through
+        :py:meth:`_finalize_report` to enforce the citation contract.
+
+        Only this generator path emits ``type: "token"`` events upstream;
+        the non-streaming :py:meth:`_synthesize` is preserved for the M1
+        contract tests and any caller that doesn't need streaming.
+        """
+        sources = self._build_source_list(sub_results)
+        prompt = self._synthesis_prompt(question, sub_results, sources)
+
+        any_chunk = False
+        async for chunk in self._call_ollama_stream(
+            prompt,
+            num_predict=1500,
+            temperature=0.3,
+            label="synthesize",
+        ):
+            if not chunk:
+                continue
+            any_chunk = True
+            yield chunk
+
+        if not any_chunk:
+            raise LLMError(
+                "Synthesis returned empty body", model=self.model
+            )
+
+    def _finalize_report(
+        self,
+        body: str,
+        question: str,
+        sub_results: List[_SubQuestionResult],
+    ) -> str:
+        """Apply post-streaming citation guard rails to ``body``.
+
+        Mirrors the back-half of :py:meth:`_synthesize`: after the model
+        has finished streaming, we re-derive the canonical source list and
+        ensure ``## Sources Used`` + at least one ``[N]`` citation are
+        present. This is what makes the contract "report has a citation
+        and a sources section" hold even on a misbehaving model output.
+        """
+        sources = self._build_source_list(sub_results)
+        cleaned = (body or "").strip()
+        if not cleaned:
+            # An empty stream that somehow slipped past the streaming
+            # guard. Treat as a degraded model output and emit the
+            # canonical sources block so the contract still holds.
+            cleaned = ""
+        return self._ensure_sources_section(cleaned, sources, question)
 
     @staticmethod
     def _build_source_list(
@@ -544,7 +620,7 @@ class AgenticResearchService:
             if not sr.hits:
                 sub_blocks.append(
                     f"Sub-question {i}: {sr.question}\n"
-                    f"  (no results — write \"Could not find data on "
+                    f"  (no results -- write \"Could not find data on "
                     f"{sr.question}\" in the report)\n"
                 )
                 continue
@@ -561,7 +637,7 @@ class AgenticResearchService:
             sub_blocks.append("\n".join(lines) + "\n")
 
         sources_block = "\n".join(
-            f"[{s['n']}] {s['title']} — {s['source']} ({s['url'] or 'no url'})"
+            f"[{s['n']}] {s['title']} -- {s['source']} ({s['url'] or 'no url'})"
             for s in sources
         )
         if not sources_block:
@@ -623,7 +699,7 @@ class AgenticResearchService:
         if not has_sources_heading:
             if sources:
                 lines = [
-                    f"[{s['n']}] {s['title']} — {s['source']} "
+                    f"[{s['n']}] {s['title']} -- {s['source']} "
                     f"({s['url'] or 'no url'})"
                     for s in sources
                 ]
@@ -634,7 +710,7 @@ class AgenticResearchService:
                     + "\n"
                 )
             else:
-                # No real sources — emit a "could not find data" placeholder
+                # No real sources -- emit a "could not find data" placeholder
                 # so the section header is present and the contract holds.
                 out = (
                     out
@@ -763,6 +839,108 @@ class AgenticResearchService:
                 )
             return text
 
+    async def _call_ollama_stream(
+        self,
+        prompt: str,
+        *,
+        num_predict: int = 1500,
+        temperature: float = 0.3,
+        label: str = "stream",
+    ) -> AsyncGenerator[str, None]:
+        """Stream tokens from Ollama's ``/api/generate`` endpoint.
+
+        Ollama returns NDJSON when ``stream=True`` -- one JSON object per
+        line, each carrying a ``response`` field with the next token chunk.
+        We yield those chunks one-by-one so the caller can forward them to
+        the SSE client as ``type: "token"`` events.
+
+        Cancellation: if the surrounding task is cancelled (e.g. because
+        the SSE client disconnected), the ``async with httpx`` block tears
+        down the underlying connection, which Ollama logs as a cancelled
+        generation. We re-raise ``asyncio.CancelledError`` cleanly so the
+        request handler can shut down without spurious 5xx logs.
+        """
+        payload: Dict[str, Any] = {
+            "model": self.model,
+            "prompt": prompt,
+            "stream": True,
+            "options": {
+                "temperature": temperature,
+                "top_p": 0.9,
+                "num_predict": num_predict,
+            },
+        }
+
+        async with self._ollama_call(label) as info:
+            token_count = 0
+            try:
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    async with client.stream(
+                        "POST",
+                        f"{self.base_url}/api/generate",
+                        json=payload,
+                    ) as resp:
+                        if resp.status_code != 200:
+                            # Read body lazily for the error message; this
+                            # is a stream-mode response so .text isn't
+                            # populated until we consume it.
+                            try:
+                                err_body = await resp.aread()
+                                err_text = err_body.decode("utf-8", "replace")[:200]
+                            except Exception:  # noqa: BLE001
+                                err_text = ""
+                            raise LLMError(
+                                f"Ollama returned {resp.status_code} ({label}): "
+                                f"{err_text}",
+                                model=self.model,
+                            )
+
+                        async for line in resp.aiter_lines():
+                            if not line or not line.strip():
+                                continue
+                            try:
+                                obj = json.loads(line)
+                            except (json.JSONDecodeError, ValueError):
+                                # Some Ollama builds emit keep-alive pings
+                                # or partial lines mid-stream. Skip noise.
+                                logger.debug(
+                                    "ollama_stream: skipping non-JSON line: %r",
+                                    line[:80],
+                                )
+                                continue
+
+                            chunk = obj.get("response") or ""
+                            if chunk:
+                                token_count += 1
+                                yield chunk
+
+                            if obj.get("done"):
+                                # Final NDJSON record carries eval_count if
+                                # available; prefer it over our chunk count.
+                                info["token_count"] = int(
+                                    obj.get("eval_count") or token_count
+                                )
+                                break
+            except asyncio.CancelledError:
+                # Cooperative cancellation -- propagate cleanly so the
+                # caller's `finally` runs and we don't log a phantom
+                # error. ``httpx`` already closed the underlying socket
+                # via __aexit__ above.
+                logger.info(
+                    "ollama_stream: cancelled mid-generation (label=%s)",
+                    label,
+                )
+                raise
+            except (httpx.HTTPError, OSError) as exc:
+                raise LLMError(
+                    f"Ollama HTTP failure ({label}): {exc}", model=self.model
+                ) from exc
+            else:
+                # Ensure the wrapping logger sees the final token count
+                # even when the upstream didn't send a "done" record.
+                if not info.get("token_count"):
+                    info["token_count"] = token_count
+
     # ------------------------------------------------------------------ #
     #  Internal helpers
     # ------------------------------------------------------------------ #
@@ -783,5 +961,5 @@ class AgenticResearchService:
             return {"type": "phase", "data": "done", "report": payload or ""}
         if type_ == "phase":
             return {"type": "phase", "data": label}
-        # error / token / done / etc — `label` carries the payload directly.
+        # error / token / done / etc -- `label` carries the payload directly.
         return {"type": type_, "data": label}

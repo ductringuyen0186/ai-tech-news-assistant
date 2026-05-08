@@ -138,17 +138,25 @@ def _make_service(
     synthesis_output: str,
     search_responses: List[List[_FakeSearchResult]],
 ):
-    """Construct a service with a mocked _call_ollama and a fake search service."""
+    """Construct a service with mocked Ollama calls and a fake search service.
+
+    M2 split: the decomposer goes through ``_call_ollama`` (non-streaming)
+    while synthesis flows through ``_call_ollama_stream`` (NDJSON stream).
+    To preserve the M1 contract -- "decompose was called N times,
+    synthesize was called once" -- we record both call paths into the same
+    ``call_log`` and surface a synthetic ``label`` so the existing
+    assertions still mean what they meant in M1.
+    """
     fake_search = _FakeSearchService(search_responses)
     svc = AgenticResearchService(search_service=fake_search)
 
-    # _call_ollama is called multiple times during a run:
-    #   1. decompose (label='generate' by default)
-    #   2. (optional) decompose retry
-    #   3. synthesize
-    # We feed responses in order. A sentinel covers any extra calls.
+    # _call_ollama is called for decompose + retry; _call_ollama_stream
+    # is called for synthesize. We feed decomposer responses to the
+    # non-streaming queue and the single synthesis output to the
+    # streaming queue (yielded as one chunk for test simplicity -- the
+    # token-level contract is exercised by M2's dedicated SSE tests).
     call_log: List[Dict[str, Any]] = []
-    response_queue = list(decomposer_outputs) + [synthesis_output]
+    decomposer_queue = list(decomposer_outputs)
 
     async def fake_call_ollama(prompt, *, num_predict=512, temperature=0.2, label="generate"):
         call_log.append(
@@ -159,11 +167,30 @@ def _make_service(
                 "label": label,
             }
         )
-        if response_queue:
-            return response_queue.pop(0)
-        return synthesis_output  # safety net
+        if decomposer_queue:
+            return decomposer_queue.pop(0)
+        # Safety net: any extra non-streaming call returns the synthesis
+        # blob so misconfigured tests still produce a well-formed run.
+        return synthesis_output
+
+    async def fake_call_ollama_stream(
+        prompt, *, num_predict=1500, temperature=0.3, label="stream"
+    ):
+        call_log.append(
+            {
+                "prompt": prompt,
+                "num_predict": num_predict,
+                "temperature": temperature,
+                "label": label,
+            }
+        )
+        # Yield the entire synthesis output as a single chunk; M1's
+        # contract is "synthesis was called once and produced a citation-
+        # rich report", which holds regardless of chunk granularity.
+        yield synthesis_output
 
     svc._call_ollama = fake_call_ollama  # type: ignore[assignment]
+    svc._call_ollama_stream = fake_call_ollama_stream  # type: ignore[assignment]
     return svc, fake_search, call_log
 
 
@@ -197,7 +224,7 @@ async def test_run_happy_path():
     ], searching
     # Exactly one Synthesizing
     assert pairs.count(("phase", "Synthesizing")) == 1
-    # Exactly one done — must be the LAST event
+    # Exactly one done -- must be the LAST event
     done_events = [e for e in events if e["type"] == "phase" and e["data"] == "done"]
     assert len(done_events) == 1
     assert events[-1] is done_events[0]
@@ -309,13 +336,21 @@ async def test_zero_hit_subquestion():
     )
     svc = AgenticResearchService(search_service=fake_search)
 
-    response_queue = [VALID_DECOMPOSER_JSON, GOOD_SYNTHESIS_REPORT]
-
     async def fake_call_ollama(prompt, *, num_predict=512, temperature=0.2, label="generate"):
+        # Decomposer path -- captured first so the synthesis prompt lands
+        # at index 1 of ``captured_prompts`` (preserving the M1 assertion
+        # that synthesis_prompt = captured_prompts[1]).
         captured_prompts.append(prompt)
-        return response_queue.pop(0)
+        return VALID_DECOMPOSER_JSON
+
+    async def fake_call_ollama_stream(
+        prompt, *, num_predict=1500, temperature=0.3, label="stream"
+    ):
+        captured_prompts.append(prompt)
+        yield GOOD_SYNTHESIS_REPORT
 
     svc._call_ollama = fake_call_ollama  # type: ignore[assignment]
+    svc._call_ollama_stream = fake_call_ollama_stream  # type: ignore[assignment]
 
     events = [evt async for evt in svc.run("Ai chip topic")]
     pairs = _collect_event_pairs(events)

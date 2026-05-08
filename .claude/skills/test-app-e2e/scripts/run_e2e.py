@@ -673,6 +673,113 @@ class E2ESuite:
             ), req, resp, None
         return self._run("kg_endpoint", "feature", SEVERITY_HIGH, _t)
 
+    def test_research_sse_smoke(self):
+        """Milestone 2: POST /api/research returns text/event-stream and at
+        least one ``data:`` line decoding to a JSON ``phase`` event arrives
+        within 5s.
+
+        Talks to the live backend via ``urllib.request`` (stdlib only --
+        same posture as the other contract tests). We post a question,
+        read response bytes incrementally, and split on ``\n\n`` to
+        parse SSE frames. The test passes as soon as the first ``phase``
+        event is seen; we don't wait for ``done`` (the agent calls a real
+        Ollama on the backend and a full run takes 30-90s).
+        """
+        def _t():
+            url = f"{self.backend}/api/research"
+            payload = {"question": "What's new in AI chips this week?"}
+            data = json.dumps(payload).encode("utf-8")
+            req = urllib.request.Request(
+                url,
+                data=data,
+                method="POST",
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "text/event-stream",
+                },
+            )
+            request_meta = {"method": "POST", "url": url, "body": payload}
+            resp_meta: Dict[str, Any] = {}
+
+            try:
+                # NOTE: don't pass a small timeout to ``urlopen`` for SSE
+                # -- the timeout applies to socket reads, not the whole
+                # stream lifetime. We bound the wait via a wall clock
+                # check below.
+                resp = urllib.request.urlopen(req, timeout=10.0)
+            except urllib.error.HTTPError as exc:
+                body_text = exc.read().decode("utf-8", "replace") if exc.fp else ""
+                resp_meta = {"status": exc.code, "body_snippet": body_text[:300]}
+                return False, (
+                    f"POST /api/research returned {exc.code}: {body_text[:200]}"
+                ), request_meta, resp_meta, "backend-routes-research"
+            except urllib.error.URLError as exc:
+                resp_meta = {"error": f"URLError: {exc.reason}"}
+                return False, (
+                    f"POST /api/research not reachable: {exc.reason}"
+                ), request_meta, resp_meta, "backend-routes-research"
+            except Exception as exc:  # noqa: BLE001
+                resp_meta = {"error": f"{type(exc).__name__}: {exc}"}
+                return False, (
+                    f"POST /api/research crashed: {exc}"
+                ), request_meta, resp_meta, "backend-routes-research"
+
+            with resp:
+                ctype = resp.headers.get("Content-Type", "")
+                resp_meta["status"] = resp.status
+                resp_meta["content_type"] = ctype
+                if "text/event-stream" not in ctype:
+                    return False, (
+                        f"expected text/event-stream, got {ctype!r}"
+                    ), request_meta, resp_meta, "backend-routes-research"
+
+                deadline = time.time() + 5.0
+                buf = b""
+                phase_seen: Optional[Dict[str, Any]] = None
+                # Read in small chunks. ``resp.read(size)`` blocks up to
+                # the socket timeout; we picked 10s on urlopen but bail
+                # out via the wall-clock check below either way.
+                while time.time() < deadline:
+                    try:
+                        chunk = resp.read(512)
+                    except Exception:  # noqa: BLE001
+                        chunk = b""
+                    if not chunk:
+                        # No data this poll -- short sleep, try again.
+                        time.sleep(0.1)
+                        continue
+                    buf += chunk
+                    while b"\n\n" in buf:
+                        block, _, buf = buf.partition(b"\n\n")
+                        text = block.decode("utf-8", "replace").strip()
+                        if not text or text.startswith(":"):
+                            continue
+                        if not text.startswith("data:"):
+                            continue
+                        json_text = text[len("data:"):].strip()
+                        try:
+                            evt = json.loads(json_text)
+                        except json.JSONDecodeError:
+                            continue
+                        if isinstance(evt, dict) and evt.get("type") == "phase":
+                            phase_seen = evt
+                            break
+                    if phase_seen is not None:
+                        break
+
+                resp_meta["first_phase_event"] = phase_seen
+                if phase_seen is None:
+                    return False, (
+                        "no phase event arrived within 5s of POST"
+                    ), request_meta, resp_meta, "backend-routes-research"
+                return True, (
+                    f"first phase event: {phase_seen.get('data')!r}"
+                ), request_meta, resp_meta, None
+
+        return self._run(
+            "research_sse_smoke", "feature", SEVERITY_HIGH, _t
+        )
+
     def test_kg_no_mock(self):
         """Milestone 6: KnowledgeGraph.tsx must not contain a 'mockData'
         constant or any hardcoded fallback in the production code path.
@@ -744,6 +851,7 @@ class E2ESuite:
         self.test_retention_dry_run()
         self.test_kg_endpoint()
         self.test_kg_no_mock()
+        self.test_research_sse_smoke()
 
         # The actual pipeline
         if not self.skip_pipeline:
