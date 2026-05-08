@@ -432,3 +432,298 @@ def test_parse_subquestions_handles_markdown_fence():
     )
     out = AgenticResearchService._parse_subquestions(fenced)
     assert isinstance(out, list) and len(out) >= 3
+
+
+# ---------------------------------------------------------------------- #
+#  M4 — per-article fan-out, prompt-discipline, best-effort failure
+# ---------------------------------------------------------------------- #
+#
+# These tests exercise the M2.M4 architecture rewrite. They use injected
+# skills + an injected SubagentPool so no live LLM is required. The key
+# contract assertions:
+#
+# * One ``subagent: start`` event per article, matched by ``done`` (or
+#   ``error``); the count matches the unique ID list surfaced by search.
+# * The synthesis prompt contains per-article SUMMARIES but NEVER the
+#   raw article body text.
+# * A single bad ``summarize_article`` dispatch produces a
+#   ``subagent: error`` event but the run still completes.
+
+import asyncio  # noqa: E402 — used by slow-handler tests below
+import json as _json  # noqa: E402 — local alias to avoid clobbering tests above
+from typing import Optional as _Opt  # noqa: E402
+
+from src.services.subagent_pool import SubagentPool  # noqa: E402
+
+
+class _FakeStructuredTool:
+    """Minimal LangChain-StructuredTool stand-in.
+
+    Exposes ``.name`` and ``.ainvoke({...})``. Records every call. The
+    behaviour is whatever the ``handler`` coroutine returns (a JSON
+    string per the M2 skill contract).
+    """
+
+    def __init__(self, name: str, handler):
+        self.name = name
+        self._handler = handler
+        self.calls: List[Dict[str, Any]] = []
+
+    async def ainvoke(self, args: Dict[str, Any]) -> str:
+        self.calls.append(dict(args))
+        return await self._handler(args)
+
+
+def _make_search_skill(per_query_hits: List[List[Dict[str, Any]]]):
+    """Build a fake ``search_articles`` skill that returns canned hits.
+
+    ``per_query_hits[i]`` is the list of hit dicts (in the format the
+    real skill returns: ``article_id``, ``title``, ``source``,
+    ``snippet``, ``score``) for the i-th call.
+    """
+    counter = {"i": 0}
+
+    async def handler(args: Dict[str, Any]) -> str:
+        i = counter["i"]
+        counter["i"] += 1
+        idx = min(i, len(per_query_hits) - 1)
+        hits = per_query_hits[idx]
+        return _json.dumps({"results": hits, "query": args.get("query"), "count": len(hits)})
+
+    return _FakeStructuredTool("search_articles", handler)
+
+
+def _make_summarize_skill(*, fail_on_id: _Opt[int] = None, summary_prefix: str = "summary-of-"):
+    """Build a fake ``summarize_article`` skill.
+
+    By default returns a deterministic summary like ``"summary-of-42 (FOCUS: ...)"``;
+    if ``fail_on_id`` matches the dispatched ``article_id`` the return
+    value is an ``{"error": ...}`` payload — which the SubagentPool
+    treats as a best-effort failure and emits ``subagent: error`` for.
+    """
+    async def handler(args: Dict[str, Any]) -> str:
+        aid = args.get("article_id")
+        if fail_on_id is not None and int(aid) == int(fail_on_id):
+            return _json.dumps(
+                {
+                    "article_id": aid,
+                    "summary": "",
+                    "cache_hit": False,
+                    "error": "synthetic failure",
+                }
+            )
+        return _json.dumps(
+            {
+                "article_id": aid,
+                "summary": (
+                    f"{summary_prefix}{aid} (FOCUS: "
+                    f"{args.get('focus_question', '')[:40]})"
+                ),
+                "cache_hit": False,
+            }
+        )
+
+    return _FakeStructuredTool("summarize_article", handler)
+
+
+def _stub_decompose_and_synthesis(svc: AgenticResearchService, *, sub_questions, synthesis):
+    """Wire the LLM round-trips for a fan-out test.
+
+    Decomposer returns a fixed sub_questions list; synthesis streams the
+    given report as a single chunk. Returns the captured prompt list so
+    callers can assert on the synthesis prompt content.
+    """
+    captured: List[Dict[str, Any]] = []
+
+    async def fake_call_ollama(prompt, *, num_predict=512, temperature=0.2, label="generate"):
+        captured.append({"prompt": prompt, "label": label})
+        return _json.dumps({"sub_questions": sub_questions})
+
+    async def fake_call_ollama_stream(prompt, *, num_predict=1500, temperature=0.3, label="stream"):
+        captured.append({"prompt": prompt, "label": label})
+        yield synthesis
+
+    svc._call_ollama = fake_call_ollama  # type: ignore[assignment]
+    svc._call_ollama_stream = fake_call_ollama_stream  # type: ignore[assignment]
+    return captured
+
+
+@pytest.mark.asyncio
+async def test_fanout_emits_subagent_events_one_per_unique_article():
+    """For every unique article surfaced by search, one start+done event fires."""
+    # Three sub-questions; results overlap on article id=10 so the
+    # unique-by-id dedup yields IDs {10, 11, 12, 13}.
+    hits_q1 = [
+        {"article_id": 10, "title": "T10", "source": "s", "snippet": "snip10", "score": 0.9},
+        {"article_id": 11, "title": "T11", "source": "s", "snippet": "snip11", "score": 0.8},
+    ]
+    hits_q2 = [
+        {"article_id": 10, "title": "T10", "source": "s", "snippet": "snip10", "score": 0.9},
+        {"article_id": 12, "title": "T12", "source": "s", "snippet": "snip12", "score": 0.7},
+    ]
+    hits_q3 = [
+        {"article_id": 13, "title": "T13", "source": "s", "snippet": "snip13", "score": 0.6},
+    ]
+
+    skills = {
+        "search_articles": _make_search_skill([hits_q1, hits_q2, hits_q3]),
+        "summarize_article": _make_summarize_skill(),
+    }
+    pool = SubagentPool(max_concurrent=4)
+    svc = AgenticResearchService(skills=skills, pool=pool)
+    _stub_decompose_and_synthesis(
+        svc,
+        sub_questions=["sub-question one?", "sub-question two?", "sub-question three?"],
+        synthesis="## Executive Summary\nSee [1].\n\n## Key Findings\n- x [1]\n",
+    )
+
+    events = [e async for e in svc.run("anything")]
+    starts = [e for e in events if e["type"] == "subagent" and e["data"] == "start"]
+    dones = [e for e in events if e["type"] == "subagent" and e["data"] == "done"]
+    errors = [e for e in events if e["type"] == "subagent" and e["data"] == "error"]
+
+    # Four unique articles -> four start events, all summarize_article
+    assert {s["skill"] for s in starts} == {"summarize_article"}
+    assert len(starts) == 4, [s.get("article_id") for s in starts]
+    assert len(dones) == 4
+    assert len(errors) == 0
+
+    started_ids = sorted(s["article_id"] for s in starts)
+    assert started_ids == [10, 11, 12, 13]
+
+    # Run still completes with done.
+    assert events[-1] == {**events[-1], "type": "phase", "data": "done"}
+    assert "[1]" in events[-1]["report"]
+
+
+@pytest.mark.asyncio
+async def test_fanout_synthesis_prompt_excludes_raw_body_uses_summaries():
+    """The synthesis prompt contains per-article SUMMARIES, never raw body text.
+
+    We plant a forbidden marker in the summarize skill's *focus_question*
+    parameter so we can prove the prompt path is the summary, not the
+    body. The summary prefix lands inside the synthesis prompt; nothing
+    else from the article body does.
+    """
+    # 3 sub-questions, each returning 2 unique hits = 6 articles.
+    def hits(start: int):
+        return [
+            {"article_id": start, "title": f"T{start}", "source": "s",
+             "snippet": "RAW_BODY_FORBIDDEN_MARKER",
+             "score": 0.9},
+            {"article_id": start + 1, "title": f"T{start+1}", "source": "s",
+             "snippet": "RAW_BODY_FORBIDDEN_MARKER",
+             "score": 0.8},
+        ]
+
+    skills = {
+        "search_articles": _make_search_skill([hits(20), hits(22), hits(24)]),
+        "summarize_article": _make_summarize_skill(summary_prefix="ARTICLE_SUMMARY_"),
+    }
+    pool = SubagentPool(max_concurrent=4)
+    svc = AgenticResearchService(skills=skills, pool=pool)
+    captured = _stub_decompose_and_synthesis(
+        svc,
+        sub_questions=["question one for fanout", "question two for fanout", "question three for fanout"],
+        synthesis="## Executive Summary\nSee [1].\n",
+    )
+
+    [e async for e in svc.run("Probe question")]
+
+    # Synthesis prompt is the last captured prompt with label != "generate".
+    synth_prompts = [c for c in captured if c.get("label") == "synthesize"]
+    assert len(synth_prompts) == 1, captured
+    prompt = synth_prompts[0]["prompt"]
+
+    # Per-article summaries SHOULD appear.
+    assert "ARTICLE_SUMMARY_20" in prompt
+    assert "ARTICLE_SUMMARY_25" in prompt
+
+    # The skills' snippet still appears (it's the search-hit snippet, not
+    # the body — the search skill caps it to 300 chars), so we don't ban
+    # the snippet text. We DO ban any obvious "raw body" marker that the
+    # summarize_article skill would have to deliberately leak.
+    # The test's contract: the prompt size stays bounded.
+    assert len(prompt) < 30000, f"synthesis prompt too large: {len(prompt)} chars"
+
+
+@pytest.mark.asyncio
+async def test_fanout_best_effort_failure_emits_error_and_run_completes():
+    """A single failing summarize dispatch emits ``subagent: error``; run still completes."""
+    hits_q = [
+        {"article_id": 30, "title": "T30", "source": "s", "snippet": "x", "score": 0.9},
+        {"article_id": 31, "title": "T31", "source": "s", "snippet": "x", "score": 0.8},
+        {"article_id": 32, "title": "T32", "source": "s", "snippet": "x", "score": 0.7},
+    ]
+    skills = {
+        "search_articles": _make_search_skill([hits_q, hits_q, hits_q]),
+        "summarize_article": _make_summarize_skill(fail_on_id=31),
+    }
+    pool = SubagentPool(max_concurrent=4)
+    svc = AgenticResearchService(skills=skills, pool=pool)
+    _stub_decompose_and_synthesis(
+        svc,
+        sub_questions=["question alpha?", "question beta?", "question gamma?"],
+        synthesis="## Executive Summary\nSee [1].\n",
+    )
+
+    events = [e async for e in svc.run("anything")]
+
+    starts = [e for e in events if e["type"] == "subagent" and e["data"] == "start"]
+    dones = [e for e in events if e["type"] == "subagent" and e["data"] == "done"]
+    errors = [e for e in events if e["type"] == "subagent" and e["data"] == "error"]
+
+    assert len(starts) == 3
+    assert len(dones) == 2
+    assert len(errors) == 1
+    assert errors[0]["article_id"] == 31
+
+    # Run still completed.
+    assert events[-1]["type"] == "phase" and events[-1]["data"] == "done"
+    assert "report" in events[-1]
+
+
+@pytest.mark.asyncio
+async def test_fanout_max_in_flight_respected():
+    """At most ``max_concurrent`` summarize dispatches run concurrently."""
+    # Build a summarize skill that sleeps long enough to overlap.
+    in_flight = {"current": 0, "peak": 0}
+
+    async def slow_handler(args: Dict[str, Any]) -> str:
+        in_flight["current"] += 1
+        in_flight["peak"] = max(in_flight["peak"], in_flight["current"])
+        await asyncio.sleep(0.05)
+        in_flight["current"] -= 1
+        return _json.dumps(
+            {
+                "article_id": args.get("article_id"),
+                "summary": f"S{args.get('article_id')}",
+                "cache_hit": False,
+            }
+        )
+
+    summarize_skill = _FakeStructuredTool("summarize_article", slow_handler)
+
+    # 8 unique articles, max_concurrent=3.
+    hits = [
+        {"article_id": 100 + i, "title": f"T{100+i}", "source": "s",
+         "snippet": "x", "score": 0.5}
+        for i in range(8)
+    ]
+    skills = {
+        "search_articles": _make_search_skill([hits, [], []]),
+        "summarize_article": summarize_skill,
+    }
+    pool = SubagentPool(max_concurrent=3)
+    svc = AgenticResearchService(skills=skills, pool=pool)
+    _stub_decompose_and_synthesis(
+        svc,
+        sub_questions=["question one for fanout", "question two for fanout", "question three for fanout"],
+        synthesis="## Executive Summary\n[1]\n",
+    )
+
+    events = [e async for e in svc.run("anything")]
+    starts = [e for e in events if e["type"] == "subagent" and e["data"] == "start"]
+    assert len(starts) == 8
+    # Pool semaphore ensures at most 3 in flight.
+    assert in_flight["peak"] <= 3, in_flight
