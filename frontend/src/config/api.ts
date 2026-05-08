@@ -34,6 +34,9 @@ export const API_ENDPOINTS = {
   search: "/api/search",
   semanticSearch: "/api/search/semantic",
 
+  // Agentic research endpoint (POST returns text/event-stream)
+  research: "/api/research",
+
   // Summarization endpoints (backend prefix is /api/summarize)
   summarize: "/api/summarize/",
   summarizeBatch: "/api/summarize/batch",
