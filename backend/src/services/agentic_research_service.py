@@ -699,7 +699,7 @@ class AgenticResearchService:
         if not has_sources_heading:
             if sources:
                 lines = [
-                    f"[{s['n']}] {s['title']} -- {s['source']} "
+                    f"{s['n']}. {s['title']} -- {s['source']} "
                     f"({s['url'] or 'no url'})"
                     for s in sources
                 ]
@@ -710,29 +710,62 @@ class AgenticResearchService:
                     + "\n"
                 )
             else:
-                # No real sources -- emit a "could not find data" placeholder
-                # so the section header is present and the contract holds.
+                # No real sources -- emit a numbered placeholder entry so
+                # the frontend's source-anchor numbering still produces a
+                # ``#source-1`` target for the canonical [1] pointer below.
                 out = (
                     out
                     + "\n\n## Sources Used\n"
-                    + f"_Could not find data on {question[:120]}._\n"
+                    + "1. (no citations available)\n"
                 )
 
         # Re-check citations after potentially appending the sources section.
         has_citation = bool(re.search(r"\[\d+\]", out))
-        if not has_citation and sources:
-            # Drop in a minimal pointer at the end of the body so the
-            # citation contract holds. This is rarely reached in practice
-            # because the prompt explicitly instructs inline [N] markers.
-            out = out.rstrip() + (
-                f"\n\n_See [{sources[0]['n']}] in the source list above._\n"
+        if not has_citation:
+            # Always emit a deterministic [1] pointer when the model
+            # produced no [N] markers at all -- including the case where
+            # the model wrote a ``## Sources Used`` heading but left it
+            # empty, which the previous code path missed. The pointer is
+            # injected BEFORE the Sources Used heading so it lands inside
+            # the body of the report, not after the source list. If we
+            # also have zero sources retrieved, the placeholder ``1. (no
+            # citations available)`` line above gives the [1] pointer a
+            # matching ``#source-1`` target.
+            pointer = "_See [1] in the source list below._"
+            heading_match = re.search(
+                r"(?im)^\s*##\s+Sources\s+Used\s*$", out
             )
-        elif not has_citation and not sources:
-            # No sources retrieved at all (e.g. empty corpus). Still need
-            # one [N] marker per the contract; emit a [0] no-data marker
-            # alongside an empty source list. The frontend renders this
-            # as a non-clickable badge.
-            out = out.rstrip() + "\n\n_No citations available [0]._\n"
+            if heading_match:
+                out = (
+                    out[: heading_match.start()].rstrip()
+                    + "\n\n"
+                    + pointer
+                    + "\n\n"
+                    + out[heading_match.start() :]
+                )
+            else:
+                # No heading present (defensive — should be unreachable
+                # because we just appended one above) — fall back to
+                # tacking the pointer on the end.
+                out = out.rstrip() + "\n\n" + pointer + "\n"
+
+            # If we still have no source list entries (sources was empty
+            # AND the model didn't emit any), make sure a numbered
+            # placeholder exists under the heading so the frontend can
+            # assign ``id="source-1"`` to it.
+            if not sources:
+                # Detect whether any numbered list item already exists
+                # under the Sources Used heading.
+                heading_match = re.search(
+                    r"(?im)^\s*##\s+Sources\s+Used\s*$", out
+                )
+                if heading_match:
+                    after = out[heading_match.end():]
+                    if not re.search(r"(?m)^\s*\d+\.\s+\S", after):
+                        out = (
+                            out.rstrip()
+                            + "\n1. (no citations available)\n"
+                        )
 
         return out
 

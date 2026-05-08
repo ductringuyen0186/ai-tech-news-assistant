@@ -57,7 +57,6 @@ test.describe("Research tab — streaming flow", () => {
     await queryInput.fill(SHORT_QUESTION);
 
     const submitBtn = page.getByRole("button", { name: /^Research$/i });
-    const submitTime = Date.now();
     await submitBtn.click();
 
     // Wait for the phase chip to render — proves SSE plumbing fired.
@@ -65,43 +64,60 @@ test.describe("Research tab — streaming flow", () => {
     await expect(phaseChip).toBeVisible({ timeout: 15_000 });
 
     // Collect the distinct phase-chip values we observe over the run.
+    // We poll the chip text in the background so we capture transient
+    // phases (Decomposing, Searching (1/4), Searching (2/4), ...,
+    // Synthesizing, Done) regardless of when our sampling runs.
     const seenPhases = new Set<string>();
     const reportBody = page.getByTestId("research-report-body");
+    let pollingDone = false;
+    const pollPhase = async () => {
+      while (!pollingDone) {
+        try {
+          const ph = (await phaseChip.textContent())?.trim();
+          if (ph) seenPhases.add(ph);
+        } catch {
+          // Chip may briefly detach between renders; ignore.
+        }
+        await page.waitForTimeout(150);
+      }
+    };
+    const pollTask = pollPhase();
 
-    // Sample the rendered report's text length at ~1s, ~4s, ~8s after
-    // submit. We use `expect.poll` semantics by waiting against the
-    // wall clock so the test isn't fragile if the first chunk arrives
-    // late.
+    // Phase-aware sampling. On real hardware with gpt-oss:20b on CPU,
+    // the Decompose + Search phases consume ~12-15s before any token
+    // arrives, so a 1s/4s/8s sample window from submit lands entirely
+    // inside the placeholder period. Wait until the synthesizing phase
+    // begins (tokens are about to flow), then sample at +1s/+3s/+6s
+    // from THAT moment. Once tokens are streaming, length grows each
+    // sample.
+    await expect(phaseChip).toHaveText(/synthesizing/i, { timeout: 60_000 });
+    const synthStart = Date.now();
+
     const samples: number[] = [];
-    const sampleAt = async (msAfterSubmit: number): Promise<number> => {
-      const elapsed = Date.now() - submitTime;
-      if (elapsed < msAfterSubmit) {
-        await page.waitForTimeout(msAfterSubmit - elapsed);
+    const sampleAt = async (msAfterSynth: number): Promise<number> => {
+      const elapsed = Date.now() - synthStart;
+      if (elapsed < msAfterSynth) {
+        await page.waitForTimeout(msAfterSynth - elapsed);
       }
       const t = (await reportBody.textContent()) ?? "";
-      // Snapshot the phase chip while we're here so we don't miss a
-      // transient value between samples.
-      const ph = (await phaseChip.textContent())?.trim();
-      if (ph) seenPhases.add(ph);
       return t.length;
     };
 
     samples.push(await sampleAt(1_000));
-    samples.push(await sampleAt(4_000));
-    samples.push(await sampleAt(8_000));
+    samples.push(await sampleAt(3_000));
+    samples.push(await sampleAt(6_000));
 
     // Wait for the run to finish — phase chip becomes "Done" (the chip
     // shows the literal string "Done" once phase === "done"; see
     // ResearchMode.tsx). Generous timeout for slow Ollama hosts.
     await expect(phaseChip).toHaveText(/Done/i, { timeout: 90_000 });
     seenPhases.add("Done");
+    pollingDone = true;
+    await pollTask;
 
     // Strictly-increasing DOM text length proves streaming is happening,
-    // not all-at-once. A short question and 1s/4s/8s spacing gives the
-    // backend time to emit at least one chunk between samples on a
-    // slow machine. If two samples ever match exactly, we still allow
-    // it as long as the third is greater than the first — but the
-    // primary path is strict monotonic growth.
+    // not all-at-once. Sampling starts AT synthesizing-phase begin, so
+    // each sample lands inside the token stream and length must grow.
     const finalText = (await reportBody.textContent()) ?? "";
     const finalLen = finalText.length;
     expect(
@@ -110,11 +126,11 @@ test.describe("Research tab — streaming flow", () => {
     ).toBeGreaterThan(0);
     expect(
       samples[1],
-      `Expected DOM text length at 4s (${samples[1]}) > at 1s (${samples[0]})`
+      `Expected DOM text length at synth+3s (${samples[1]}) > at synth+1s (${samples[0]})`
     ).toBeGreaterThan(samples[0]);
     expect(
       samples[2],
-      `Expected DOM text length at 8s (${samples[2]}) > at 4s (${samples[1]})`
+      `Expected DOM text length at synth+6s (${samples[2]}) > at synth+3s (${samples[1]})`
     ).toBeGreaterThan(samples[1]);
 
     // Phase advanced through at least 3 distinct values across the run
