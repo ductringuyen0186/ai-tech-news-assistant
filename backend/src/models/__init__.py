@@ -15,7 +15,8 @@ from .article import (
     ArticleStats,
     ArticleSearchRequest,
     ArticleSearchResult,
-    SummarizationRequest
+    SummarizationRequest,
+    AgentEvent,
 )
 
 from .embedding import (
@@ -62,6 +63,7 @@ __all__ = [
     "ArticleSearchRequest",
     "ArticleSearchResult",
     "SummarizationRequest",
+    "AgentEvent",
     
     # Embedding models
     "EmbeddingBase",

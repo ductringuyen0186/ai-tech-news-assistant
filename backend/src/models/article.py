@@ -140,3 +140,32 @@ class IngestResponse(BaseModel):
     new_articles: int = Field(..., description="Number of new articles added")
     duplicates: int = Field(..., description="Number of duplicate articles skipped")
     errors: List[str] = Field(default_factory=list, description="Any error messages encountered")
+
+
+class AgentEvent(BaseModel):
+    """
+    Event emitted by the agentic research loop.
+
+    Used by ``AgenticResearchService.run`` (M1) and serialised over SSE by
+    the ``POST /api/research`` route (M2). The same shape is consumed by
+    ``ResearchMode.tsx`` on the frontend (M3); keep this contract stable.
+
+    ``type`` is one of:
+      - ``"phase"``  - a phase transition (e.g. "Decomposing", "Searching (i/N)",
+        "Synthesizing", "done"). ``data`` is a string label.
+      - ``"token"``  - a streaming token chunk during synthesis (M2). ``data``
+        is the token text. M1 does not emit token events.
+      - ``"done"``   - terminal event carrying the full assembled report.
+        ``data`` is the markdown report string.
+      - ``"error"``  - terminal error event. ``data`` is a human-readable
+        error message.
+    """
+
+    type: str = Field(
+        ...,
+        description="Event type: 'phase' | 'token' | 'done' | 'error'",
+    )
+    data: Any = Field(
+        ...,
+        description="Event payload: string label, token chunk, or final report",
+    )
