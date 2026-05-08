@@ -91,21 +91,39 @@ test.describe("Research tab — streaming flow", () => {
     // from THAT moment. Once tokens are streaming, length grows each
     // sample.
     await expect(phaseChip).toHaveText(/synthesizing/i, { timeout: 60_000 });
-    const synthStart = Date.now();
+
+    // Tokens may not flow immediately when the Synthesizing phase fires —
+    // first-token latency from gpt-oss:20b can add several seconds on top.
+    // Wait for the report-body to actually contain markdown content (i.e.
+    // the placeholder text is gone and at least one token has arrived)
+    // BEFORE starting the strict-monotonic sample window.
+    await expect
+      .poll(
+        async () => {
+          const t = (await reportBody.textContent()) ?? "";
+          // Placeholder is "Waiting for tokens..." (21 chars). Wait for
+          // length to exceed the placeholder, OR for the body to contain
+          // a markdown heading marker (## Executive Summary etc).
+          return t.length > 30 || /##\s/.test(t);
+        },
+        { timeout: 60_000, message: "tokens never started flowing in 60s" }
+      )
+      .toBeTruthy();
+    const tokensStart = Date.now();
 
     const samples: number[] = [];
-    const sampleAt = async (msAfterSynth: number): Promise<number> => {
-      const elapsed = Date.now() - synthStart;
-      if (elapsed < msAfterSynth) {
-        await page.waitForTimeout(msAfterSynth - elapsed);
+    const sampleAt = async (msAfterTokens: number): Promise<number> => {
+      const elapsed = Date.now() - tokensStart;
+      if (elapsed < msAfterTokens) {
+        await page.waitForTimeout(msAfterTokens - elapsed);
       }
       const t = (await reportBody.textContent()) ?? "";
       return t.length;
     };
 
-    samples.push(await sampleAt(1_000));
-    samples.push(await sampleAt(3_000));
-    samples.push(await sampleAt(6_000));
+    samples.push(await sampleAt(0));
+    samples.push(await sampleAt(2_000));
+    samples.push(await sampleAt(5_000));
 
     // Wait for the run to finish — phase chip becomes "Done" (the chip
     // shows the literal string "Done" once phase === "done"; see
@@ -126,11 +144,11 @@ test.describe("Research tab — streaming flow", () => {
     ).toBeGreaterThan(0);
     expect(
       samples[1],
-      `Expected DOM text length at synth+3s (${samples[1]}) > at synth+1s (${samples[0]})`
+      `Expected DOM text length at tokens+2s (${samples[1]}) > at tokens+0s (${samples[0]})`
     ).toBeGreaterThan(samples[0]);
     expect(
       samples[2],
-      `Expected DOM text length at synth+6s (${samples[2]}) > at synth+3s (${samples[1]})`
+      `Expected DOM text length at tokens+5s (${samples[2]}) > at tokens+2s (${samples[1]})`
     ).toBeGreaterThan(samples[1]);
 
     // Phase advanced through at least 3 distinct values across the run

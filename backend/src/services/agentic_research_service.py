@@ -731,7 +731,7 @@ class AgenticResearchService:
             # also have zero sources retrieved, the placeholder ``1. (no
             # citations available)`` line above gives the [1] pointer a
             # matching ``#source-1`` target.
-            pointer = "_See [1] in the source list below._"
+            pointer = "See [1] in the source list below."
             heading_match = re.search(
                 r"(?im)^\s*##\s+Sources\s+Used\s*$", out
             )
