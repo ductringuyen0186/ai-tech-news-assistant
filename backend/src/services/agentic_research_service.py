@@ -852,7 +852,7 @@ class AgenticResearchService:
         any_chunk = False
         async for chunk in self._call_ollama_stream(
             prompt,
-            num_predict=1500,
+            num_predict=8192,
             temperature=0.3,
             label="synthesize",
         ):
@@ -1229,15 +1229,37 @@ class AgenticResearchService:
         self,
         prompt: str,
         *,
-        num_predict: int = 1500,
+        num_predict: int = 8192,
         temperature: float = 0.3,
         label: str = "stream",
     ) -> AsyncGenerator[str, None]:
-        """Stream tokens from Ollama's ``/api/generate`` endpoint (NDJSON)."""
+        """Stream tokens from Ollama's ``/api/generate`` endpoint (NDJSON).
+
+        Reasoning models (e.g. ``gpt-oss:20b``) emit BOTH ``thinking`` and
+        ``response`` fields per stream chunk. With a modest ``num_predict``
+        and a heavy synthesis prompt (the M4 prompt is ~20-24KB), the
+        model can spend the entire budget on the thinking trace and emit
+        zero ``response`` tokens -- synthesis then sees an empty body and
+        raises ``LLMError("Synthesis returned empty body")``. Defence in
+        depth, three layers:
+
+        1. Send ``think: false`` so newer Ollama versions skip the
+           reasoning trace entirely.
+        2. Default ``num_predict`` to 8192 so older Ollama (which ignores
+           ``think``) still has headroom for both thinking + response.
+        3. If the stream ends with zero ``response`` chunks but a
+           non-empty ``thinking`` body, fall back to yielding the
+           thinking content as the report -- better a slightly raw
+           reasoning trace than a hard failure.
+        """
         payload: Dict[str, Any] = {
             "model": self.model,
             "prompt": prompt,
             "stream": True,
+            # Disable the reasoning trace on streaming-synthesis calls
+            # so that ``num_predict`` is spent on ``response`` tokens,
+            # not on invisible ``thinking`` tokens. See docstring above.
+            "think": False,
             "options": {
                 "temperature": temperature,
                 "top_p": 0.9,
@@ -1247,6 +1269,7 @@ class AgenticResearchService:
 
         async with self._ollama_call(label) as info:
             token_count = 0
+            thinking_buffer: List[str] = []
             try:
                 async with httpx.AsyncClient(timeout=self.timeout) as client:
                     async with client.stream(
@@ -1283,11 +1306,37 @@ class AgenticResearchService:
                                 token_count += 1
                                 yield chunk
 
+                            # Buffer ``thinking`` output as a last-resort
+                            # fallback for reasoning models that ignore
+                            # ``think: false`` and burn the budget on the
+                            # reasoning trace. We only emit it below if
+                            # the ``response`` stream ended up empty.
+                            think_chunk = obj.get("thinking") or ""
+                            if think_chunk and not chunk:
+                                thinking_buffer.append(think_chunk)
+
                             if obj.get("done"):
                                 info["token_count"] = int(
                                     obj.get("eval_count") or token_count
                                 )
                                 break
+
+                        # Fallback: if no ``response`` tokens streamed
+                        # but we captured a thinking trace, surface it
+                        # so the synthesis step doesn't hard-fail with
+                        # an empty body. This preserves a usable report
+                        # on Ollama versions that ignore ``think:false``.
+                        if token_count == 0 and thinking_buffer:
+                            fallback_body = "".join(thinking_buffer).strip()
+                            if fallback_body:
+                                logger.warning(
+                                    "ollama_stream: empty response body -- "
+                                    "falling back to thinking trace "
+                                    "(label=%s, thinking_len=%d)",
+                                    label,
+                                    len(fallback_body),
+                                )
+                                yield fallback_body
             except asyncio.CancelledError:
                 logger.info(
                     "ollama_stream: cancelled mid-generation (label=%s)",
