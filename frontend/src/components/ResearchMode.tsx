@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   Card,
   CardContent,
@@ -187,6 +188,7 @@ interface ResearchModeProps {
 }
 
 export function ResearchMode({}: ResearchModeProps) {
+  const reduceMotion = useReducedMotion();
   const [query, setQuery] = useState("");
   const [isResearching, setIsResearching] = useState(false);
   const [phase, setPhase] = useState<string>("");
@@ -958,31 +960,42 @@ export function ResearchMode({}: ResearchModeProps) {
                       <Download className="w-4 h-4 mr-2" />
                       Download .md
                     </Button>
-                    <Button
-                      onClick={onSaveResearch}
-                      variant="outline"
-                      size="sm"
-                      data-testid="research-save-btn"
-                      disabled={saveState !== "idle"}
-                      aria-live="polite"
+                    <motion.div
+                      whileTap={reduceMotion ? undefined : { scale: 0.95 }}
+                      animate={
+                        saveState === "saved" && !reduceMotion
+                          ? { scale: [1.05, 1] }
+                          : { scale: 1 }
+                      }
+                      transition={{ duration: reduceMotion ? 0 : 0.18 }}
+                      style={{ display: "inline-block" }}
                     >
-                      {saveState === "saved" ? (
-                        <>
-                          <BookmarkCheck className="w-4 h-4 mr-2" />
-                          Saved ✓
-                        </>
-                      ) : saveState === "saving" ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Saving...
-                        </>
-                      ) : (
-                        <>
-                          <Bookmark className="w-4 h-4 mr-2" />
-                          Save
-                        </>
-                      )}
-                    </Button>
+                      <Button
+                        onClick={onSaveResearch}
+                        variant="outline"
+                        size="sm"
+                        data-testid="research-save-btn"
+                        disabled={saveState !== "idle"}
+                        aria-live="polite"
+                      >
+                        {saveState === "saved" ? (
+                          <>
+                            <BookmarkCheck className="w-4 h-4 mr-2" />
+                            Saved ✓
+                          </>
+                        ) : saveState === "saving" ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Bookmark className="w-4 h-4 mr-2" />
+                            Save
+                          </>
+                        )}
+                      </Button>
+                    </motion.div>
                   </>
                 )}
               </div>
@@ -1020,9 +1033,30 @@ export function ResearchMode({}: ResearchModeProps) {
                   )}
                   <span>{subagentsHeaderText}</span>
                 </button>
+                <AnimatePresence initial={false}>
                 {subagentsOpen && (
+                  <motion.div
+                    key="subagents-panel-body"
+                    initial={
+                      reduceMotion
+                        ? { height: "auto", opacity: 1 }
+                        : { height: 0, opacity: 0 }
+                    }
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={
+                      reduceMotion
+                        ? { height: "auto", opacity: 0 }
+                        : { height: 0, opacity: 0 }
+                    }
+                    transition={{
+                      duration: reduceMotion ? 0 : 0.22,
+                      ease: "easeOut",
+                    }}
+                    style={{ overflow: "hidden" }}
+                  >
                   <ul className="divide-y divide-border">
-                    {subagentRows.map((row) => {
+                    <AnimatePresence initial={false}>
+                    {subagentRows.map((row, idx) => {
                       const key = `${row.skill}:${row.articleId}`;
                       const isExpanded = expandedRows.has(key);
                       const canExpand =
@@ -1046,11 +1080,27 @@ export function ResearchMode({}: ResearchModeProps) {
                           ? "error"
                           : "done";
                       return (
-                        <li
+                        <motion.li
                           key={key}
                           data-testid="research-subagent-row"
                           data-expanded={isExpanded ? "true" : "false"}
                           className="text-sm text-foreground"
+                          initial={
+                            reduceMotion
+                              ? { opacity: 1, y: 0 }
+                              : { opacity: 0, y: -4 }
+                          }
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={
+                            reduceMotion
+                              ? { opacity: 0, y: 0 }
+                              : { opacity: 0, y: -4 }
+                          }
+                          transition={{
+                            duration: reduceMotion ? 0 : 0.18,
+                            delay: reduceMotion ? 0 : Math.min(idx * 0.05, 0.25),
+                            ease: "easeOut",
+                          }}
                         >
                           <button
                             type="button"
@@ -1113,11 +1163,14 @@ export function ResearchMode({}: ResearchModeProps) {
                               {row.summary}
                             </div>
                           )}
-                        </li>
+                        </motion.li>
                       );
                     })}
+                    </AnimatePresence>
                   </ul>
+                  </motion.div>
                 )}
+                </AnimatePresence>
               </div>
             )}
             {showErrorPanel ? (

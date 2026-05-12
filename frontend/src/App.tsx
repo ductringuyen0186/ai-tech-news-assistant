@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { Tabs, TabsContent } from "./components/ui/tabs";
 import { Button } from "./components/ui/button";
 import { Badge } from "./components/ui/badge";
@@ -52,6 +53,15 @@ function AppShell() {
   // CommandPalette can both mutate it. Radix Tabs becomes controlled via
   // value/onValueChange.
   const [activeTab, setActiveTab] = useState<string>("feed");
+  const reduceMotion = useReducedMotion();
+  // Page-tab fade-in: each TabsContent's children are wrapped in a
+  // motion.div that fades in from opacity 0 → 1 on mount. Radix unmounts
+  // the inactive tab's children, so switching tabs is a natural unmount
+  // + remount — and the new motion.div's `initial → animate` is the
+  // fade. Reduced-motion resolves to instant.
+  const panelInitial = reduceMotion ? { opacity: 1 } : { opacity: 0 };
+  const panelAnimate = { opacity: 1 };
+  const panelTransition = { duration: reduceMotion ? 0 : 0.2, ease: "easeOut" as const };
 
   // -------------------------------------------------------------------------
   // Data fetchers (unchanged from M2 — behavior is out of scope for M3.M1).
@@ -348,8 +358,20 @@ function AppShell() {
           </header>
 
           <div className="px-6 py-5 flex-1">
+            {/* Page-tab cross-fade — every TabsContent's children are
+                wrapped in a motion.div that fades in on mount. Radix
+                unmounts the inactive tab's children, so switching tabs
+                triggers a fresh mount + fade-in for the new panel. No
+                AnimatePresence required because there's nothing to
+                animate out (Radix removes the old children
+                instantly). Reduced-motion resolves to instant. */}
             {/* News Feed Tab */}
             <TabsContent value="feed" className="space-y-4 mt-0">
+              <motion.div
+                initial={panelInitial}
+                animate={panelAnimate}
+                transition={panelTransition}
+              >
               <div className="flex flex-col md:flex-row gap-3 items-start md:items-center justify-between">
                 <div className="flex-1 w-full md:max-w-md">
                   <SearchBar onSearch={setSearchQuery} />
@@ -467,47 +489,82 @@ function AppShell() {
                   ))}
                 </div>
               )}
+              </motion.div>
             </TabsContent>
 
             {/* Research Mode Tab — unchanged in M1; M2 will polish content. */}
             <TabsContent value="research" className="mt-0">
-              <ResearchMode />
+              <motion.div
+                initial={panelInitial}
+                animate={panelAnimate}
+                transition={panelTransition}
+              >
+                <ResearchMode />
+              </motion.div>
             </TabsContent>
 
             {/* Knowledge Graph Tab */}
             <TabsContent value="knowledge" className="mt-0">
-              <KnowledgeGraph />
+              <motion.div
+                initial={panelInitial}
+                animate={panelAnimate}
+                transition={panelTransition}
+              >
+                <KnowledgeGraph />
+              </motion.div>
             </TabsContent>
 
             {/* Daily Digest Tab */}
             <TabsContent value="digest" className="mt-0">
-              {digest ? (
-                <DigestView digest={digest} />
-              ) : (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                </div>
-              )}
+              <motion.div
+                initial={panelInitial}
+                animate={panelAnimate}
+                transition={panelTransition}
+              >
+                {digest ? (
+                  <DigestView digest={digest} />
+                ) : (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                  </div>
+                )}
+              </motion.div>
             </TabsContent>
 
             {/* Chat Tab */}
             <TabsContent value="chat" className="mt-0">
-              <div className="max-w-4xl mx-auto">
+              <motion.div
+                initial={panelInitial}
+                animate={panelAnimate}
+                transition={panelTransition}
+                className="max-w-4xl mx-auto"
+              >
                 <ChatInterface onAskQuestion={handleAskQuestion} />
-              </div>
+              </motion.div>
             </TabsContent>
 
             {/* Saved Research Tab — M3.M5. Lists every persisted
                 research report, opens them inline via MarkdownReport,
                 and supports per-row deletion. */}
             <TabsContent value="saved" className="mt-0">
-              <SavedResearchList />
+              <motion.div
+                initial={panelInitial}
+                animate={panelAnimate}
+                transition={panelTransition}
+              >
+                <SavedResearchList />
+              </motion.div>
             </TabsContent>
 
             {/* Preferences (Settings) Tab — M3.M4: theme + density toggles
                 above the existing topic-preferences card. */}
             <TabsContent value="preferences" className="mt-0">
-              <div className="max-w-4xl mx-auto">
+              <motion.div
+                initial={panelInitial}
+                animate={panelAnimate}
+                transition={panelTransition}
+                className="max-w-4xl mx-auto"
+              >
                 <Settings
                   selectedCategories={selectedCategories}
                   onCategoriesChange={setSelectedCategories}
@@ -515,7 +572,7 @@ function AppShell() {
                   isSaving={isSavingPreferences}
                   hasUnsavedChanges={hasUnsavedChanges}
                 />
-              </div>
+              </motion.div>
             </TabsContent>
           </div>
 

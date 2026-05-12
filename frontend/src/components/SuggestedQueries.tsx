@@ -14,7 +14,13 @@
  * `<Badge>` (which renders a `<div>`). Buttons are keyboard-focusable,
  * support Enter/Space activation, and pass the Playwright a11y check
  * `followUps.locator("button").count() > 0`.
+ *
+ * M3.M6 — chips stagger in on mount via framer-motion (30ms between
+ * children, ~200ms total). Honors `prefers-reduced-motion`: when the OS
+ * reports reduced motion, the transition resolves instantly.
  */
+
+import { motion, useReducedMotion } from "framer-motion";
 
 interface SuggestedQueriesProps {
   queries: string[];
@@ -46,7 +52,36 @@ export function SuggestedQueries({
   "data-testid": testid,
   chipTestId = "suggested-query-chip",
 }: SuggestedQueriesProps): JSX.Element | null {
+  const reduceMotion = useReducedMotion();
   if (!queries || queries.length === 0) return null;
+
+  // Per-chip stagger via a parent container that schedules child
+  // animations 30ms apart. When the OS reports reduced motion, the
+  // transition resolves instantly (no stagger, no slide) so the
+  // accessibility contract holds.
+  const containerVariants = {
+    hidden: { opacity: 1 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: reduceMotion ? 0 : 0.03,
+        delayChildren: 0,
+      },
+    },
+  } as const;
+  const chipVariants = {
+    hidden: reduceMotion
+      ? { opacity: 1, y: 0 }
+      : { opacity: 0, y: 4 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        duration: reduceMotion ? 0 : 0.18,
+        ease: "easeOut" as const,
+      },
+    },
+  } as const;
 
   return (
     <div data-testid={testid}>
@@ -55,19 +90,25 @@ export function SuggestedQueries({
           {label}
         </p>
       )}
-      <div className="flex flex-wrap gap-2">
+      <motion.div
+        className="flex flex-wrap gap-2"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
         {queries.map((q, idx) => (
-          <button
+          <motion.button
             key={`${idx}-${q.slice(0, 16)}`}
             type="button"
             data-testid={chipTestId}
             onClick={() => onSelect(q)}
+            variants={chipVariants}
             className="inline-flex items-center rounded-md border border-border bg-transparent px-2.5 py-0.5 text-xs font-semibold text-foreground cursor-pointer hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
           >
             {q}
-          </button>
+          </motion.button>
         ))}
-      </div>
+      </motion.div>
     </div>
   );
 }

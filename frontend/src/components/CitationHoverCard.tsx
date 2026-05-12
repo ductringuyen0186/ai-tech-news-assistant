@@ -23,6 +23,7 @@
  * tab. Built so other tabs can drop it in without behavior changes.
  */
 import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { API_ENDPOINTS, apiFetch } from "../config/api";
 
 /** Subset of the article shape we render in the card. */
@@ -119,6 +120,7 @@ export function CitationHoverCard({
   articleId,
   children,
 }: CitationHoverCardProps): JSX.Element {
+  const reduceMotion = useReducedMotion();
   const [article, setArticle] = useState<CachedArticle | null>(null);
   const [visible, setVisible] = useState(false);
   // We track cursor position so we can render the card right next to the
@@ -197,35 +199,52 @@ export function CitationHoverCard({
       onMouseLeave={handleLeave}
     >
       {children}
-      {visible && article && (
-        <span
-          data-testid="citation-hover-card"
-          role="tooltip"
-          style={cardStyle}
-          className="rounded-md border border-border bg-popover text-popover-foreground p-3 shadow-md text-[13px] leading-snug"
-        >
-          <span className="block font-medium text-foreground line-clamp-2">
-            {article.title}
-          </span>
-          <span className="mt-1 block text-[11px] text-muted-foreground">
-            <span className="font-medium">{article.source}</span>
-            {dateLabel ? <> &middot; {dateLabel}</> : null}
-          </span>
-          {summary && (
-            <span
-              className="mt-2 block text-[12px] text-muted-foreground"
-              style={{
-                display: "-webkit-box",
-                WebkitLineClamp: 3,
-                WebkitBoxOrient: "vertical",
-                overflow: "hidden",
-              }}
-            >
-              {summary}
+      <AnimatePresence>
+        {visible && article && (
+          <motion.span
+            data-testid="citation-hover-card"
+            role="tooltip"
+            style={cardStyle}
+            className="rounded-md border border-border bg-popover text-popover-foreground p-3 shadow-md text-[13px] leading-snug"
+            initial={
+              reduceMotion
+                ? { opacity: 1, scale: 1 }
+                : { opacity: 0, scale: 0.95 }
+            }
+            animate={{ opacity: 1, scale: 1 }}
+            exit={
+              reduceMotion
+                ? { opacity: 0, scale: 1 }
+                : { opacity: 0, scale: 0.95 }
+            }
+            transition={{
+              duration: reduceMotion ? 0 : 0.18,
+              ease: "easeOut",
+            }}
+          >
+            <span className="block font-medium text-foreground line-clamp-2">
+              {article.title}
             </span>
-          )}
-        </span>
-      )}
+            <span className="mt-1 block text-[11px] text-muted-foreground">
+              <span className="font-medium">{article.source}</span>
+              {dateLabel ? <> &middot; {dateLabel}</> : null}
+            </span>
+            {summary && (
+              <span
+                className="mt-2 block text-[12px] text-muted-foreground"
+                style={{
+                  display: "-webkit-box",
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                }}
+              >
+                {summary}
+              </span>
+            )}
+          </motion.span>
+        )}
+      </AnimatePresence>
     </span>
   );
 }

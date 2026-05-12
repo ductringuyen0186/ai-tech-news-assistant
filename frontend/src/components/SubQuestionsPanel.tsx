@@ -1,4 +1,5 @@
 import { Loader2, CheckCircle2, Circle } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Badge } from "./ui/badge";
 
 /**
@@ -76,6 +77,7 @@ export function SubQuestionsPanel({
   statusByIndex,
   isDecomposing = false,
 }: SubQuestionsPanelProps): JSX.Element | null {
+  const reduceMotion = useReducedMotion();
   const hasQuestions = Array.isArray(subQuestions) && subQuestions.length > 0;
   // If we have no questions AND we're not actively decomposing, render
   // nothing (preserves the idle/empty-state behavior).
@@ -127,14 +129,31 @@ export function SubQuestionsPanel({
         Sub-questions ({subQuestions.length})
       </div>
       <ol className="divide-y divide-gray-100 dark:divide-gray-800">
+        <AnimatePresence initial={false}>
         {subQuestions.map((q, idx) => {
           const status = statusByIndex[idx] ?? "pending";
           const articles = searchResults[idx] ?? [];
           return (
-            <li
+            <motion.li
               key={idx}
               data-testid="research-sub-question-row"
               className="px-3 py-2 text-sm text-foreground"
+              initial={
+                reduceMotion
+                  ? { opacity: 1, y: 0 }
+                  : { opacity: 0, y: -4 }
+              }
+              animate={{ opacity: 1, y: 0 }}
+              exit={
+                reduceMotion
+                  ? { opacity: 0, y: 0 }
+                  : { opacity: 0, y: -4 }
+              }
+              transition={{
+                duration: reduceMotion ? 0 : 0.18,
+                delay: reduceMotion ? 0 : Math.min(idx * 0.05, 0.25),
+                ease: "easeOut",
+              }}
             >
               <div className="flex items-start gap-2 min-w-0">
                 <span className="font-mono text-xs text-muted-foreground mt-0.5">
@@ -179,9 +198,10 @@ export function SubQuestionsPanel({
                   ))}
                 </ul>
               )}
-            </li>
+            </motion.li>
           );
         })}
+        </AnimatePresence>
       </ol>
     </div>
   );
