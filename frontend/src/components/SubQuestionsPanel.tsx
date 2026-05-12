@@ -63,7 +63,7 @@ function StatusDot({ status }: { status: SubQuestionStatus }): JSX.Element {
   }
   return (
     <Circle
-      className="w-4 h-4 text-gray-400 dark:text-gray-600"
+      className="w-4 h-4 text-muted-foreground"
       aria-label="pending"
       data-testid="sub-question-status-pending"
     />
@@ -91,13 +91,13 @@ export function SubQuestionsPanel({
         data-state="decomposing"
         className="border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden bg-white dark:bg-gray-900"
       >
-        <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800 text-sm font-medium text-gray-800 dark:text-gray-200 border-b border-gray-200 dark:border-gray-700">
+        <div className="px-3 py-2 bg-muted text-sm font-medium text-foreground border-b border-border">
           Sub-questions
         </div>
         <ol className="divide-y divide-gray-100 dark:divide-gray-800">
           <li
             data-testid="research-sub-questions-skeleton"
-            className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300"
+            className="px-3 py-2 text-sm text-muted-foreground"
           >
             <div className="flex items-center gap-2 min-w-0">
               <Loader2
@@ -123,7 +123,7 @@ export function SubQuestionsPanel({
       data-state="ready"
       className="border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden bg-white dark:bg-gray-900"
     >
-      <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800 text-sm font-medium text-gray-800 dark:text-gray-200 border-b border-gray-200 dark:border-gray-700">
+      <div className="px-3 py-2 bg-muted text-sm font-medium text-foreground border-b border-border">
         Sub-questions ({subQuestions.length})
       </div>
       <ol className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -134,10 +134,10 @@ export function SubQuestionsPanel({
             <li
               key={idx}
               data-testid="research-sub-question-row"
-              className="px-3 py-2 text-sm text-gray-800 dark:text-gray-200"
+              className="px-3 py-2 text-sm text-foreground"
             >
               <div className="flex items-start gap-2 min-w-0">
-                <span className="font-mono text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                <span className="font-mono text-xs text-muted-foreground mt-0.5">
                   {idx + 1}.
                 </span>
                 <span className="mt-0.5 flex-shrink-0">
@@ -159,7 +159,7 @@ export function SubQuestionsPanel({
                     <li
                       key={a.id}
                       data-testid="research-sub-question-article"
-                      className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 min-w-0"
+                      className="flex items-center gap-2 text-xs text-muted-foreground min-w-0"
                     >
                       <span
                         className="truncate"

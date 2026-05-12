@@ -2160,43 +2160,44 @@
 
 :root {
   --font-size: 16px;
-  --background: #f9fafb;
-  --foreground: #111827;
-  --card: #fff;
-  --card-foreground: #111827;
-  --popover: #fff;
-  --popover-foreground: #111827;
-  --primary: #2563eb;
-  --primary-foreground: #fff;
-  --secondary: #f3f4f6;
-  --secondary-foreground: #111827;
-  --muted: #f3f4f6;
-  --muted-foreground: #6b7280;
-  --accent: #eff6ff;
-  --accent-foreground: #1e40af;
-  --destructive: #dc2626;
+  /* M3.M5.5 — Claude-aesthetic warm light palette (cream / parchment). */
+  --background: hsl(40 25% 97%);
+  --foreground: hsl(28 8% 14%);
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(28 8% 14%);
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(28 8% 14%);
+  --primary: hsl(16 65% 48%);
+  --primary-foreground: hsl(40 30% 97%);
+  --secondary: hsl(40 15% 92%);
+  --secondary-foreground: hsl(28 8% 14%);
+  --muted: hsl(40 15% 92%);
+  --muted-foreground: hsl(28 8% 38%);
+  --accent: hsl(40 15% 92%);
+  --accent-foreground: hsl(28 8% 14%);
+  --destructive: hsl(0 65% 50%);
   --destructive-foreground: #fff;
-  --border: #e5e7eb;
-  --input: #e5e7eb;
+  --border: hsl(28 8% 88%);
+  --input: hsl(28 8% 88%);
   --input-background: #fff;
-  --switch-background: #e5e7eb;
+  --switch-background: hsl(28 8% 88%);
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --ring: #2563eb;
+  --ring: hsl(16 65% 48%);
   --chart-1: #3b82f6;
   --chart-2: #8b5cf6;
   --chart-3: #ec4899;
   --chart-4: #f59e0b;
   --chart-5: #10b981;
   --radius: .75rem;
-  --sidebar: #fff;
-  --sidebar-foreground: #111827;
-  --sidebar-primary: #2563eb;
-  --sidebar-primary-foreground: #fff;
-  --sidebar-accent: #f3f4f6;
-  --sidebar-accent-foreground: #111827;
-  --sidebar-border: #e5e7eb;
-  --sidebar-ring: #2563eb;
+  --sidebar: hsl(40 25% 95%);
+  --sidebar-foreground: hsl(28 8% 14%);
+  --sidebar-primary: hsl(16 65% 48%);
+  --sidebar-primary-foreground: hsl(40 30% 97%);
+  --sidebar-accent: hsl(40 15% 92%);
+  --sidebar-accent-foreground: hsl(28 8% 14%);
+  --sidebar-border: hsl(28 8% 88%);
+  --sidebar-ring: hsl(16 65% 48%);
 }
 
 html {
@@ -2547,50 +2548,49 @@ html {
  *     on font-loading differences across machines.
  * ========================================================================= */
 .dark {
-  /* Surface palette — Vercel/Linear dark dashboard. */
-  --background: #0A0A0A;
-  --foreground: #FAFAFA;
-  --card: #111111;
-  --card-foreground: #FAFAFA;
-  --popover: #141414;
-  --popover-foreground: #FAFAFA;
-  --primary: #3B82F6;
-  --primary-foreground: #FFFFFF;
-  --secondary: #1F1F1F;
-  --secondary-foreground: #FAFAFA;
-  --muted: #1A1A1A;
-  --muted-foreground: #9CA3AF;
-  --accent: #1E293B;
-  --accent-foreground: #DBEAFE;
-  --destructive: #EF4444;
+  /* M3.M5.5 — Claude-aesthetic warm dark palette (taupe / charcoal). */
+  --background: hsl(28 8% 14%);
+  --foreground: hsl(40 30% 92%);
+  --card: hsl(28 8% 17%);
+  --card-foreground: hsl(40 30% 92%);
+  --popover: hsl(28 8% 17%);
+  --popover-foreground: hsl(40 30% 92%);
+  --primary: hsl(16 65% 52%);
+  --primary-foreground: hsl(40 30% 95%);
+  --secondary: hsl(28 8% 22%);
+  --secondary-foreground: hsl(40 30% 92%);
+  --muted: hsl(28 8% 22%);
+  --muted-foreground: hsl(40 10% 65%);
+  --accent: hsl(28 8% 22%);
+  --accent-foreground: hsl(40 30% 92%);
+  --destructive: hsl(0 65% 55%);
   --destructive-foreground: #FFFFFF;
-  --border: #262626;
-  --input: #262626;
-  --input-background: #141414;
-  --switch-background: #262626;
-  --ring: #3B82F6;
-  --sidebar: #0A0A0A;
-  --sidebar-foreground: #FAFAFA;
-  --sidebar-primary: #3B82F6;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #1E293B;
-  --sidebar-accent-foreground: #DBEAFE;
-  --sidebar-border: #1F1F1F;
-  --sidebar-ring: #3B82F6;
+  --border: hsl(28 8% 24%);
+  --input: hsl(28 8% 22%);
+  --input-background: hsl(28 8% 17%);
+  --switch-background: hsl(28 8% 22%);
+  --ring: hsl(16 65% 52%);
+  --sidebar: hsl(28 8% 12%);
+  --sidebar-foreground: hsl(40 30% 92%);
+  --sidebar-primary: hsl(16 65% 52%);
+  --sidebar-primary-foreground: hsl(40 30% 95%);
+  --sidebar-accent: hsl(28 8% 22%);
+  --sidebar-accent-foreground: hsl(40 30% 92%);
+  --sidebar-border: hsl(28 8% 22%);
+  --sidebar-ring: hsl(16 65% 52%);
 }
 
 /* Semantic status palette — exposed under both themes so consumers can
- * use `var(--running)` regardless of light/dark. The dark theme uses
- * brighter swatches against the deep-grey background. */
+ * use `var(--status-xxx)` regardless of light/dark. */
 :root {
-  --status-running: #F59E0B;
-  --status-done: #10B981;
-  --status-error: #EF4444;
+  --status-running: hsl(28 30% 50%);
+  --status-done: hsl(140 35% 40%);
+  --status-error: hsl(0 65% 50%);
 }
 .dark {
-  --status-running: #FBBF24;
-  --status-done: #34D399;
-  --status-error: #F87171;
+  --status-running: hsl(28 30% 60%);
+  --status-done: hsl(140 35% 50%);
+  --status-error: hsl(0 65% 55%);
 }
 
 /* Linear-dense typography. Targets the body element only so the existing
@@ -2615,4 +2615,52 @@ body {
 .dark [data-slot="tabs-trigger"]:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: -2px;
+}
+
+
+/* =========================================================================
+ * Mission 3 / Milestone 5.5 — Claude-aesthetic refresh: extra utility
+ * classes that the prebuilt v4 bundle does NOT ship, but which the
+ * widened sidebar / typography normalization pass relies on.
+ *
+ * Tailwind v4 is not actively compiling utility CSS for this project
+ * (see tailwind.config.ts header), so any class we introduce in component
+ * source must have a matching rule here or it silently no-ops.
+ * ========================================================================= */
+@layer utilities {
+  .w-72 { width: calc(var(--spacing) * 72); }
+  .w-56 { width: calc(var(--spacing) * 56); }
+
+  .px-5 { padding-inline: calc(var(--spacing) * 5); }
+  .py-5 { padding-block: calc(var(--spacing) * 5); }
+  .py-2\.5 { padding-block: calc(var(--spacing) * 2.5); }
+  .px-2\.5 { padding-inline: calc(var(--spacing) * 2.5); }
+
+  .tracking-tight { letter-spacing: -0.025em; }
+  .font-normal { font-weight: 400; }
+
+  .bg-sidebar { background-color: var(--sidebar); }
+  .text-sidebar-foreground { color: var(--sidebar-foreground); }
+  .border-sidebar-border { border-color: var(--sidebar-border); }
+  .border-border { border-color: var(--border); }
+  .border-l-2 { border-left-style: var(--tw-border-style); border-left-width: 2px; }
+  .border-l-primary { border-left-color: var(--primary); }
+
+  .hover\:bg-accent:hover { background-color: var(--accent); }
+  .hover\:text-accent-foreground:hover { color: var(--accent-foreground); }
+  .hover\:text-foreground:hover { color: var(--foreground); }
+  .hover\:border-border:hover { border-color: var(--border); }
+
+  .w-\[18px\] { width: 18px; }
+  .h-\[18px\] { height: 18px; }
+  .text-\[10px\] { font-size: 10px; line-height: 14px; }
+  .text-\[11px\] { font-size: 11px; line-height: 16px; }
+  .text-\[12px\] { font-size: 12px; line-height: 16px; }
+  .text-\[13px\] { font-size: 13px; line-height: 18px; }
+  .text-\[14px\] { font-size: 14px; line-height: 20px; }
+  .text-\[15px\] { font-size: 15px; line-height: 22px; }
+
+  .leading-tight { line-height: 1.25; }
+  .leading-snug { line-height: 1.375; }
+  .leading-relaxed { line-height: 1.625; }
 }

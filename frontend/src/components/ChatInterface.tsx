@@ -164,7 +164,7 @@ export function ChatInterface({ onAskQuestion }: ChatInterfaceProps) {
 
                   {message.relevantArticles && message.relevantArticles.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-gray-300 space-y-2">
-                      <p className="text-[11px] text-gray-600 mb-2">
+                      <p className="text-xs text-muted-foreground mb-2">
                         Related articles:
                       </p>
                       {message.relevantArticles.map((article) => {
@@ -225,7 +225,7 @@ export function ChatInterface({ onAskQuestion }: ChatInterfaceProps) {
                   <Bot className="w-3.5 h-3.5 text-white" />
                 </div>
                 <div className="bg-gray-100 rounded-md p-2.5">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-600" />
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
                 </div>
               </div>
             )}

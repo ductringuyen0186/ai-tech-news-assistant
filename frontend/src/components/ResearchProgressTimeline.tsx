@@ -65,7 +65,7 @@ function StatusIcon({ status }: { status: TimelineStatus }): JSX.Element {
       <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400" />
     );
   }
-  return <Circle className="w-4 h-4 text-gray-300 dark:text-gray-700" />;
+  return <Circle className="w-4 h-4 text-muted-foreground/40" />;
 }
 
 export function ResearchProgressTimeline({
@@ -109,7 +109,7 @@ export function ResearchProgressTimeline({
                         ? "text-red-600 dark:text-red-400"
                         : step.status === "done"
                         ? "text-green-700 dark:text-green-400"
-                        : "text-gray-900 dark:text-gray-100"
+                        : "text-foreground"
                     }`}
                   >
                     {labelForChip}
@@ -118,24 +118,24 @@ export function ResearchProgressTimeline({
                   <span
                     className={`font-medium ${
                       step.status === "done"
-                        ? "text-gray-700 dark:text-gray-300"
+                        ? "text-foreground"
                         : step.status === "error"
                         ? "text-red-600 dark:text-red-400"
-                        : "text-gray-500 dark:text-gray-500"
+                        : "text-muted-foreground"
                     }`}
                   >
                     {step.label}
                   </span>
                 )}
                 {step.detail && (
-                  <span className="block text-xs text-gray-500 dark:text-gray-500 mt-0.5">
+                  <span className="block text-xs text-muted-foreground mt-0.5">
                     {step.detail}
                   </span>
                 )}
               </span>
               {step.status === "done" &&
                 typeof step.durationMs === "number" && (
-                  <span className="flex-shrink-0 text-xs text-gray-500 dark:text-gray-500">
+                  <span className="flex-shrink-0 text-xs text-muted-foreground">
                     {formatDuration(step.durationMs)}
                   </span>
                 )}

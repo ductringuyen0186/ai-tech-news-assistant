@@ -51,7 +51,7 @@ export function SuggestedQueries({
   return (
     <div data-testid={testid}>
       {label && (
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+        <p className="text-sm text-muted-foreground mb-2">
           {label}
         </p>
       )}
@@ -62,7 +62,7 @@ export function SuggestedQueries({
             type="button"
             data-testid={chipTestId}
             onClick={() => onSelect(q)}
-            className="inline-flex items-center rounded-md border border-gray-300 dark:border-gray-700 bg-transparent px-2.5 py-0.5 text-xs font-semibold text-gray-800 dark:text-gray-200 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 transition-colors"
+            className="inline-flex items-center rounded-md border border-border bg-transparent px-2.5 py-0.5 text-xs font-semibold text-foreground cursor-pointer hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
           >
             {q}
           </button>

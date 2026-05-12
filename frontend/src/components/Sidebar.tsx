@@ -68,16 +68,16 @@ export function Sidebar({ activeTab, badges }: SidebarProps) {
     <aside
       data-slot="sidebar"
       aria-label="Primary navigation"
-      className="flex flex-col w-56 shrink-0 h-screen sticky top-0 border-r border-border bg-sidebar text-sidebar-foreground"
+      className="flex flex-col w-72 shrink-0 h-screen sticky top-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
     >
       {/* Branding header */}
-      <div className="px-4 py-4 border-b border-border flex items-center gap-2">
-        <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shadow-sm">
-          <Newspaper className="w-4 h-4 text-primary-foreground" />
+      <div className="px-5 py-5 border-b border-sidebar-border flex items-center gap-3">
+        <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center shadow-sm">
+          <Newspaper className="w-5 h-5 text-primary-foreground" />
         </div>
         <div className="flex flex-col leading-tight">
-          <span className="text-sm font-semibold tracking-tight">TechPulse AI</span>
-          <span className="text-[11px] text-muted-foreground">tech-news research</span>
+          <span className="text-base font-semibold tracking-tight">TechPulse AI</span>
+          <span className="text-xs text-muted-foreground">tech-news research</span>
         </div>
       </div>
 
@@ -85,7 +85,7 @@ export function Sidebar({ activeTab, badges }: SidebarProps) {
       <button
         type="button"
         onClick={() => openPalette()}
-        className="mx-3 mt-3 mb-1 flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
+        className="mx-3 mt-3 mb-2 flex items-center justify-between gap-2 px-3 py-2 text-xs text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
         aria-label="Open command palette"
       >
         <span className="flex items-center gap-1.5">
@@ -115,7 +115,7 @@ export function Sidebar({ activeTab, badges }: SidebarProps) {
               className={[
                 // Reset the horizontal-tab styling from ui/tabs.tsx so the
                 // sidebar items lay out as full-width rows.
-                "relative justify-start gap-2 h-auto py-1.5 px-2.5 text-[13px] w-full",
+                "relative justify-start gap-3 h-auto py-2.5 px-3 text-sm w-full",
                 "rounded-md border border-transparent",
                 "text-muted-foreground hover:text-foreground hover:bg-accent",
                 "transition-colors",
@@ -125,7 +125,7 @@ export function Sidebar({ activeTab, badges }: SidebarProps) {
                   : "",
               ].join(" ")}
             >
-              <Icon className="w-4 h-4 shrink-0" />
+              <Icon className="w-[18px] h-[18px] shrink-0" />
               <span className="flex-1 text-left truncate">{item.label}</span>
               {badge === "unsaved" && (
                 <span
@@ -149,13 +149,13 @@ export function Sidebar({ activeTab, badges }: SidebarProps) {
       <div className="flex-1" />
 
       {/* Theme toggle — bottom of the sidebar */}
-      <div className="px-3 py-3 border-t border-border">
+      <div className="px-3 py-4 border-t border-sidebar-border">
         <button
           type="button"
           onClick={toggleTheme}
           aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
           data-testid="theme-toggle"
-          className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors border border-transparent hover:border-border"
+          className="w-full flex items-center justify-between gap-2 px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors border border-transparent hover:border-border"
         >
           <span className="flex items-center gap-1.5">
             {theme === "dark" ? (

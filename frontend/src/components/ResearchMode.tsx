@@ -1004,24 +1004,24 @@ export function ResearchMode({}: ResearchModeProps) {
             {showSubagentsPanel && (
               <div
                 data-testid="research-subagents-panel"
-                className="mb-4 border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden"
+                className="mb-4 border border-border rounded-lg overflow-hidden"
               >
                 <button
                   type="button"
                   onClick={() => setSubagentsOpen((open) => !open)}
                   data-testid="research-subagents-header"
                   aria-expanded={subagentsOpen}
-                  className="w-full flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-left text-sm font-medium text-gray-800 dark:text-gray-200"
+                  className="w-full flex items-center gap-2 px-3 py-2 bg-muted hover:bg-accent text-left text-sm font-medium text-foreground"
                 >
                   {subagentsOpen ? (
-                    <ChevronDown className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
                   ) : (
-                    <ChevronRight className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
                   )}
                   <span>{subagentsHeaderText}</span>
                 </button>
                 {subagentsOpen && (
-                  <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+                  <ul className="divide-y divide-border">
                     {subagentRows.map((row) => {
                       const key = `${row.skill}:${row.articleId}`;
                       const isExpanded = expandedRows.has(key);
@@ -1050,7 +1050,7 @@ export function ResearchMode({}: ResearchModeProps) {
                           key={key}
                           data-testid="research-subagent-row"
                           data-expanded={isExpanded ? "true" : "false"}
-                          className="text-sm text-gray-800 dark:text-gray-200"
+                          className="text-sm text-foreground"
                         >
                           <button
                             type="button"
@@ -1060,26 +1060,26 @@ export function ResearchMode({}: ResearchModeProps) {
                             aria-expanded={isExpanded}
                             className={`w-full flex items-center gap-3 px-3 py-2 text-left min-w-0 ${
                               canExpand
-                                ? "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
+                                ? "cursor-pointer hover:bg-accent"
                                 : "cursor-default"
                             }`}
                           >
                             {canExpand ? (
                               isExpanded ? (
-                                <ChevronDown className="w-3 h-3 text-gray-500 flex-shrink-0" />
+                                <ChevronDown className="w-3 h-3 text-muted-foreground flex-shrink-0" />
                               ) : (
-                                <ChevronRight className="w-3 h-3 text-gray-500 flex-shrink-0" />
+                                <ChevronRight className="w-3 h-3 text-muted-foreground flex-shrink-0" />
                               )
                             ) : (
                               <span className="w-3 h-3 flex-shrink-0" />
                             )}
                             <span
-                              className="font-mono text-xs text-gray-700 dark:text-gray-300 truncate"
+                              className="font-mono text-xs text-muted-foreground truncate"
                               style={{ overflowWrap: "anywhere" }}
                             >
                               {row.skill}
                             </span>
-                            <span className="text-gray-500 dark:text-gray-500 text-xs">
+                            <span className="text-muted-foreground text-xs">
                               #{row.articleId}
                             </span>
                             <Badge
@@ -1090,7 +1090,7 @@ export function ResearchMode({}: ResearchModeProps) {
                             </Badge>
                             {row.status === "done" &&
                               typeof row.durationMs === "number" && (
-                                <span className="text-xs text-gray-500 dark:text-gray-500">
+                                <span className="text-xs text-muted-foreground">
                                   {formatDuration(row.durationMs)}
                                 </span>
                               )}
@@ -1107,7 +1107,7 @@ export function ResearchMode({}: ResearchModeProps) {
                           {isExpanded && row.summary && (
                             <div
                               data-testid="research-subagent-summary"
-                              className="px-6 pb-3 text-xs text-gray-700 dark:text-gray-300 bg-gray-50/50 dark:bg-gray-900/30"
+                              className="px-6 pb-3 text-xs text-muted-foreground bg-muted/40"
                               style={{ overflowWrap: "anywhere" }}
                             >
                               {row.summary}
@@ -1162,7 +1162,7 @@ export function ResearchMode({}: ResearchModeProps) {
                     linkifyCitations={phase === "done"}
                   />
                 ) : (
-                  <div className="flex items-center gap-2 text-gray-500 py-4">
+                  <div className="flex items-center gap-2 text-muted-foreground py-4">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     <span>Waiting for tokens...</span>
                   </div>
@@ -1176,7 +1176,7 @@ export function ResearchMode({}: ResearchModeProps) {
                 `research-follow-up-chip` testid so a11y tests can
                 target them without colliding with empty-state chips. */}
             {followUps.length > 0 && (
-              <div className="mt-6 border-t border-gray-200 dark:border-gray-800 pt-4">
+              <div className="mt-6 border-t border-border pt-4">
                 <SuggestedQueries
                   queries={followUps}
                   onSelect={(q) => {
@@ -1196,11 +1196,11 @@ export function ResearchMode({}: ResearchModeProps) {
       {showEmptyState && (
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <Search className="w-12 h-12 text-gray-400 mb-4" />
-            <p className="text-gray-600 dark:text-gray-400 text-center">
+            <Search className="w-12 h-12 text-muted-foreground mb-4" />
+            <p className="text-base text-foreground text-center">
               Enter a research query above to get started
             </p>
-            <p className="text-sm text-gray-500 dark:text-gray-500 text-center mt-2">
+            <p className="text-sm text-muted-foreground text-center mt-2">
               Our AI agent will search, filter, and generate a comprehensive
               report
             </p>

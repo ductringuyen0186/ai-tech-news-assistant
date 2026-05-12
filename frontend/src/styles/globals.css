@@ -4,48 +4,48 @@
 
 :root {
   --font-size: 16px;
-  /* Futuristic Light Theme */
-  --background: #F9FAFB;
-  --foreground: #111827;
-  --card: #FFFFFF;
-  --card-foreground: #111827;
-  --popover: #FFFFFF;
-  --popover-foreground: #111827;
-  --primary: #2563EB;
-  --primary-foreground: #FFFFFF;
-  --secondary: #F3F4F6;
-  --secondary-foreground: #111827;
-  --muted: #F3F4F6;
-  --muted-foreground: #6B7280;
-  --accent: #EFF6FF;
-  --accent-foreground: #1E40AF;
-  --destructive: #DC2626;
+  /* M3.M5.5 — Claude-aesthetic warm light palette (cream / parchment). */
+  --background: hsl(40 25% 97%);
+  --foreground: hsl(28 8% 14%);
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(28 8% 14%);
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(28 8% 14%);
+  --primary: hsl(16 65% 48%);
+  --primary-foreground: hsl(40 30% 97%);
+  --secondary: hsl(40 15% 92%);
+  --secondary-foreground: hsl(28 8% 14%);
+  --muted: hsl(40 15% 92%);
+  --muted-foreground: hsl(28 8% 38%);
+  --accent: hsl(40 15% 92%);
+  --accent-foreground: hsl(28 8% 14%);
+  --destructive: hsl(0 65% 50%);
   --destructive-foreground: #FFFFFF;
-  --border: #E5E7EB;
-  --input: #E5E7EB;
+  --border: hsl(28 8% 88%);
+  --input: hsl(28 8% 88%);
   --input-background: #FFFFFF;
-  --switch-background: #E5E7EB;
+  --switch-background: hsl(28 8% 88%);
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --ring: #2563EB;
+  --ring: hsl(16 65% 48%);
   --chart-1: #3B82F6;
   --chart-2: #8B5CF6;
   --chart-3: #EC4899;
   --chart-4: #F59E0B;
   --chart-5: #10B981;
   --radius: 0.75rem;
-  --sidebar: #FFFFFF;
-  --sidebar-foreground: #111827;
-  --sidebar-primary: #2563EB;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #F3F4F6;
-  --sidebar-accent-foreground: #111827;
-  --sidebar-border: #E5E7EB;
-  --sidebar-ring: #2563EB;
-  /* Mission 3 / Milestone 1 — status palette (developer-dashboard accent). */
-  --status-running: #F59E0B;
-  --status-done: #10B981;
-  --status-error: #EF4444;
+  --sidebar: hsl(40 25% 95%);
+  --sidebar-foreground: hsl(28 8% 14%);
+  --sidebar-primary: hsl(16 65% 48%);
+  --sidebar-primary-foreground: hsl(40 30% 97%);
+  --sidebar-accent: hsl(40 15% 92%);
+  --sidebar-accent-foreground: hsl(28 8% 14%);
+  --sidebar-border: hsl(28 8% 88%);
+  --sidebar-ring: hsl(16 65% 48%);
+  /* Status palette — warm-tuned for parchment surface. */
+  --status-running: hsl(28 30% 50%);
+  --status-done: hsl(140 35% 40%);
+  --status-error: hsl(0 65% 50%);
 }
 
 /*
@@ -54,38 +54,39 @@
  * before React mounts by the inline script in index.html).
  */
 .dark {
-  --background: #0A0A0A;
-  --foreground: #FAFAFA;
-  --card: #111111;
-  --card-foreground: #FAFAFA;
-  --popover: #141414;
-  --popover-foreground: #FAFAFA;
-  --primary: #3B82F6;
-  --primary-foreground: #FFFFFF;
-  --secondary: #1F1F1F;
-  --secondary-foreground: #FAFAFA;
-  --muted: #1A1A1A;
-  --muted-foreground: #9CA3AF;
-  --accent: #1E293B;
-  --accent-foreground: #DBEAFE;
-  --destructive: #EF4444;
+  /* M3.M5.5 — Claude-aesthetic warm dark palette (taupe / charcoal). */
+  --background: hsl(28 8% 14%);
+  --foreground: hsl(40 30% 92%);
+  --card: hsl(28 8% 17%);
+  --card-foreground: hsl(40 30% 92%);
+  --popover: hsl(28 8% 17%);
+  --popover-foreground: hsl(40 30% 92%);
+  --primary: hsl(16 65% 52%);
+  --primary-foreground: hsl(40 30% 95%);
+  --secondary: hsl(28 8% 22%);
+  --secondary-foreground: hsl(40 30% 92%);
+  --muted: hsl(28 8% 22%);
+  --muted-foreground: hsl(40 10% 65%);
+  --accent: hsl(28 8% 22%);
+  --accent-foreground: hsl(40 30% 92%);
+  --destructive: hsl(0 65% 55%);
   --destructive-foreground: #FFFFFF;
-  --border: #262626;
-  --input: #262626;
-  --input-background: #141414;
-  --switch-background: #262626;
-  --ring: #3B82F6;
-  --sidebar: #0A0A0A;
-  --sidebar-foreground: #FAFAFA;
-  --sidebar-primary: #3B82F6;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #1E293B;
-  --sidebar-accent-foreground: #DBEAFE;
-  --sidebar-border: #1F1F1F;
-  --sidebar-ring: #3B82F6;
-  --status-running: #FBBF24;
-  --status-done: #34D399;
-  --status-error: #F87171;
+  --border: hsl(28 8% 24%);
+  --input: hsl(28 8% 22%);
+  --input-background: hsl(28 8% 17%);
+  --switch-background: hsl(28 8% 22%);
+  --ring: hsl(16 65% 52%);
+  --sidebar: hsl(28 8% 12%);
+  --sidebar-foreground: hsl(40 30% 92%);
+  --sidebar-primary: hsl(16 65% 52%);
+  --sidebar-primary-foreground: hsl(40 30% 95%);
+  --sidebar-accent: hsl(28 8% 22%);
+  --sidebar-accent-foreground: hsl(40 30% 92%);
+  --sidebar-border: hsl(28 8% 22%);
+  --sidebar-ring: hsl(16 65% 52%);
+  --status-running: hsl(28 30% 60%);
+  --status-done: hsl(140 35% 50%);
+  --status-error: hsl(0 65% 55%);
 }
 
 @theme inline {

@@ -139,14 +139,18 @@ export function MarkdownReport({
   let inSourcesSection = false;
   let sourceCounter = 0;
 
+  // M3.M5.5 — Claude-aesthetic markdown contrast. The previous gray-900/
+  // gray-50 pairing rendered too dim on the new warm-charcoal dark theme;
+  // route H1–H4 through the semantic `text-foreground` token so they
+  // inherit the same cream tone the rest of the report uses.
   const headingClass = (level: number) => {
     if (level === 1)
-      return "text-2xl font-bold mt-4 mb-2 text-gray-900 dark:text-gray-50";
+      return "text-xl font-semibold mt-4 mb-3 text-foreground";
     if (level === 2)
-      return "text-xl font-semibold mt-3 mb-2 text-gray-900 dark:text-gray-50";
+      return "text-lg font-semibold mt-4 mb-2 text-foreground";
     if (level === 3)
-      return "text-lg font-semibold mt-3 mb-1 text-gray-900 dark:text-gray-50";
-    return "text-base font-semibold mt-2 mb-1 text-gray-900 dark:text-gray-50";
+      return "text-base font-medium mt-3 mb-1.5 text-foreground";
+    return "text-sm font-medium mt-2 mb-1 text-foreground";
   };
 
   return (
@@ -203,7 +207,7 @@ export function MarkdownReport({
           ),
           p: ({ children, ...rest }) => (
             <p
-              className="my-2 leading-relaxed text-gray-800 dark:text-gray-200"
+              className="my-2 leading-relaxed text-foreground text-sm"
               style={{
                 overflowWrap: "anywhere",
                 wordBreak: "break-word",
@@ -217,7 +221,7 @@ export function MarkdownReport({
           ),
           ul: ({ children, ...rest }) => (
             <ul
-              className="my-2 space-y-1 text-gray-800 dark:text-gray-200 list-disc ml-6"
+              className="my-2 space-y-1 text-foreground text-sm list-disc ml-6"
               {...rest}
             >
               {children}
@@ -225,7 +229,7 @@ export function MarkdownReport({
           ),
           ol: ({ children, ...rest }) => (
             <ol
-              className="my-2 space-y-1 text-gray-800 dark:text-gray-200 list-decimal ml-6"
+              className="my-2 space-y-1 text-foreground text-sm list-decimal ml-6"
               {...rest}
             >
               {children}
@@ -282,7 +286,7 @@ export function MarkdownReport({
             if (inline) {
               return (
                 <code
-                  className="bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100 rounded px-1 py-0.5 text-[0.9em] font-mono"
+                  className="bg-muted text-foreground rounded px-1 py-0.5 text-[0.9em] font-mono"
                   {...rest}
                 >
                   {children}
@@ -291,7 +295,7 @@ export function MarkdownReport({
             }
             return (
               <code
-                className={`block bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100 rounded p-3 text-[0.9em] font-mono overflow-x-auto ${className ?? ""}`}
+                className={`block bg-muted text-foreground rounded p-3 text-[0.9em] font-mono overflow-x-auto ${className ?? ""}`}
                 {...rest}
               >
                 {children}
@@ -300,7 +304,7 @@ export function MarkdownReport({
           },
           pre: ({ children, ...rest }) => (
             <pre
-              className="my-2 bg-gray-100 dark:bg-gray-800 rounded p-3 overflow-x-auto"
+              className="my-2 bg-muted rounded p-3 overflow-x-auto"
               {...rest}
             >
               {children}
@@ -310,7 +314,7 @@ export function MarkdownReport({
           table: ({ children, ...rest }) => (
             <div className="my-3 overflow-x-auto">
               <table
-                className="min-w-full border-collapse border border-gray-300 dark:border-gray-700 text-sm"
+                className="min-w-full border-collapse border border-border text-sm"
                 {...rest}
               >
                 {children}
@@ -319,21 +323,21 @@ export function MarkdownReport({
           ),
           thead: ({ children, ...rest }) => (
             <thead
-              className="bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+              className="bg-muted text-foreground"
               {...rest}
             >
               {children}
             </thead>
           ),
           tbody: ({ children, ...rest }) => (
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700" {...rest}>
+            <tbody className="divide-y divide-border" {...rest}>
               {children}
             </tbody>
           ),
           tr: ({ children, ...rest }) => <tr {...rest}>{children}</tr>,
           th: ({ children, ...rest }: any) => (
             <th
-              className="border border-gray-300 dark:border-gray-700 px-3 py-2 text-left font-semibold"
+              className="border border-border px-3 py-2 text-left font-semibold text-foreground"
               {...rest}
             >
               {children}
@@ -341,7 +345,7 @@ export function MarkdownReport({
           ),
           td: ({ children, ...rest }: any) => (
             <td
-              className="border border-gray-300 dark:border-gray-700 px-3 py-2 align-top"
+              className="border border-border px-3 py-2 align-top text-foreground"
               {...rest}
             >
               {linkifyCitations
@@ -351,14 +355,14 @@ export function MarkdownReport({
           ),
           blockquote: ({ children, ...rest }) => (
             <blockquote
-              className="border-l-4 border-gray-300 dark:border-gray-700 pl-3 my-2 italic text-gray-700 dark:text-gray-300"
+              className="border-l-4 border-border pl-3 my-2 italic text-muted-foreground"
               {...rest}
             >
               {children}
             </blockquote>
           ),
           hr: () => (
-            <hr className="my-4 border-gray-200 dark:border-gray-800" />
+            <hr className="my-4 border-border" />
           ),
         }}
       >

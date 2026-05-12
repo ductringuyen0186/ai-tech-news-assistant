@@ -130,12 +130,12 @@ export function TopicFilter({
       </CardHeader>
       <CardContent>
         {loadingCategories ? (
-          <div className="flex items-center justify-center py-8 text-gray-600">
+          <div className="flex items-center justify-center py-8 text-muted-foreground">
             <Loader2 className="w-5 h-5 mr-2 animate-spin" />
             Loading topics...
           </div>
         ) : categories.length === 0 ? (
-          <div className="py-8 text-center text-gray-600">
+          <div className="py-8 text-center text-muted-foreground">
             {categoryLoadError ??
               "No topics yet — ingest some articles and they'll appear here."}
           </div>
@@ -160,7 +160,7 @@ export function TopicFilter({
         {selectedCategories.length > 0 && (
           <div className="border-t pt-4">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-muted-foreground">
                 Selected Topics ({selectedCategories.length})
               </p>
               {hasUnsavedChanges && (
