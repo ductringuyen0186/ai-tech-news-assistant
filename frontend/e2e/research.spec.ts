@@ -1099,3 +1099,202 @@ test.describe("Research tab — subagent row expand", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Test 10 (M3.M2 iter 2) — Sub-questions SKELETON appears within ~1s of submit
+// ---------------------------------------------------------------------------
+//
+// Defect found during live user-testing of M3.M2: with the real
+// gpt-oss:20b model, the `decomposed` SSE event takes ~15-17s to land,
+// so the user stared at spinners for the whole window despite the
+// milestone promising "time-to-first-content ≤ 5s".
+//
+// Iter 2 fix renders the SubQuestionsPanel IMMEDIATELY on submit in a
+// skeleton state ("Decomposing your question..."). The numbered list
+// replaces the skeleton row the moment `decomposed` arrives.
+//
+// This test installs a STREAMING mock that emits the Decomposing
+// phase frame instantly, then sleeps before emitting the
+// `decomposed` frame — proving the skeleton landed *before* the
+// real sub-questions did.
+
+test.describe("Research tab — sub-questions SKELETON (iter 2)", () => {
+  test("decomposing skeleton row appears within 1s of submit, before the decomposed event lands", async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+
+    // Streaming SSE mock that intentionally delays the `decomposed`
+    // event so the test can prove the skeleton lands first.
+    const DECOMPOSED_DELAY_MS = 2500;
+
+    await test.step(
+      "Test setup — install streaming mock with delayed decomposed event",
+      async () => {
+        await page.route("**/api/research", async (route: Route) => {
+          // Stream frames with explicit timing so we can prove the
+          // skeleton lands before the `decomposed` event by emitting
+          // the Decomposing phase immediately, sleeping, then emitting
+          // decomposed + the rest of the run.
+          const head =
+            `data: ${JSON.stringify({
+              type: "phase",
+              data: "Decomposing",
+            })}\n\n`;
+          const tailFrames: string[] = [];
+          tailFrames.push(
+            `data: ${JSON.stringify({
+              type: "decomposed",
+              sub_questions: DEFAULT_SUB_QUESTIONS,
+            })}\n\n`
+          );
+          for (const p of [
+            "Searching (1/3)",
+            "Searching (2/3)",
+            "Searching (3/3)",
+            "Synthesizing",
+          ]) {
+            tailFrames.push(
+              `data: ${JSON.stringify({ type: "phase", data: p })}\n\n`
+            );
+          }
+          tailFrames.push(
+            `data: ${JSON.stringify({
+              type: "phase",
+              data: "done",
+              report: DEFAULT_REPORT,
+            })}\n\n`
+          );
+          const tail = tailFrames.join("");
+
+          // Hold the SSE response back for DECOMPOSED_DELAY_MS, then
+          // emit the whole stream at once. The skeleton is rendered
+          // purely from local React state on submit (no SSE events
+          // required), so it MUST be visible during the entire delay
+          // window — proving the time-to-first-content contract holds
+          // even when the backend's decomposition is slow.
+          await new Promise((r) => setTimeout(r, DECOMPOSED_DELAY_MS));
+          await route.fulfill({
+            status: 200,
+            headers: { "Content-Type": "text/event-stream" },
+            body: head + tail,
+          });
+        });
+      }
+    );
+
+    try {
+      await landOnApp(page);
+      await openResearchTab(page);
+
+      // Time the gap between submit and the skeleton becoming visible.
+      const submitClick = async () => {
+        const queryInput = page.getByPlaceholder(/AI funding rounds/i);
+        await queryInput.fill(SHORT_QUESTION);
+        await page.getByRole("button", { name: /^Research$/i }).click();
+      };
+
+      const tSubmit = Date.now();
+      await submitClick();
+
+      await test.step(
+        "User expects a 'Decomposing your question...' skeleton row within 1s",
+        async () => {
+          const skeleton = page.getByTestId("research-sub-questions-skeleton");
+          await expect(
+            skeleton,
+            "I expect the skeleton row to render within 1000ms of submit — the time-to-first-content target"
+          ).toBeVisible({ timeout: 1_000 });
+
+          const tSkeleton = Date.now();
+          const elapsed = tSkeleton - tSubmit;
+          expect(
+            elapsed,
+            `I expect time-to-skeleton ≤ 1000ms (observed: ${elapsed}ms)`
+          ).toBeLessThanOrEqual(1000);
+
+          await expect(
+            skeleton,
+            "I expect the skeleton to copy 'Decomposing your question into 3-5 sub-questions...'"
+          ).toContainText(/Decomposing your question/i);
+        }
+      );
+
+      await test.step(
+        "User expects the panel to be in the `decomposing` state during the wait",
+        async () => {
+          const panel = page.getByTestId("research-sub-questions-panel");
+          await expect(
+            panel,
+            "I expect the panel container itself to be visible in the skeleton state"
+          ).toBeVisible();
+          await expect(
+            panel,
+            "I expect data-state='decomposing' so the test can prove the skeleton path is the one rendered"
+          ).toHaveAttribute("data-state", "decomposing");
+        }
+      );
+
+      await test.step(
+        "User expects the skeleton to be REPLACED by the real numbered list once `decomposed` arrives",
+        async () => {
+          const rows = page.getByTestId("research-sub-question-row");
+          await expect(
+            rows,
+            "I expect 3 numbered sub-question rows once the decomposed event lands (~2.5s into the run)"
+          ).toHaveCount(3, { timeout: 10_000 });
+
+          const skeleton = page.getByTestId(
+            "research-sub-questions-skeleton"
+          );
+          await expect(
+            skeleton,
+            "I expect the skeleton row to be gone once the real list rendered"
+          ).toHaveCount(0);
+
+          const panel = page.getByTestId("research-sub-questions-panel");
+          await expect(
+            panel,
+            "I expect data-state='ready' after the decomposed event resolved the skeleton"
+          ).toHaveAttribute("data-state", "ready");
+          await beat(page);
+        }
+      );
+
+      await test.step(
+        "User expects the follow-up chips after Done to be real <button> elements (a11y)",
+        async () => {
+          const phaseChip = page.getByTestId("research-phase-chip");
+          await expect(
+            phaseChip,
+            "I expect the run to land on Done before follow-up chips render"
+          ).toHaveText(/Done/i, { timeout: 15_000 });
+
+          const followUpRow = page.getByTestId("research-follow-ups");
+          await expect(
+            followUpRow,
+            "I expect the follow-up chip row to render after Done"
+          ).toBeVisible({ timeout: 5_000 });
+
+          // Iter 2 a11y contract — chips MUST be <button> elements
+          // with the dedicated `research-follow-up-chip` testid.
+          const chips = followUpRow.locator("button");
+          const chipCount = await chips.count();
+          expect(
+            chipCount,
+            `I expect at least 1 <button> chip inside the follow-up row (was a <div>/<span> in iter 1) — saw ${chipCount}`
+          ).toBeGreaterThan(0);
+
+          const taggedChips = page.getByTestId("research-follow-up-chip");
+          await expect(
+            taggedChips.first(),
+            "I expect each chip to carry data-testid='research-follow-up-chip'"
+          ).toBeVisible();
+          await beat(page);
+        }
+      );
+    } finally {
+      await page.unroute("**/api/research");
+    }
+  });
+});

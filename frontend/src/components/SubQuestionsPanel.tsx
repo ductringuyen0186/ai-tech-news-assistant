@@ -33,6 +33,13 @@ interface SubQuestionsPanelProps {
   searchResults: Record<number, SubQuestionArticle[]>;
   /** Map sub-question index (0-based) → status derived by parent. */
   statusByIndex: Record<number, SubQuestionStatus>;
+  /**
+   * M3.M2 iter 2 — when `true` AND `subQuestions` is empty, render a
+   * skeleton row ("Decomposing your question...") so the user gets
+   * time-to-first-content within ~1s of submit instead of staring at
+   * a spinner-only screen while gpt-oss:20b takes 15+s to decompose.
+   */
+  isDecomposing?: boolean;
 }
 
 function StatusDot({ status }: { status: SubQuestionStatus }): JSX.Element {
@@ -67,12 +74,53 @@ export function SubQuestionsPanel({
   subQuestions,
   searchResults,
   statusByIndex,
+  isDecomposing = false,
 }: SubQuestionsPanelProps): JSX.Element | null {
-  if (!subQuestions || subQuestions.length === 0) return null;
+  const hasQuestions = Array.isArray(subQuestions) && subQuestions.length > 0;
+  // If we have no questions AND we're not actively decomposing, render
+  // nothing (preserves the idle/empty-state behavior).
+  if (!hasQuestions && !isDecomposing) return null;
+
+  // Skeleton path: the `decomposed` SSE event hasn't arrived yet, but
+  // the user already pressed Submit. Surface a single placeholder row
+  // so they see real content within ~1s of click.
+  if (!hasQuestions) {
+    return (
+      <div
+        data-testid="research-sub-questions-panel"
+        data-state="decomposing"
+        className="border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden bg-white dark:bg-gray-900"
+      >
+        <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800 text-sm font-medium text-gray-800 dark:text-gray-200 border-b border-gray-200 dark:border-gray-700">
+          Sub-questions
+        </div>
+        <ol className="divide-y divide-gray-100 dark:divide-gray-800">
+          <li
+            data-testid="research-sub-questions-skeleton"
+            className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <Loader2
+                className="w-4 h-4 text-blue-600 dark:text-blue-400 animate-spin flex-shrink-0"
+                aria-label="decomposing"
+              />
+              <span
+                className="flex-1 min-w-0"
+                style={{ overflowWrap: "anywhere" }}
+              >
+                Decomposing your question into 3-5 sub-questions...
+              </span>
+            </div>
+          </li>
+        </ol>
+      </div>
+    );
+  }
 
   return (
     <div
       data-testid="research-sub-questions-panel"
+      data-state="ready"
       className="border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden bg-white dark:bg-gray-900"
     >
       <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800 text-sm font-medium text-gray-800 dark:text-gray-200 border-b border-gray-200 dark:border-gray-700">

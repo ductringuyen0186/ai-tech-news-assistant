@@ -838,14 +838,17 @@ export function ResearchMode({}: ResearchModeProps) {
         </CardContent>
       </Card>
 
-      {/* Sub-questions panel — renders the moment the `decomposed` event
-          arrives, well before any synthesis tokens. This is the M3.M2
-          time-to-first-content win. */}
-      {subQuestions.length > 0 && (
+      {/* Sub-questions panel — renders IMMEDIATELY on submit (as a
+          skeleton row) so the user sees real content within ~1s of
+          click, then upgrades to the numbered list the moment the
+          `decomposed` SSE event arrives. This is the M3.M2 iter 2
+          time-to-first-content fix. */}
+      {(subQuestions.length > 0 || isResearching) && (
         <SubQuestionsPanel
           subQuestions={subQuestions}
           searchResults={searchResults}
           statusByIndex={subQuestionStatusByIndex}
+          isDecomposing={isResearching && subQuestions.length === 0}
         />
       )}
 
@@ -1086,7 +1089,11 @@ export function ResearchMode({}: ResearchModeProps) {
               </div>
             )}
 
-            {/* Follow-up suggestions — only after a clean done. */}
+            {/* Follow-up suggestions — only after a clean done.
+                Iter 2 fix: chips are real <button> elements (see
+                SuggestedQueries) and each has the distinct
+                `research-follow-up-chip` testid so a11y tests can
+                target them without colliding with empty-state chips. */}
             {followUps.length > 0 && (
               <div className="mt-6 border-t border-gray-200 dark:border-gray-800 pt-4">
                 <SuggestedQueries
@@ -1097,6 +1104,7 @@ export function ResearchMode({}: ResearchModeProps) {
                   }}
                   label="Suggested follow-ups:"
                   data-testid="research-follow-ups"
+                  chipTestId="research-follow-up-chip"
                 />
               </div>
             )}

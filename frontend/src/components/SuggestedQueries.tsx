@@ -1,5 +1,3 @@
-import { Badge } from "./ui/badge";
-
 /**
  * SuggestedQueries — M3.M2 chip row.
  *
@@ -11,6 +9,11 @@ import { Badge } from "./ui/badge";
  *
  * Click a chip → `onSelect(query)` fires. The parent decides what to do
  * (fill input + submit, in our case).
+ *
+ * Iter 2 fix — chips are real `<button type="button">` elements, not
+ * `<Badge>` (which renders a `<div>`). Buttons are keyboard-focusable,
+ * support Enter/Space activation, and pass the Playwright a11y check
+ * `followUps.locator("button").count() > 0`.
  */
 
 interface SuggestedQueriesProps {
@@ -27,6 +30,13 @@ interface SuggestedQueriesProps {
    * Playwright can target the empty-state row vs the follow-up row.
    */
   "data-testid"?: string;
+  /**
+   * Per-chip testid. Defaults to "suggested-query-chip" (back-compat
+   * with the empty-state callsite). The follow-up callsite passes
+   * "research-follow-up-chip" so tests can target the two rows
+   * independently.
+   */
+  chipTestId?: string;
 }
 
 export function SuggestedQueries({
@@ -34,6 +44,7 @@ export function SuggestedQueries({
   onSelect,
   label,
   "data-testid": testid,
+  chipTestId = "suggested-query-chip",
 }: SuggestedQueriesProps): JSX.Element | null {
   if (!queries || queries.length === 0) return null;
 
@@ -46,15 +57,15 @@ export function SuggestedQueries({
       )}
       <div className="flex flex-wrap gap-2">
         {queries.map((q, idx) => (
-          <Badge
+          <button
             key={`${idx}-${q.slice(0, 16)}`}
-            variant="outline"
-            data-testid="suggested-query-chip"
-            className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            type="button"
+            data-testid={chipTestId}
             onClick={() => onSelect(q)}
+            className="inline-flex items-center rounded-md border border-gray-300 dark:border-gray-700 bg-transparent px-2.5 py-0.5 text-xs font-semibold text-gray-800 dark:text-gray-200 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 transition-colors"
           >
             {q}
-          </Badge>
+          </button>
         ))}
       </div>
     </div>
