@@ -20,6 +20,7 @@ It is used in two places:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from dataclasses import dataclass, field
 from typing import List, Optional
@@ -168,7 +169,21 @@ class SummarizationOrchestrator:
     # ------------------------------------------------------------------ #
 
     async def _summarize_one(self, article, result: SummarizationRunResult) -> None:
-        """Summarize one article and persist the result. Never raises."""
+        """Summarize one article and persist the result. Never raises.
+
+        Behaviour switches on ``settings.use_agent_skill_summarization``
+        (Mission 2, Milestone 6):
+
+        * **True (default)** — dispatch the shared
+          ``agent_skills.summarize_article`` skill. The skill performs the
+          cache lookup, runs the LLM on miss, AND writes the result back
+          to ``articles.summary``. The orchestrator's remaining job is to
+          flip ``summary_generated = TRUE`` and run the entity-extraction
+          post-hook.
+        * **False** — legacy direct-call path through
+          :class:`SummarizationService`. Kept verbatim as an emergency
+          rollback; queued for deletion in the post-M6 cleanup PR.
+        """
         article_id = getattr(article, "id", None)
         title = (getattr(article, "title", "") or "")[:80]
 
@@ -195,6 +210,133 @@ class SummarizationOrchestrator:
             result.skipped_short += 1
             return
 
+        # ---------------------------------------------------------------- #
+        #  Feature-flag fork. Default: dispatch the shared agent skill.
+        # ---------------------------------------------------------------- #
+        from ..core.config import get_settings
+
+        use_skill = bool(getattr(get_settings(), "use_agent_skill_summarization", True))
+
+        if use_skill:
+            ok = await self._summarize_one_via_skill(article_id, title, result)
+        else:
+            ok = await self._summarize_one_via_service(
+                article_id, title, text, result
+            )
+
+        if not ok:
+            return
+
+        # Post-summary hook: entity extraction. Best-effort — never fails
+        # the article, just logs.
+        if self.extract_entities and self.entity_service is not None:
+            try:
+                count = await self.entity_service.process_article(article_id)
+                logger.debug(
+                    "Extracted %d entities for article %s", count, article_id
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Entity extraction failed for article %s: %s",
+                    article_id,
+                    exc,
+                )
+
+    async def _summarize_one_via_skill(
+        self,
+        article_id,
+        title: str,
+        result: SummarizationRunResult,
+    ) -> bool:
+        """M2.M6 path: dispatch the shared ``summarize_article`` skill.
+
+        The skill is responsible for the cache lookup, the LLM call on
+        miss, AND the ``articles.summary`` write-back. After it returns
+        we only need to flip the ``summary_generated`` flag so this
+        article isn't re-queued on the next ingest run.
+
+        Returns True on success (caller will run entity extraction),
+        False on failure (caller skips entity extraction).
+        """
+        # Local import keeps the module loadable in environments where
+        # langchain isn't installed (legacy CLI paths). The skill is
+        # only imported when the flag is True.
+        from .agent_skills.summarize_article import summarize_article
+
+        try:
+            raw = await summarize_article.ainvoke(
+                {"article_id": int(article_id), "focus_question": None}
+            )
+        except Exception as exc:  # noqa: BLE001 - last-resort
+            msg = f"Article {article_id} ({title!r}) skill crashed: {exc}"
+            logger.error(msg, exc_info=True)
+            result.failed += 1
+            result.errors.append(msg)
+            return False
+
+        # The tool always returns a JSON string. Parse and validate.
+        try:
+            payload = json.loads(raw) if isinstance(raw, str) else dict(raw)
+        except (TypeError, ValueError) as exc:
+            msg = f"Article {article_id} ({title!r}) bad skill payload: {exc}"
+            logger.warning(msg)
+            result.failed += 1
+            result.errors.append(msg)
+            return False
+
+        if payload.get("error"):
+            msg = (
+                f"Article {article_id} ({title!r}) skill error: "
+                f"{payload['error']}"
+            )
+            logger.warning(msg)
+            result.failed += 1
+            result.errors.append(msg)
+            return False
+
+        summary_text = (payload.get("summary") or "").strip()
+        if not summary_text:
+            msg = f"Article {article_id} ({title!r}) skill returned empty summary"
+            logger.warning(msg)
+            result.failed += 1
+            result.errors.append(msg)
+            return False
+
+        # The skill already wrote ``summary`` back to the row on cache
+        # miss. We only need to flip the processed flag — pass summary=None
+        # so we DON'T double-write the column.
+        try:
+            await self.repo.mark_summary_generated(article_id, summary=None)
+            result.summarized += 1
+            logger.debug(
+                "Summarized article %s via skill (cache_hit=%s, %d chars)",
+                article_id,
+                payload.get("cache_hit", False),
+                len(summary_text),
+            )
+        except Exception as exc:  # noqa: BLE001
+            msg = f"Article {article_id} flag write-back failed: {exc}"
+            logger.error(msg, exc_info=True)
+            result.failed += 1
+            result.errors.append(msg)
+            return False
+
+        return True
+
+    async def _summarize_one_via_service(
+        self,
+        article_id,
+        title: str,
+        text: str,
+        result: SummarizationRunResult,
+    ) -> bool:
+        """Legacy path: call ``SummarizationService.summarize_content``.
+
+        Preserved verbatim from before M6 as an emergency-rollback
+        hatch. Toggle ``USE_AGENT_SKILL_SUMMARIZATION=false`` in the env
+        to fall back. Slated for deletion in the post-M6 cleanup PR
+        (see ticket Acceptance Criterion §last bullet).
+        """
         request = SummarizationRequest(
             content=text,
             max_length=self.max_summary_length,
@@ -207,13 +349,13 @@ class SummarizationOrchestrator:
             logger.warning(msg)
             result.failed += 1
             result.errors.append(msg)
-            return
+            return False
         except Exception as exc:  # noqa: BLE001 - last-resort
             msg = f"Article {article_id} ({title!r}) crashed: {exc}"
             logger.error(msg, exc_info=True)
             result.failed += 1
             result.errors.append(msg)
-            return
+            return False
 
         try:
             await self.repo.mark_summary_generated(
@@ -232,19 +374,6 @@ class SummarizationOrchestrator:
             logger.error(msg, exc_info=True)
             result.failed += 1
             result.errors.append(msg)
-            return
+            return False
 
-        # Post-summary hook: entity extraction. Best-effort — never fails
-        # the article, just logs.
-        if self.extract_entities and self.entity_service is not None:
-            try:
-                count = await self.entity_service.process_article(article_id)
-                logger.debug(
-                    "Extracted %d entities for article %s", count, article_id
-                )
-            except Exception as exc:  # noqa: BLE001
-                logger.warning(
-                    "Entity extraction failed for article %s: %s",
-                    article_id,
-                    exc,
-                )
+        return True

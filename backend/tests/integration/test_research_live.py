@@ -185,6 +185,36 @@ def _subagent_starts(events: List[Dict[str, Any]], skill: str) -> List[Dict[str,
     ]
 
 
+def _assert_subagent_telemetry(events: List[Dict[str, Any]]) -> None:
+    """M6 contract: subagent start/done events MUST appear in the SSE
+    stream during a real research run. This guards against any future
+    regression that breaks the M4 (telemetry emission) + M5 (UI panel)
+    wiring at the live-server boundary.
+
+    Asserts:
+    1. ``>= 1`` ``{"type": "subagent", "data": "start"}`` events.
+    2. ``>= 1`` ``{"type": "subagent", "data": "done"}`` events.
+    3. Every ``start`` event names the ``summarize_article`` skill —
+       the only per-article subagent shipped in Mission 2.
+    """
+    starts = [
+        e for e in events
+        if e.get("type") == "subagent" and e.get("data") == "start"
+    ]
+    dones = [
+        e for e in events
+        if e.get("type") == "subagent" and e.get("data") == "done"
+    ]
+    assert len(starts) >= 1, "no subagent: start events in SSE stream"
+    assert len(dones) >= 1, "no subagent: done events in SSE stream"
+
+    skills = {e.get("skill") for e in starts}
+    assert skills == {"summarize_article"}, (
+        f"unexpected subagent skill set: {skills!r} "
+        f"(expected only {{'summarize_article'}})"
+    )
+
+
 def _distinct_citations(report: str) -> int:
     """Count the number of distinct ``[N]`` citation indices in ``report``."""
     return len({int(n) for n in re.findall(r"\[(\d+)\]", report or "")})
@@ -243,6 +273,9 @@ def test_one_article_scenario():
     report = done[0].get("report") or ""
     assert isinstance(report, str) and report.strip(), "report is empty"
 
+    # M6 contract: subagent telemetry MUST flow over SSE.
+    _assert_subagent_telemetry(events)
+
     # Subagent fan-out: the agent's decomposer expands the focused
     # question into 3-5 sub-questions, each searching with top_k=5; with
     # dedup that yields up to ~15 unique articles, capped at 20 by the
@@ -286,6 +319,9 @@ def test_ten_article_scenario():
     done = [e for e in events if e.get("type") == "phase" and e.get("data") == "done"]
     assert len(done) == 1
     report = done[0].get("report") or ""
+
+    # M6 contract: subagent telemetry MUST flow over SSE.
+    _assert_subagent_telemetry(events)
 
     # Subagent count: between 3 and 20 (we accept a wide band because
     # search top_k * sub_q count varies by decomposer).
@@ -346,6 +382,9 @@ def test_twenty_article_scenario():
     done = [e for e in events if e.get("type") == "phase" and e.get("data") == "done"]
     assert len(done) == 1
     report = done[0].get("report") or ""
+
+    # M6 contract: subagent telemetry MUST flow over SSE.
+    _assert_subagent_telemetry(events)
 
     # Subagent count: 5-25 (broad query). The fan-out CAP is 20
     # (MAX_ARTICLES_FANOUT); the floor depends on how many distinct

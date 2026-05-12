@@ -14,10 +14,10 @@ import numpy as np
 
 from src.models.search import SearchRequest, SearchResponse, SearchResultItem, SearchHealthResponse
 from vectorstore.embeddings import EmbeddingGenerator
-from utils.logger import get_logger
-from utils.config import get_settings
+import logging
+from src.core.config import get_settings
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
@@ -146,7 +146,10 @@ class SearchService:
             results = []
             for article, score, rerank_score in candidates:
                 result_item = SearchResultItem(
-                    id=article['id'],
+                    # ``SearchResultItem.id`` is typed as ``str`` but the
+                    # ``articles`` PK is an integer — coerce to keep the
+                    # contract intact.
+                    id=str(article['id']),
                     title=article['title'],
                     url=article['url'],
                     source=article['source'],
@@ -230,33 +233,37 @@ class SearchService:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             
-            # Build query with filters
+            # Build query with filters. Column names match the live
+            # ``articles`` schema (see ``ArticleRepository._row_to_article``):
+            # ``published_at`` (not published_date), ``summary`` (not
+            # ai_summary). ``keywords`` doesn't exist on this table —
+            # we coalesce it to an empty list downstream.
             sql = """
-                SELECT 
-                    a.id, a.title, a.url, a.source, a.published_date as published_at,
-                    a.ai_summary, a.categories, a.keywords,
+                SELECT
+                    a.id, a.title, a.url, a.source, a.published_at,
+                    a.summary AS ai_summary, a.categories,
                     SUBSTR(a.content, 1, 500) as content_preview,
                     e.embedding
                 FROM articles a
                 INNER JOIN article_embeddings e ON a.id = e.article_id
                 WHERE 1=1
             """
-            
+
             params = []
-            
+
             # Apply filters
             if filters:
                 if filters.get('sources'):
                     placeholders = ','.join('?' * len(filters['sources']))
                     sql += f" AND a.source IN ({placeholders})"
                     params.extend(filters['sources'])
-                
+
                 if filters.get('date_from'):
-                    sql += " AND a.published_date >= ?"
+                    sql += " AND a.published_at >= ?"
                     params.append(filters['date_from'].isoformat())
-                
+
                 if filters.get('date_to'):
-                    sql += " AND a.published_date <= ?"
+                    sql += " AND a.published_at <= ?"
                     params.append(filters['date_to'].isoformat())
             
             cursor.execute(sql, params)
@@ -275,18 +282,31 @@ class SearchService:
                     similarity = self._cosine_similarity(query_embedding, article_embedding)
                     
                     if similarity >= min_score:
+                        # ``published_at`` may be NULL or non-ISO on some
+                        # legacy rows — fall back to ``datetime.min`` so
+                        # the recency reranker doesn't crash on bad data.
+                        try:
+                            pub_at = datetime.fromisoformat(row['published_at'])
+                        except (TypeError, ValueError):
+                            pub_at = datetime.min
+
                         article_dict = {
                             'id': row['id'],
                             'title': row['title'],
                             'url': row['url'],
                             'source': row['source'],
-                            'published_at': datetime.fromisoformat(row['published_at']),
+                            'published_at': pub_at,
                             'ai_summary': row['ai_summary'],
-                            'categories': json.loads(row['categories']) if row['categories'] else [],
-                            'keywords': json.loads(row['keywords']) if row['keywords'] else [],
+                            'categories': (
+                                json.loads(row['categories'])
+                                if row['categories'] else []
+                            ),
+                            # ``keywords`` column was dropped from the
+                            # schema; legacy callers still expect the key.
+                            'keywords': [],
                             'content_preview': row['content_preview']
                         }
-                        
+
                         results.append((article_dict, float(similarity), None))
                         
                 except Exception as e:

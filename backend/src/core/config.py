@@ -171,6 +171,19 @@ class Settings(BaseSettings):
         le=64,
     )
 
+    # Per-article subagents settings (Mission 2, Milestone 6 — Ingestion migration)
+    # When True, ``SummarizationOrchestrator`` calls the
+    # ``agent_skills.summarize_article`` skill (which uses the cache +
+    # write-back path shared with research-time). When False, the legacy
+    # ``SummarizationService.summarize_content`` direct-call path runs —
+    # kept as an emergency rollback hatch. Flip to False if a regression
+    # surfaces in the wild; the flag itself is slated for removal in the
+    # post-M6 cleanup PR.
+    use_agent_skill_summarization: bool = Field(
+        default=True,
+        alias="USE_AGENT_SKILL_SUMMARIZATION",
+    )
+
     # News sources settings
     rss_sources: List[Dict[str, str]] = Field(
         default=[
