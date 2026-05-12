@@ -62,6 +62,10 @@ export const API_ENDPOINTS = {
   // Daily digest (top stories + breakdown + trending built from DB)
   digest: "/api/digest/",
 
+  // Saved research (M3.M5 — persisted research reports)
+  savedResearch: "/api/saved-research",
+  savedResearchById: (id: number) => `/api/saved-research/${id}`,
+
   // Health check
   health: "/health",
   healthDetailed: "/health/detailed",

@@ -21,6 +21,8 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  Bookmark,
+  BookmarkCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { API_BASE_URL, API_ENDPOINTS } from "../config/api";
@@ -192,6 +194,14 @@ export function ResearchMode({}: ResearchModeProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lastSubmittedQuery, setLastSubmittedQuery] = useState<string>("");
   const [copied, setCopied] = useState(false);
+  // M3.M5: Save-to-saved-research button. Three states:
+  //   "idle"    — button shows "Save", click POSTs
+  //   "saving"  — POST in flight, button disabled
+  //   "saved"   — POST succeeded, button flips to "Saved ✓" (disabled).
+  // Reset to "idle" on every new research run via conductResearch.
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">(
+    "idle"
+  );
   const [subagents, setSubagents] = useState<Map<string, SubagentRow>>(
     () => new Map()
   );
@@ -442,6 +452,7 @@ export function ResearchMode({}: ResearchModeProps) {
     setErrorMessage(null);
     setLastSubmittedQuery(question);
     setCopied(false);
+    setSaveState("idle");
     setSubagents(new Map());
     setSubagentsOpen(false);
     setSubQuestions([]);
@@ -608,6 +619,51 @@ export function ResearchMode({}: ResearchModeProps) {
         copiedTimerRef.current = null;
       }, 2000);
     });
+  };
+
+  // M3.M5: persist the completed research report. Sources aren't readily
+  // available from the SSE stream (the final ``done`` frame only carries
+  // the markdown ``report`` text), so we send ``[]`` — the backend schema
+  // accepts that. Future iterations can parse the "Sources Used" section
+  // and surface structured sources here.
+  const onSaveResearch = async () => {
+    if (!reportText || saveState !== "idle") return;
+    setSaveState("saving");
+    try {
+      const url = `${API_BASE_URL}${API_ENDPOINTS.savedResearch}`;
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: lastSubmittedQuery,
+          report_md: reportText,
+          sources: [],
+        }),
+      });
+      if (!resp.ok) {
+        let detail = `${resp.status} ${resp.statusText}`;
+        try {
+          const j = await resp.json();
+          if (j && typeof j.detail === "string") detail = j.detail;
+        } catch {
+          // not JSON
+        }
+        throw new Error(detail);
+      }
+      setSaveState("saved");
+      toast.success("Research saved", {
+        description: "Find it in the Saved tab.",
+        duration: 3000,
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn("research save failed:", err);
+      toast.error("Failed to save research", {
+        description: (err as Error).message || "Please try again.",
+        duration: 3000,
+      });
+      setSaveState("idle");
+    }
   };
 
   const onDownloadMarkdown = () => {
@@ -901,6 +957,31 @@ export function ResearchMode({}: ResearchModeProps) {
                     >
                       <Download className="w-4 h-4 mr-2" />
                       Download .md
+                    </Button>
+                    <Button
+                      onClick={onSaveResearch}
+                      variant="outline"
+                      size="sm"
+                      data-testid="research-save-btn"
+                      disabled={saveState !== "idle"}
+                      aria-live="polite"
+                    >
+                      {saveState === "saved" ? (
+                        <>
+                          <BookmarkCheck className="w-4 h-4 mr-2" />
+                          Saved ✓
+                        </>
+                      ) : saveState === "saving" ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Bookmark className="w-4 h-4 mr-2" />
+                          Save
+                        </>
+                      )}
                     </Button>
                   </>
                 )}

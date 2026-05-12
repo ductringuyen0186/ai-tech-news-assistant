@@ -12,6 +12,7 @@ import { TrendingRail } from "./components/TrendingRail";
 import { ChatInterface } from "./components/ChatInterface";
 import { ResearchMode } from "./components/ResearchMode";
 import { KnowledgeGraph } from "./components/KnowledgeGraph";
+import { SavedResearchList } from "./components/SavedResearchList";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { CommandPaletteProvider } from "./components/CommandPalette";
 import { Sidebar } from "./components/Sidebar";
@@ -21,7 +22,6 @@ import {
   Loader2,
   Grid,
   List,
-  Bookmark,
 } from "lucide-react";
 import { API_ENDPOINTS, apiFetch } from "./config/api";
 
@@ -497,18 +497,11 @@ function AppShell() {
               </div>
             </TabsContent>
 
-            {/* Saved Research Tab — placeholder for M5. The sidebar entry
-                renders so the IA is discoverable, but the panel is just a
-                "coming soon" message until M5 wires up the backend. */}
+            {/* Saved Research Tab — M3.M5. Lists every persisted
+                research report, opens them inline via MarkdownReport,
+                and supports per-row deletion. */}
             <TabsContent value="saved" className="mt-0">
-              <div className="max-w-2xl mx-auto py-12 text-center">
-                <Bookmark className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-                <h2 className="text-base font-medium mb-1">Saved research</h2>
-                <p className="text-sm text-muted-foreground">
-                  Save a completed research report to revisit it here. Coming
-                  in the next milestone.
-                </p>
-              </div>
+              <SavedResearchList />
             </TabsContent>
 
             {/* Preferences (Settings) Tab — M3.M4: theme + density toggles
