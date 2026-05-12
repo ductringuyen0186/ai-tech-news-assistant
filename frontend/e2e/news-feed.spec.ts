@@ -127,6 +127,77 @@ test.describe("News Feed tab", () => {
     }
   });
 
+  test("M3.M3 — Trending Now rail is visible with at least one category chip", async ({
+    page,
+  }) => {
+    // The TrendingRail aggregates category counts; in worst case it may
+    // need a moment for the per-category /api/news?category=X round-trips
+    // to settle. Wait up to 20s for at least one chip.
+    const rail = page.getByTestId("news-feed-trending-rail");
+    await expect(rail).toBeVisible({ timeout: 20_000 });
+
+    // Loading state renders skeletons; wait for actual chip buttons.
+    const chips = page.getByTestId("news-feed-trending-chip");
+    await expect(chips.first()).toBeVisible({ timeout: 20_000 });
+
+    const chipCount = await chips.count();
+    expect(
+      chipCount,
+      "Trending rail should render at least one category chip — backend categories are empty?"
+    ).toBeGreaterThanOrEqual(1);
+
+    // Clicking a chip should change the filter set. We assert via the
+    // visible "Filtered by:" panel that the chip's category now appears.
+    const firstChip = chips.first();
+    const chipCategory = await firstChip.getAttribute("data-category");
+    expect(chipCategory).toBeTruthy();
+    await firstChip.click();
+
+    // Either the active-filters bar shows the chip, or the chip itself
+    // toggled to its active state.
+    const activeFilters = page.getByTestId("news-feed-active-filters");
+    if (chipCategory) {
+      await expect(activeFilters.getByText(chipCategory, { exact: true })).toBeVisible({
+        timeout: 5_000,
+      });
+    }
+  });
+
+  test("M3.M3 — article cards use Linear-dense styling (font ≤ 14px, padding ≤ 12px)", async ({
+    page,
+  }) => {
+    // Ensure at least one card is present.
+    await expect(page.locator('[data-slot="card"]').first()).toBeVisible({
+      timeout: 15_000,
+    });
+
+    const metrics = await page.evaluate(() => {
+      const card = document.querySelector('[data-slot="card"]') as HTMLElement | null;
+      if (!card) return null;
+      const cardStyle = window.getComputedStyle(card);
+      const title = card.querySelector('[data-slot="card-title"]') as HTMLElement | null;
+      const titleSize = title
+        ? parseFloat(window.getComputedStyle(title).fontSize)
+        : null;
+      const padTop = parseFloat(cardStyle.paddingTop);
+      const padBottom = parseFloat(cardStyle.paddingBottom);
+      const padLeft = parseFloat(cardStyle.paddingLeft);
+      const padRight = parseFloat(cardStyle.paddingRight);
+      return { titleSize, padTop, padBottom, padLeft, padRight };
+    });
+
+    expect(metrics, "Expected to find an article card").not.toBeNull();
+    // Title font cap: dense layout = text-sm (14px). Tolerate up to 16px
+    // for safety against root-font scaling.
+    expect(
+      metrics!.titleSize ?? 0,
+      `Title font-size was ${metrics!.titleSize}px; dense layout expects ≤ 16px`
+    ).toBeLessThanOrEqual(16);
+    // Card padding ≤ 12px (`p-3`). Tolerate 14px.
+    expect(metrics!.padTop).toBeLessThanOrEqual(14);
+    expect(metrics!.padLeft).toBeLessThanOrEqual(14);
+  });
+
   test("search input updates the article list", async ({ page }) => {
     const searchInput = page.getByPlaceholder(/search tech news/i);
     await expect(searchInput).toBeVisible();

@@ -158,4 +158,30 @@ test.describe("rubric — Digest", () => {
   }) => {
     await assertNoMockDataLeak(page, '[data-state="active"][role="tabpanel"]');
   });
+
+  test("M3.M3 — top-story rows use dense layout (height ≤ 200px, padding ≤ 12px)", async ({
+    page,
+  }) => {
+    const firstRow = page.locator(".border-l-4").first();
+    await expect(firstRow).toBeVisible({ timeout: 15_000 });
+
+    const metrics = await firstRow.evaluate((el) => {
+      const style = window.getComputedStyle(el as HTMLElement);
+      return {
+        height: (el as HTMLElement).getBoundingClientRect().height,
+        paddingTop: parseFloat(style.paddingTop),
+        paddingBottom: parseFloat(style.paddingBottom),
+        paddingLeft: parseFloat(style.paddingLeft),
+        paddingRight: parseFloat(style.paddingRight),
+      };
+    });
+
+    expect(
+      metrics.height,
+      `Top story row was ${metrics.height}px tall; dense layout expects ≤ 200px`
+    ).toBeLessThanOrEqual(200);
+    // Dense padding cap (`py-2 pl-3` is 8/12px). Tolerate up to 14px.
+    expect(metrics.paddingTop).toBeLessThanOrEqual(14);
+    expect(metrics.paddingLeft).toBeLessThanOrEqual(14);
+  });
 });

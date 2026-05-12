@@ -1,7 +1,40 @@
-import { Mail, TrendingUp, Calendar, BarChart3 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+import {
+  Mail,
+  TrendingUp,
+  Calendar,
+  BarChart3,
+  Newspaper,
+} from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
+
+/**
+ * DigestView — daily digest tab, restyled for Mission 3 / Milestone 3.
+ *
+ * Density + design-token treatment:
+ *   - Top stories use a dense one-line-per-row layout (numbered marker,
+ *     title, source/category chips). `border-l-4` and an inner `<h3>` are
+ *     preserved so the existing Playwright selectors still match.
+ *   - Trending topics become a horizontal chip row using design tokens.
+ *   - Source distribution ("Coverage by Topic") uses a single accent
+ *     colour for the bars (no per-source palette), via the `--primary`
+ *     token, so the visual coherence the ticket asks for is automatic.
+ *
+ * Preserved selectors:
+ *   - text "Daily Tech Digest"
+ *   - text "Top Stories Today"
+ *   - text "Trending Now"
+ *   - `.border-l-4` blocks each containing one `<h3>` (top stories)
+ *   - `[data-slot="badge"]` chips inside each top story
+ *   - `.bg-orange-50.rounded-lg` on each trending topic chip (compat)
+ */
 
 interface DigestViewProps {
   digest: {
@@ -33,17 +66,24 @@ export function DigestView({ digest }: DigestViewProps) {
     });
   };
 
+  const maxBreakdown = Math.max(
+    1,
+    ...Object.values(digest.categoryBreakdown || {})
+  );
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
-      <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
-        <CardHeader>
+      <Card className="bg-card border-border">
+        <CardHeader className="py-4">
           <div className="flex items-center gap-3">
-            <Mail className="w-8 h-8 text-blue-600" />
+            <div className="w-10 h-10 rounded-md bg-primary/10 flex items-center justify-center">
+              <Mail className="w-5 h-5 text-primary" />
+            </div>
             <div>
-              <CardTitle className="text-2xl">Daily Tech Digest</CardTitle>
-              <CardDescription className="flex items-center gap-2 mt-1">
-                <Calendar className="w-4 h-4" />
+              <CardTitle className="text-lg">Daily Tech Digest</CardTitle>
+              <CardDescription className="flex items-center gap-1.5 mt-0.5 text-xs">
+                <Calendar className="w-3.5 h-3.5" />
                 {formatDate(digest.date)}
               </CardDescription>
             </div>
@@ -51,34 +91,70 @@ export function DigestView({ digest }: DigestViewProps) {
         </CardHeader>
       </Card>
 
-      {/* Top Stories */}
+      {/* Top Stories — dense one-row-per-story layout. */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-xl">📰 Top Stories Today</CardTitle>
-          <CardDescription>
+        <CardHeader className="py-3">
+          <div className="flex items-center gap-2">
+            <Newspaper className="w-4 h-4 text-primary" />
+            <CardTitle className="text-base">Top Stories Today</CardTitle>
+          </div>
+          <CardDescription className="text-xs">
             The most important tech news you shouldn't miss
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
+        <CardContent className="pb-4">
+          <div
+            data-testid="digest-top-stories"
+            className="flex flex-col gap-1.5"
+          >
             {digest.topStories.map((story, idx) => (
-              <div key={story.id} className="border-l-4 border-blue-500 pl-4 py-2">
+              <div
+                key={story.id}
+                data-testid="digest-top-story-row"
+                className="border-l-4 border-primary pl-3 py-2 rounded-r-md hover:bg-accent/5 transition-colors"
+              >
                 <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center">
+                  <div className="flex-shrink-0 w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-medium">
                     {idx + 1}
                   </div>
-                  <div className="flex-1">
-                    <h3 className="mb-1">{story.title}</h3>
-                    <p className="text-sm text-gray-600 mb-2">{story.summaryShort}</p>
-                    <div className="flex gap-2">
-                      <Badge variant="outline" className="text-xs">
+                  <div className="flex-1 min-w-0">
+                    <h3
+                      className="text-sm font-medium mb-1 text-foreground leading-snug"
+                      style={{
+                        overflowWrap: "anywhere",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {story.title}
+                    </h3>
+                    <p
+                      className="text-xs text-muted-foreground mb-2 line-clamp-2"
+                      style={{
+                        overflowWrap: "anywhere",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {story.summaryShort}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      <Badge
+                        variant="outline"
+                        className="h-5 px-1.5 text-[10px] font-normal border-border"
+                      >
                         {story.source}
                       </Badge>
-                      {story.category.slice(0, 2).map((cat) => (
-                        <Badge key={cat} variant="secondary" className="text-xs">
-                          {cat}
-                        </Badge>
-                      ))}
+                      {story.category
+                        .filter((cat) => cat && cat !== story.source)
+                        .slice(0, 2)
+                        .map((cat) => (
+                          <Badge
+                            key={cat}
+                            variant="secondary"
+                            className="h-5 px-1.5 text-[10px] font-normal"
+                          >
+                            {cat}
+                          </Badge>
+                        ))}
                     </div>
                   </div>
                 </div>
@@ -88,60 +164,103 @@ export function DigestView({ digest }: DigestViewProps) {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Trending Topics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Trending Topics — horizontal chip row (dense). */}
         <Card>
-          <CardHeader>
+          <CardHeader className="py-3">
             <div className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-orange-500" />
-              <CardTitle>🔥 Trending Now</CardTitle>
+              <TrendingUp className="w-4 h-4 text-primary" />
+              <CardTitle className="text-base">Trending Now</CardTitle>
             </div>
-            <CardDescription>Most discussed topics today</CardDescription>
+            <CardDescription className="text-xs">
+              Most discussed topics today
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
+          <CardContent className="pb-4">
+            <div
+              data-testid="digest-trending-row"
+              className="flex flex-wrap gap-1.5"
+            >
               {digest.trendingTopics.map((topic) => (
-                <div key={topic.id} className="p-3 bg-orange-50 rounded-lg border border-orange-200">
-                  <p className="text-sm mb-2">{topic.title}</p>
-                  <div className="flex flex-wrap gap-1">
-                    {topic.category.map((cat) => (
-                      <Badge key={cat} variant="outline" className="text-xs">
+                <div
+                  key={topic.id}
+                  data-testid="digest-trending-chip"
+                  /*
+                    The `bg-orange-50 rounded-lg` literals are intentionally
+                    preserved so the existing digest.spec.ts trending selector
+                    keeps matching. We layer design-token classes on top so
+                    dark mode reads as a subtle accent tint rather than
+                    plain orange.
+                  */
+                  className="bg-orange-50 dark:bg-orange-500/10 rounded-lg border border-orange-200 dark:border-orange-500/20 px-2.5 py-1.5 inline-flex items-center gap-1.5 max-w-full"
+                >
+                  <p
+                    className="text-xs font-medium text-foreground truncate"
+                    style={{
+                      overflowWrap: "anywhere",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {topic.title}
+                  </p>
+                  {topic.category
+                    .filter((c) => c && c.trim().length > 0)
+                    .slice(0, 1)
+                    .map((cat) => (
+                      <Badge
+                        key={cat}
+                        variant="outline"
+                        className="h-4 px-1 text-[10px] font-normal border-border"
+                      >
                         {cat}
                       </Badge>
                     ))}
-                  </div>
                 </div>
               ))}
             </div>
           </CardContent>
         </Card>
 
-        {/* Category Breakdown */}
+        {/* Source / coverage distribution — single accent color, no
+            per-source palette (visual coherence). */}
         <Card>
-          <CardHeader>
+          <CardHeader className="py-3">
             <div className="flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-green-500" />
-              <CardTitle>📊 Coverage by Topic</CardTitle>
+              <BarChart3 className="w-4 h-4 text-primary" />
+              <CardTitle className="text-base">Coverage by Topic</CardTitle>
             </div>
-            <CardDescription>News distribution across categories</CardDescription>
+            <CardDescription className="text-xs">
+              News distribution across categories
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
+          <CardContent className="pb-4">
+            <div
+              data-testid="digest-source-distribution"
+              className="space-y-2"
+            >
               {Object.entries(digest.categoryBreakdown)
                 .sort(([, a], [, b]) => b - a)
                 .slice(0, 6)
                 .map(([category, count]) => (
-                  <div key={category} className="flex items-center gap-3">
-                    <div className="flex-1">
+                  <div
+                    key={category}
+                    data-testid="digest-source-row"
+                    className="flex items-center gap-3"
+                  >
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm">{category}</span>
-                        <span className="text-sm text-gray-500">{count} articles</span>
+                        <span className="text-xs font-medium text-foreground truncate">
+                          {category}
+                        </span>
+                        <span className="text-xs text-muted-foreground tabular-nums">
+                          {count} articles
+                        </span>
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
                         <div
-                          className="bg-green-500 h-2 rounded-full transition-all"
+                          className="bg-primary h-1.5 rounded-full transition-all"
                           style={{
-                            width: `${(count / Math.max(...Object.values(digest.categoryBreakdown))) * 100}%`,
+                            width: `${(count / maxBreakdown) * 100}%`,
                           }}
                         />
                       </div>
@@ -154,15 +273,20 @@ export function DigestView({ digest }: DigestViewProps) {
       </div>
 
       {/* Email Subscribe CTA */}
-      <Card className="bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200">
-        <CardContent className="pt-6">
+      <Card className="bg-card border-border">
+        <CardContent className="py-5">
           <div className="text-center">
-            <Mail className="w-12 h-12 text-purple-600 mx-auto mb-3" />
-            <h3 className="text-xl mb-2">Get Your Daily Digest via Email</h3>
-            <p className="text-gray-600 mb-4">
-              Never miss important tech news. Receive a personalized digest every morning.
+            <div className="w-10 h-10 rounded-md bg-primary/10 flex items-center justify-center mx-auto mb-2">
+              <Mail className="w-5 h-5 text-primary" />
+            </div>
+            <h3 className="text-sm font-medium mb-1">
+              Get Your Daily Digest via Email
+            </h3>
+            <p className="text-xs text-muted-foreground mb-3">
+              Never miss important tech news. Receive a personalized digest
+              every morning.
             </p>
-            <Button size="lg" className="bg-purple-600 hover:bg-purple-700">
+            <Button size="sm" className="h-8 text-xs">
               Subscribe to Daily Digest
             </Button>
           </div>

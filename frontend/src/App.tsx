@@ -8,6 +8,7 @@ import { NewsCard } from "./components/NewsCard";
 import { TopicFilter } from "./components/TopicFilter";
 import { SearchBar } from "./components/SearchBar";
 import { DigestView } from "./components/DigestView";
+import { TrendingRail } from "./components/TrendingRail";
 import { ChatInterface } from "./components/ChatInterface";
 import { ResearchMode } from "./components/ResearchMode";
 import { KnowledgeGraph } from "./components/KnowledgeGraph";
@@ -348,8 +349,8 @@ function AppShell() {
 
           <div className="px-6 py-5 flex-1">
             {/* News Feed Tab */}
-            <TabsContent value="feed" className="space-y-6 mt-0">
-              <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+            <TabsContent value="feed" className="space-y-4 mt-0">
+              <div className="flex flex-col md:flex-row gap-3 items-start md:items-center justify-between">
                 <div className="flex-1 w-full md:max-w-md">
                   <SearchBar onSearch={setSearchQuery} />
                 </div>
@@ -358,40 +359,60 @@ function AppShell() {
                     variant={showTrendingOnly ? "default" : "outline"}
                     size="sm"
                     onClick={() => setShowTrendingOnly(!showTrendingOnly)}
-                    className="gap-2"
+                    className="h-8 gap-1.5 text-xs"
                   >
-                    <TrendingUp className="w-4 h-4" />
+                    <TrendingUp className="w-3.5 h-3.5" />
                     Trending Only
                   </Button>
-                  <div className="flex gap-1 border rounded-lg p-1">
+                  <div className="flex gap-0.5 border border-border rounded-md p-0.5 bg-card">
                     <Button
                       variant={viewMode === "detailed" ? "default" : "ghost"}
                       size="sm"
                       onClick={() => setViewMode("detailed")}
+                      className="h-7 px-2"
                     >
-                      <Grid className="w-4 h-4" />
+                      <Grid className="w-3.5 h-3.5" />
                     </Button>
                     <Button
                       variant={viewMode === "compact" ? "default" : "ghost"}
                       size="sm"
                       onClick={() => setViewMode("compact")}
+                      className="h-7 px-2"
                     >
-                      <List className="w-4 h-4" />
+                      <List className="w-3.5 h-3.5" />
                     </Button>
                   </div>
                 </div>
               </div>
 
+              {/* Mission 3 / M3.M3 — Trending Now rail. Click a chip to
+                  toggle the matching category as a filter. The rail is
+                  presentational and self-hides when there are no
+                  categories yet. */}
+              <TrendingRail
+                selectedCategories={selectedCategories}
+                onSelectCategory={(cat) => {
+                  setSelectedCategories((prev) =>
+                    prev.includes(cat)
+                      ? prev.filter((c) => c !== cat)
+                      : [...prev, cat]
+                  );
+                }}
+              />
+
               {selectedCategories.length > 0 && (
-                <div className="flex flex-wrap gap-2 items-center bg-card p-3 rounded-lg border border-border">
-                  <span className="text-xs text-muted-foreground">
+                <div
+                  data-testid="news-feed-active-filters"
+                  className="flex flex-wrap gap-1.5 items-center bg-card p-2 rounded-md border border-border"
+                >
+                  <span className="text-xs text-muted-foreground pr-1">
                     Filtered by:
                   </span>
                   {selectedCategories.map((cat) => (
                     <Badge
                       key={cat}
                       variant="secondary"
-                      className="text-xs"
+                      className="h-5 px-1.5 text-[10px] font-normal"
                     >
                       {cat}
                     </Badge>
@@ -400,7 +421,7 @@ function AppShell() {
                     variant="ghost"
                     size="sm"
                     onClick={() => setSelectedCategories([])}
-                    className="ml-auto text-muted-foreground hover:text-foreground"
+                    className="ml-auto h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
                   >
                     Clear Filters
                   </Button>
@@ -430,7 +451,8 @@ function AppShell() {
                 </div>
               ) : (
                 <div
-                  className={`grid gap-6 ${
+                  data-testid="news-feed-list"
+                  className={`grid gap-2 ${
                     viewMode === "detailed"
                       ? "grid-cols-1 lg:grid-cols-2"
                       : "grid-cols-1"
