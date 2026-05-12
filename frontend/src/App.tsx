@@ -5,7 +5,7 @@ import { Badge } from "./components/ui/badge";
 import { Toaster } from "./components/ui/sonner";
 import { toast } from "sonner";
 import { NewsCard } from "./components/NewsCard";
-import { TopicFilter } from "./components/TopicFilter";
+import { Settings } from "./components/Settings";
 import { SearchBar } from "./components/SearchBar";
 import { DigestView } from "./components/DigestView";
 import { TrendingRail } from "./components/TrendingRail";
@@ -511,10 +511,11 @@ function AppShell() {
               </div>
             </TabsContent>
 
-            {/* Preferences Tab */}
+            {/* Preferences (Settings) Tab — M3.M4: theme + density toggles
+                above the existing topic-preferences card. */}
             <TabsContent value="preferences" className="mt-0">
               <div className="max-w-4xl mx-auto">
-                <TopicFilter
+                <Settings
                   selectedCategories={selectedCategories}
                   onCategoriesChange={setSelectedCategories}
                   onSave={savePreferences}

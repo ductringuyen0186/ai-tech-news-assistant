@@ -23,8 +23,12 @@ import remarkGfm from "remark-gfm";
  * - When `linkifyCitations=false` (default — streaming phase) the markers
  *   pass through as literal text to avoid mid-stream flicker.
  *
- * The component preserves M4 hover behavior on `a.citation` anchors —
- * downstream code can attach hover cards by selector.
+ * M3.M4 addition — `renderCitation`:
+ * Optional callback invoked for each `[N]` anchor. Receives the citation
+ * number plus the rendered anchor element and returns the React node to
+ * insert in its place. Used by ChatInterface to wrap each citation in a
+ * `<CitationHoverCard>` that fetches `/api/news/{id}` and shows a
+ * preview card on hover.
  */
 
 interface MarkdownReportProps {
@@ -35,6 +39,14 @@ interface MarkdownReportProps {
    * anchors. Off during streaming.
    */
   linkifyCitations?: boolean;
+  /**
+   * Optional wrapper for each citation anchor. Called as
+   * `renderCitation(n, anchor)` where `n` is the citation index (1-based)
+   * and `anchor` is the rendered `<a class="citation">` element. The
+   * returned node replaces the bare anchor in the output. Default: pass
+   * through.
+   */
+  renderCitation?: (n: number, anchor: React.ReactElement) => React.ReactNode;
 }
 
 function handleCitationClick(
@@ -56,7 +68,8 @@ function handleCitationClick(
  */
 function linkifyChildren(
   children: React.ReactNode,
-  keyPrefix: string
+  keyPrefix: string,
+  renderCitation?: (n: number, anchor: React.ReactElement) => React.ReactNode
 ): React.ReactNode {
   const pattern = /\[(\d+)\]/g;
   const out: React.ReactNode[] = [];
@@ -72,9 +85,10 @@ function linkifyChildren(
           out.push(node.slice(lastIndex, m.index));
         }
         const n = parseInt(m[1], 10);
-        out.push(
+        const key = `${keyPrefix}-cite-${i++}`;
+        const anchor = (
           <a
-            key={`${keyPrefix}-cite-${i++}`}
+            key={key}
             className="citation text-blue-600 hover:underline cursor-pointer"
             href={`#source-${n}`}
             onClick={(e) => handleCitationClick(e, n)}
@@ -82,6 +96,13 @@ function linkifyChildren(
             [{n}]
           </a>
         );
+        if (renderCitation) {
+          // Wrap the anchor (e.g. with a hover card). Force a key on the
+          // wrapping span so React's reconciliation stays stable.
+          out.push(<span key={key}>{renderCitation(n, anchor)}</span>);
+        } else {
+          out.push(anchor);
+        }
         lastIndex = m.index + m[0].length;
       }
       if (lastIndex < node.length) {
@@ -103,6 +124,7 @@ function linkifyChildren(
 export function MarkdownReport({
   text,
   linkifyCitations = false,
+  renderCitation,
 }: MarkdownReportProps): JSX.Element {
   // -----------------------------------------------------------------------
   // Source-anchor state. While react-markdown walks the AST it calls our
@@ -189,7 +211,7 @@ export function MarkdownReport({
               {...rest}
             >
               {linkifyCitations
-                ? linkifyChildren(children, "p")
+                ? linkifyChildren(children, "p", renderCitation)
                 : children}
             </p>
           ),
@@ -219,7 +241,9 @@ export function MarkdownReport({
                 : undefined;
             return (
               <li id={anchorId} {...rest}>
-                {linkifyCitations ? linkifyChildren(children, "li") : children}
+                {linkifyCitations
+                  ? linkifyChildren(children, "li", renderCitation)
+                  : children}
               </li>
             );
           },
@@ -320,7 +344,9 @@ export function MarkdownReport({
               className="border border-gray-300 dark:border-gray-700 px-3 py-2 align-top"
               {...rest}
             >
-              {linkifyCitations ? linkifyChildren(children, "td") : children}
+              {linkifyCitations
+                ? linkifyChildren(children, "td", renderCitation)
+                : children}
             </td>
           ),
           blockquote: ({ children, ...rest }) => (

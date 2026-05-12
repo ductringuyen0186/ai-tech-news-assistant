@@ -232,3 +232,174 @@ test.describe("rubric — Chat / Ask AI", () => {
     assertConsoleClean(errors);
   });
 });
+
+// ---------------------------------------------------------------------------
+// M3.M4 -- Citation hover card.
+//
+// Stubs the RAG endpoint with a deterministic response that includes a
+// `[1]` citation anchor and one source. Hovers the anchor and asserts a
+// hover card appears. A second test verifies the Map cache: hovering the
+// same article twice should NOT re-hit /api/news/{id}.
+// ---------------------------------------------------------------------------
+
+test.describe("M3.M4 -- Chat citation hover card", () => {
+  test("hovering an a.citation anchor for >=200ms shows a hover card", async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+
+    await page.route("**/api/rag/query", async (route) => {
+      const json = {
+        data: {
+          answer: "Recent AI news shows momentum [1].",
+          sources: [
+            {
+              id: 1,
+              url: "https://example.com/test-article",
+              title: "Stubbed test article",
+              source: "Test Source",
+            },
+          ],
+        },
+      };
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(json),
+      });
+    });
+
+    await page.route("**/api/news/1", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            id: 1,
+            title: "Stubbed test article",
+            source: "Test Source",
+            published_at: "2026-01-01T00:00:00Z",
+            summary: "Preview summary content.",
+          },
+        }),
+      });
+    });
+
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: /TechPulse AI/i })).toBeVisible();
+    await page.getByRole("tab", { name: /Ask AI/i }).click();
+
+    const chatInput = page.getByPlaceholder(/Ask me anything about tech news/i);
+    await expect(chatInput).toBeVisible({ timeout: 10_000 });
+
+    const assistantBubbles = page.locator(
+      'div.justify-start > div[class*="bg-gray-100"]'
+    );
+    const initialCount = await assistantBubbles.count();
+
+    await chatInput.fill("trigger citation");
+    await chatInput.press("Enter");
+
+    await expect
+      .poll(async () => await assistantBubbles.count(), {
+        timeout: 15_000,
+        message: "Expected a new assistant bubble after asking the question",
+      })
+      .toBeGreaterThan(initialCount);
+
+    const bubble = assistantBubbles.last();
+    await expect(bubble).toBeVisible();
+    const firstCitation = bubble.locator("a.citation").first();
+    await expect(firstCitation).toBeVisible({ timeout: 5_000 });
+    await firstCitation.hover();
+
+    const hoverCard = page.getByTestId("citation-hover-card");
+    await expect(hoverCard).toBeVisible({ timeout: 5_000 });
+
+    const cardText = (await hoverCard.innerText()).trim();
+    expect(cardText.length, "hover card should not be empty").toBeGreaterThan(0);
+  });
+
+  test("citation hover card uses Map cache -- second hover does not re-fetch", async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+
+    await page.route("**/api/rag/query", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            answer: "Look at this [1] and again [1].",
+            sources: [
+              {
+                id: 1,
+                url: "https://example.com/dup",
+                title: "Cache fixture",
+                source: "Cache Source",
+              },
+            ],
+          },
+        }),
+      });
+    });
+
+    let newsHits = 0;
+    await page.route("**/api/news/1", async (route) => {
+      newsHits += 1;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            id: 1,
+            title: "Cache fixture",
+            source: "Cache Source",
+            published_at: "2026-01-01T00:00:00Z",
+            summary: "Some preview text.",
+          },
+        }),
+      });
+    });
+
+    await page.goto("/");
+    await page.getByRole("tab", { name: /Ask AI/i }).click();
+    const chatInput = page.getByPlaceholder(/Ask me anything about tech news/i);
+    await expect(chatInput).toBeVisible({ timeout: 10_000 });
+    await chatInput.fill("trigger");
+    await chatInput.press("Enter");
+
+    const bubble = page
+      .locator('div.justify-start > div[class*="bg-gray-100"]')
+      .last();
+    await expect(bubble).toBeVisible();
+
+    await expect(bubble.locator("a.citation")).toHaveCount(2, {
+      timeout: 10_000,
+    });
+
+    const firstCitation = bubble.locator("a.citation").first();
+    await firstCitation.hover();
+    await expect(page.getByTestId("citation-hover-card")).toBeVisible({
+      timeout: 5_000,
+    });
+    await page.mouse.move(10, 10);
+    await expect(page.getByTestId("citation-hover-card")).toBeHidden({
+      timeout: 5_000,
+    });
+
+    expect(newsHits).toBe(1);
+
+    const secondCitation = bubble.locator("a.citation").nth(1);
+    await secondCitation.hover();
+    await expect(page.getByTestId("citation-hover-card")).toBeVisible({
+      timeout: 5_000,
+    });
+
+    expect(
+      newsHits,
+      `Map cache failed: /api/news/1 was hit ${newsHits} times, expected 1`
+    ).toBe(1);
+  });
+});

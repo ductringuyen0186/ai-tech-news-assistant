@@ -12,10 +12,11 @@ import {
   Sparkles,
   ZoomIn,
   ZoomOut,
-  Maximize2
+  Maximize2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { API_ENDPOINTS, apiFetch } from "../config/api";
+import { useTheme } from "./ThemeProvider";
 
 type EntityType = "company" | "person" | "technology" | "product" | "other";
 
@@ -72,9 +73,64 @@ function normalizeType(t: string): EntityType {
   return "other";
 }
 
+/**
+ * Read the resolved CSS variable for a token like `--primary` and return
+ * it as a plain CSS color string. Tokens in this repo are stored as hex
+ * (e.g. `#3B82F6`) so we can hand the raw value straight to canvas's
+ * fillStyle/strokeStyle.
+ *
+ * We re-read on every theme change so the canvas re-skins when the user
+ * flips between dark and light without a full reload.
+ */
+function readCssVar(name: string): string {
+  if (typeof window === "undefined") return "";
+  const v = getComputedStyle(document.documentElement)
+    .getPropertyValue(name)
+    .trim();
+  return v;
+}
+
 interface KnowledgeGraphProps {
   // Endpoint-backed; no props needed. Kept as a typed object so callers
   // that do `<KnowledgeGraph />` still type-check.
+}
+
+interface CanvasPalette {
+  background: string;
+  border: string;
+  primary: string;
+  primaryFaded: string;
+  muted: string;
+  label: string;
+  // Entity-type accent colors. We keep the same brand hues but pull the
+  // muted/non-active variants from the design tokens so dark mode reads.
+  company: string;
+  person: string;
+  technology: string;
+  product: string;
+  other: string;
+}
+
+function readPalette(): CanvasPalette {
+  const primary = readCssVar("--primary") || "#3B82F6";
+  const border = readCssVar("--border") || "#262626";
+  const muted = readCssVar("--muted-foreground") || "#94a3b8";
+  const card = readCssVar("--card") || "#111111";
+  const fg = readCssVar("--foreground") || "#FAFAFA";
+  return {
+    background: card,
+    border,
+    primary,
+    // Hex-tinted alpha; canvas accepts `#rrggbbaa`.
+    primaryFaded: primary.length === 7 ? `${primary}80` : primary,
+    muted,
+    label: fg,
+    company: "#3b82f6",
+    person: "#10b981",
+    technology: "#f59e0b",
+    product: "#a855f7",
+    other: muted,
+  };
 }
 
 export function KnowledgeGraph({}: KnowledgeGraphProps) {
@@ -83,6 +139,9 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [zoom, setZoom] = useState(1);
+  // Re-read palette on theme change so the canvas reskins live.
+  const { theme } = useTheme();
+  const [palette, setPalette] = useState<CanvasPalette>(() => readPalette());
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const nodePositionsRef = useRef<Map<string, { x: number; y: number; vx: number; vy: number }>>(new Map());
   const animationFrameRef = useRef<number>();
@@ -90,6 +149,12 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
   useEffect(() => {
     fetchGraphData();
   }, []);
+
+  // Re-read the palette whenever the theme switches. The CSS variables
+  // already changed at this point because the `dark` class flipped.
+  useEffect(() => {
+    setPalette(readPalette());
+  }, [theme]);
 
   const fetchGraphData = async () => {
     setLoading(true);
@@ -169,8 +234,10 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
 
     // Animation loop for force-directed graph
     const animate = () => {
-      // Clear canvas
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // Clear canvas + paint the themed background so dark mode actually
+      // looks dark (the surrounding container is bg-card too).
+      ctx.fillStyle = palette.background;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.save();
       ctx.translate(canvas.width / 2, canvas.height / 2);
       ctx.scale(zoom, zoom);
@@ -230,14 +297,18 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
 
       nodePositionsRef.current = newPositions;
 
-      // Draw edges
+      // Draw edges — softer / lower contrast using border token with alpha.
+      // We append "80" (50% alpha) to the hex border color so edges fade
+      // into the background rather than competing with node fills.
+      const edgeColor =
+        palette.border.length === 7 ? `${palette.border}99` : palette.border;
       graphData.edges.forEach((edge) => {
         const pos1 = newPositions.get(edge.source);
         const pos2 = newPositions.get(edge.target);
         if (!pos1 || !pos2) return;
 
         const w = Math.max(1, Math.min(edge.weight || 1, 5));
-        ctx.strokeStyle = "#cbd5e1";
+        ctx.strokeStyle = edgeColor;
         ctx.lineWidth = 0.8 + w * 0.4;
         ctx.beginPath();
         ctx.moveTo(pos1.x, pos1.y);
@@ -250,29 +321,36 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
         const pos = newPositions.get(node.id);
         if (!pos) return;
 
-        const nodeColor: Record<EntityType, string> = {
-          company: "#3b82f6",
-          person: "#10b981",
-          technology: "#f59e0b",
-          product: "#a855f7",
-          other: "#94a3b8",
+        const isActive = selectedNode?.id === node.id;
+        // Active node always uses --primary so the highlight reads as
+        // "this is the one you selected". Non-active nodes keep the
+        // entity-type accent palette so the legend still makes sense.
+        const baseColor: Record<EntityType, string> = {
+          company: palette.company,
+          person: palette.person,
+          technology: palette.technology,
+          product: palette.product,
+          other: palette.other,
         };
 
         const r = Math.max(12, Math.min(28, 12 + Math.sqrt(node.mention_count) * 3));
 
         // Node circle
-        ctx.fillStyle = nodeColor[node.type];
+        ctx.fillStyle = isActive ? palette.primary : baseColor[node.type];
         ctx.beginPath();
         ctx.arc(pos.x, pos.y, r, 0, 2 * Math.PI);
         ctx.fill();
 
-        // Node border
-        ctx.strokeStyle = selectedNode?.id === node.id ? "#1e40af" : "#fff";
-        ctx.lineWidth = selectedNode?.id === node.id ? 3 : 2;
+        // Node border — primary on the active node, themed border on the
+        // rest. The active border is thicker so it pops without needing
+        // any white halo.
+        ctx.strokeStyle = isActive ? palette.primary : palette.border;
+        ctx.lineWidth = isActive ? 3 : 1.5;
         ctx.stroke();
 
-        // Node label
-        ctx.fillStyle = "#1f2937";
+        // Node label — use the themed foreground so it stays readable on
+        // both dark and light backgrounds.
+        ctx.fillStyle = palette.label;
         ctx.font = "12px sans-serif";
         ctx.textAlign = "center";
         ctx.fillText(node.name, pos.x, pos.y + r + 14);
@@ -287,7 +365,7 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
     return () => {
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
     };
-  }, [graphData, zoom, selectedNode]);
+  }, [graphData, zoom, selectedNode, palette]);
 
   const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -342,9 +420,9 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
 
   if (loading) {
     return (
-      <Card>
+      <Card className="bg-card border border-border">
         <CardContent className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </CardContent>
       </Card>
     );
@@ -352,58 +430,156 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
 
   const isEmpty = !graphData || graphData.nodes.length === 0;
 
+  // Stat counts used by the dense stat card row.
+  const companyCount = graphData
+    ? graphData.nodes.filter((n) => n.type === "company").length
+    : 0;
+  const personCount = graphData
+    ? graphData.nodes.filter((n) => n.type === "person").length
+    : 0;
+  const techCount = graphData
+    ? graphData.nodes.filter((n) => n.type === "technology").length
+    : 0;
+  const productCount = graphData
+    ? graphData.nodes.filter((n) => n.type === "product").length
+    : 0;
+
   return (
-    <div className="max-w-6xl mx-auto space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Network className="w-5 h-5 text-blue-600" />
+    <div className="max-w-6xl mx-auto space-y-3">
+      {/* Stat row — Linear-dense. ≤14px body, 12px padding. We surface the
+          counts above the canvas so the page-top "what's in here" reading
+          works without scrolling past 600px of graph. */}
+      {graphData && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <Card
+            data-testid="kg-stat-companies"
+            className="bg-card border border-border"
+          >
+            <CardContent className="p-3">
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Companies
+              </div>
+              <div
+                className="text-xl font-semibold mt-1"
+                style={{ color: "#3b82f6" }}
+              >
+                {companyCount}
+              </div>
+            </CardContent>
+          </Card>
+          <Card
+            data-testid="kg-stat-people"
+            className="bg-card border border-border"
+          >
+            <CardContent className="p-3">
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                People
+              </div>
+              <div
+                className="text-xl font-semibold mt-1"
+                style={{ color: "#10b981" }}
+              >
+                {personCount}
+              </div>
+            </CardContent>
+          </Card>
+          <Card
+            data-testid="kg-stat-technologies"
+            className="bg-card border border-border"
+          >
+            <CardContent className="p-3">
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Technologies
+              </div>
+              <div
+                className="text-xl font-semibold mt-1"
+                style={{ color: "#f59e0b" }}
+              >
+                {techCount}
+              </div>
+            </CardContent>
+          </Card>
+          <Card
+            data-testid="kg-stat-products"
+            className="bg-card border border-border"
+          >
+            <CardContent className="p-3">
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Products
+              </div>
+              <div
+                className="text-xl font-semibold mt-1"
+                style={{ color: "#a855f7" }}
+              >
+                {productCount}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      <Card className="bg-card border border-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-[15px]">
+            <Network className="w-4 h-4 text-primary" />
             Knowledge Graph
           </CardTitle>
-          <CardDescription>
-            Entities and co-mentions extracted from this week's articles. Node size scales with mention count; edge thickness with co-occurrence weight.
+          <CardDescription className="text-xs">
+            Entities and co-mentions extracted from this week's articles.
+            Node size scales with mention count; edge thickness with
+            co-occurrence weight.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {/* Legend */}
-            <div className="flex flex-wrap items-center gap-4 text-sm">
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-blue-600 rounded-full" />
+        <CardContent className="pt-0">
+          <div className="space-y-3">
+            {/* Legend — compact, 12px text. */}
+            <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+              <div className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#3b82f6" }} />
                 <span>Companies</span>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-green-600 rounded-full" />
+              <div className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#10b981" }} />
                 <span>People</span>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-orange-500 rounded-full" />
+              <div className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#f59e0b" }} />
                 <span>Technologies</span>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-purple-500 rounded-full" />
+              <div className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#a855f7" }} />
                 <span>Products</span>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-slate-400 rounded-full" />
+              <div className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-muted-foreground" />
                 <span>Other</span>
               </div>
             </div>
 
             {errorMsg && (
-              <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2.5 text-xs text-destructive">
                 Couldn't reach the knowledge graph endpoint: {errorMsg}
               </div>
             )}
 
             {isEmpty && !errorMsg && (
-              <div className="rounded border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
-                No entities extracted yet. Run an ingest + summarize cycle to populate the graph.
+              <div
+                data-testid="kg-empty-state"
+                className="rounded-md border border-border bg-muted/30 p-6 text-center"
+              >
+                <Network className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm font-medium text-foreground">
+                  No entities indexed yet
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  No entities extracted yet. Run an ingest + summarize cycle
+                  to populate the graph.
+                </p>
               </div>
             )}
 
-            {/* Graph Canvas */}
-            <div className="relative border rounded-lg overflow-hidden bg-gray-50">
+            {/* Graph Canvas — bg matches --card so dark mode looks dark. */}
+            <div className="relative rounded-md overflow-hidden border border-border bg-card">
               <canvas
                 ref={canvasRef}
                 width={800}
@@ -414,56 +590,61 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
               />
 
               {/* Zoom Controls */}
-              <div className="absolute top-4 right-4 flex flex-col gap-2">
+              <div className="absolute top-3 right-3 flex flex-col gap-1.5">
                 <Button
                   size="sm"
                   variant="secondary"
                   onClick={() => setZoom(Math.min(zoom + 0.2, 3))}
                   aria-label="Zoom in"
+                  className="h-7 w-7 p-0"
                 >
-                  <ZoomIn className="w-4 h-4" />
+                  <ZoomIn className="w-3.5 h-3.5" />
                 </Button>
                 <Button
                   size="sm"
                   variant="secondary"
                   onClick={() => setZoom(Math.max(zoom - 0.2, 0.4))}
                   aria-label="Zoom out"
+                  className="h-7 w-7 p-0"
                 >
-                  <ZoomOut className="w-4 h-4" />
+                  <ZoomOut className="w-3.5 h-3.5" />
                 </Button>
                 <Button
                   size="sm"
                   variant="secondary"
                   onClick={() => setZoom(1)}
                   aria-label="Reset zoom"
+                  className="h-7 w-7 p-0"
                 >
-                  <Maximize2 className="w-4 h-4" />
+                  <Maximize2 className="w-3.5 h-3.5" />
                 </Button>
               </div>
             </div>
 
             {/* Selected Node Details */}
             {selectedNode && (
-              <Card className="bg-blue-50 border-blue-200">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg flex items-center gap-2">
+              <Card className="bg-accent/30 border border-primary/40">
+                <CardHeader className="pb-2 pt-3 px-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
                     {getNodeIcon(selectedNode.type)}
                     {selectedNode.name}
                   </CardTitle>
                   <CardDescription>
-                    <Badge variant="outline" className="text-xs">
+                    <Badge variant="outline" className="text-[10px] h-4 px-1.5">
                       {selectedNode.type}
                     </Badge>
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-sm">
-                    <p className="text-gray-700">
+                <CardContent className="px-3 pb-3 pt-0">
+                  <div className="text-xs">
+                    <p className="text-foreground">
                       <strong>Mentions:</strong> {selectedNode.mention_count}
                     </p>
                     {graphData && (
                       <div className="mt-2">
-                        <p className="font-semibold mb-1">Co-mentioned with:</p>
+                        <p className="font-medium mb-1 text-foreground">
+                          Co-mentioned with:
+                        </p>
                         <div className="flex flex-wrap gap-1">
                           {graphData.edges
                             .filter(
@@ -481,7 +662,11 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
                               );
                               if (!connectedNode) return null;
                               return (
-                                <Badge key={idx} variant="secondary" className="text-xs">
+                                <Badge
+                                  key={idx}
+                                  variant="secondary"
+                                  className="text-[10px] h-4 px-1.5"
+                                >
                                   {connectedNode.name}{" "}
                                   <span className="opacity-60">×{edge.weight}</span>
                                 </Badge>
@@ -497,44 +682,6 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
           </div>
         </CardContent>
       </Card>
-
-      {/* Stats */}
-      {graphData && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-3xl font-bold text-blue-600">
-                {graphData.nodes.filter((n) => n.type === "company").length}
-              </div>
-              <div className="text-sm text-gray-600">Companies</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-3xl font-bold text-green-600">
-                {graphData.nodes.filter((n) => n.type === "person").length}
-              </div>
-              <div className="text-sm text-gray-600">People</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-3xl font-bold text-orange-500">
-                {graphData.nodes.filter((n) => n.type === "technology").length}
-              </div>
-              <div className="text-sm text-gray-600">Technologies</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-3xl font-bold text-purple-500">
-                {graphData.nodes.filter((n) => n.type === "product").length}
-              </div>
-              <div className="text-sm text-gray-600">Products</div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
     </div>
   );
 }

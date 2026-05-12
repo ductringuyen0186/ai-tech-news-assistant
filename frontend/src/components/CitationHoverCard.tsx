@@ -1,0 +1,233 @@
+/**
+ * CitationHoverCard — M3.M4
+ *
+ * Wraps a child element (typically the `[N]` citation anchor produced by
+ * MarkdownReport) and shows a 300px hover card with article metadata
+ * (title, source, publish date, summary preview) when the user hovers the
+ * anchor for at least 200ms.
+ *
+ * Contract:
+ *  - `articleId: number` — the backend `/api/news/{id}` integer id.
+ *  - `children: ReactNode` — the element to wrap. Most callers pass the
+ *    `<a class="citation">` produced by MarkdownReport's `linkifyChildren`.
+ *  - Hover 200ms+ -> fetch + show card; debounce-cancel on mouse leave.
+ *  - Map cache: the first fetch for an articleId is shared across all
+ *    instances rendered in the same session (module-level Map), so the
+ *    same citation re-shown in different bubbles will not re-hit the
+ *    backend.
+ *  - Card uses `pointer-events: none` so the user can still click the
+ *    underlying citation anchor through it (which scrolls to the source
+ *    list in the report).
+ *
+ * Reused by: ChatInterface (Ask AI tab) and — when M5 ships — Research
+ * tab. Built so other tabs can drop it in without behavior changes.
+ */
+import { useEffect, useRef, useState } from "react";
+import { API_ENDPOINTS, apiFetch } from "../config/api";
+
+/** Subset of the article shape we render in the card. */
+interface CachedArticle {
+  id: number | string;
+  title: string;
+  source: string;
+  published_at?: string | null;
+  summary?: string | null;
+  content?: string | null;
+}
+
+interface ApiArticleEnvelope {
+  data?: {
+    id: number | string;
+    title: string;
+    source: string;
+    published_at?: string | null;
+    summary?: string | null;
+    content?: string | null;
+  };
+  id?: number | string;
+  title?: string;
+  source?: string;
+  published_at?: string | null;
+  summary?: string | null;
+  content?: string | null;
+}
+
+// Module-level cache so all CitationHoverCard instances in the page share
+// fetch results. Using a plain Map keyed by integer id; the value is a
+// Promise so concurrent hovers for the same id only fire one request.
+const articleCache = new Map<number, Promise<CachedArticle | null>>();
+
+function fetchArticle(articleId: number): Promise<CachedArticle | null> {
+  const existing = articleCache.get(articleId);
+  if (existing) return existing;
+
+  const url = API_ENDPOINTS.newsById(String(articleId));
+  const promise = apiFetch<ApiArticleEnvelope>(url)
+    .then((envelope) => {
+      const data = (envelope?.data ?? envelope) as CachedArticle | undefined;
+      if (!data || typeof data.title !== "string") {
+        return null;
+      }
+      return data;
+    })
+    .catch((err) => {
+      // Drop the cached failure so a later hover can retry.
+      articleCache.delete(articleId);
+      console.warn(`CitationHoverCard: failed to load article ${articleId}`, err);
+      return null;
+    });
+  articleCache.set(articleId, promise);
+  return promise;
+}
+
+/**
+ * Test-only — clears the module-level cache. Not exported for runtime use;
+ * only the rubric tests would conceivably need this.
+ */
+export function __clearCitationHoverCardCache(): void {
+  articleCache.clear();
+}
+
+interface CitationHoverCardProps {
+  articleId: number;
+  children: React.ReactNode;
+}
+
+function formatDate(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  } catch {
+    return null;
+  }
+}
+
+function buildSummaryPreview(article: CachedArticle): string {
+  const raw = (article.summary || article.content || "").toString().trim();
+  if (!raw) return "";
+  if (raw.length <= 200) return raw;
+  return raw.slice(0, 200).trimEnd() + "...";
+}
+
+export function CitationHoverCard({
+  articleId,
+  children,
+}: CitationHoverCardProps): JSX.Element {
+  const [article, setArticle] = useState<CachedArticle | null>(null);
+  const [visible, setVisible] = useState(false);
+  // We track cursor position so we can render the card right next to the
+  // citation anchor without needing portals.
+  const [pos, setPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  const enterTimerRef = useRef<number | null>(null);
+  const leaveTimerRef = useRef<number | null>(null);
+
+  // Clear pending timers if the component unmounts mid-hover.
+  useEffect(() => {
+    return () => {
+      if (enterTimerRef.current) window.clearTimeout(enterTimerRef.current);
+      if (leaveTimerRef.current) window.clearTimeout(leaveTimerRef.current);
+    };
+  }, []);
+
+  const handleEnter = (e: React.MouseEvent) => {
+    // Cancel any pending hide.
+    if (leaveTimerRef.current) {
+      window.clearTimeout(leaveTimerRef.current);
+      leaveTimerRef.current = null;
+    }
+    // Start the 200ms appearance delay.
+    const startX = e.clientX;
+    const startY = e.clientY;
+    setPos({ x: startX, y: startY });
+    if (enterTimerRef.current) window.clearTimeout(enterTimerRef.current);
+    enterTimerRef.current = window.setTimeout(async () => {
+      // Pull from cache (or kick off a fetch) and only flip visible if we
+      // got data. The hover may have ended before this fires, but in that
+      // case `handleLeave` already scheduled a hide and visible will flip
+      // back; this is fine.
+      const data = await fetchArticle(articleId);
+      if (data) {
+        setArticle(data);
+        setVisible(true);
+      }
+    }, 200);
+  };
+
+  const handleLeave = () => {
+    // Cancel a pending show.
+    if (enterTimerRef.current) {
+      window.clearTimeout(enterTimerRef.current);
+      enterTimerRef.current = null;
+    }
+    // 100ms grace before hiding — gives the cursor a moment to enter the
+    // card itself if we ever switched off `pointer-events: none`.
+    if (leaveTimerRef.current) window.clearTimeout(leaveTimerRef.current);
+    leaveTimerRef.current = window.setTimeout(() => {
+      setVisible(false);
+    }, 100);
+  };
+
+  const summary = article ? buildSummaryPreview(article) : "";
+  const dateLabel = article ? formatDate(article.published_at) : null;
+
+  // The card is positioned near the cursor, slightly offset down/right.
+  // We use position: fixed so it floats above content; pointer-events: none
+  // means clicks pass through to the underlying citation anchor.
+  const cardStyle: React.CSSProperties = {
+    position: "fixed",
+    left: `${pos.x + 12}px`,
+    top: `${pos.y + 16}px`,
+    width: "300px",
+    maxWidth: "calc(100vw - 32px)",
+    zIndex: 50,
+    pointerEvents: "none",
+  };
+
+  return (
+    <span
+      className="citation-hover-anchor"
+      onMouseEnter={handleEnter}
+      onMouseLeave={handleLeave}
+    >
+      {children}
+      {visible && article && (
+        <span
+          data-testid="citation-hover-card"
+          role="tooltip"
+          style={cardStyle}
+          className="rounded-md border border-border bg-popover text-popover-foreground p-3 shadow-md text-[13px] leading-snug"
+        >
+          <span className="block font-medium text-foreground line-clamp-2">
+            {article.title}
+          </span>
+          <span className="mt-1 block text-[11px] text-muted-foreground">
+            <span className="font-medium">{article.source}</span>
+            {dateLabel ? <> &middot; {dateLabel}</> : null}
+          </span>
+          {summary && (
+            <span
+              className="mt-2 block text-[12px] text-muted-foreground"
+              style={{
+                display: "-webkit-box",
+                WebkitLineClamp: 3,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+              }}
+            >
+              {summary}
+            </span>
+          )}
+        </span>
+      )}
+    </span>
+  );
+}
+
+export default CitationHoverCard;

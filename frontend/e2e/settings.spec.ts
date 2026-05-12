@@ -230,3 +230,89 @@ test.describe("rubric â€” Settings persistence (category 5)", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// M3.M4 — Theme toggle in Settings flips the <html class="dark"> attribute.
+// Asserts:
+//   1. Settings tab renders Appearance card with Dark / Light radios.
+//   2. Clicking Light removes the `dark` class from <html>.
+//   3. Clicking Dark adds it back. Both writes persist to localStorage.
+// ---------------------------------------------------------------------------
+
+test.describe("M3.M4 — Settings theme toggle", () => {
+  test("dark/light radios in Appearance card flip <html class='dark'> and persist", async ({
+    page,
+  }) => {
+    test.setTimeout(45_000);
+
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: /TechPulse AI/i })).toBeVisible();
+
+    // Switch to the Settings tab.
+    await page.getByRole("tab", { name: /Settings/i }).click();
+
+    // Appearance card should be visible.
+    await expect(page.getByText(/^Appearance$/i)).toBeVisible({ timeout: 10_000 });
+
+    // Force a known starting state — pick Dark explicitly.
+    await page.getByTestId("settings-theme-dark").click();
+    await expect
+      .poll(async () =>
+        page.evaluate(() => document.documentElement.classList.contains("dark"))
+      )
+      .toBe(true);
+
+    // Pick Light — html should drop the dark class.
+    await page.getByTestId("settings-theme-light").click();
+    await expect
+      .poll(async () =>
+        page.evaluate(() => document.documentElement.classList.contains("dark"))
+      )
+      .toBe(false);
+
+    // Reload — light should persist via localStorage.
+    await page.reload();
+    await expect(page.getByRole("heading", { name: /TechPulse AI/i })).toBeVisible();
+    const stillLight = await page.evaluate(() =>
+      document.documentElement.classList.contains("dark")
+    );
+    expect(stillLight, "Theme should have persisted as light after reload").toBe(false);
+
+    // Restore to dark so other tests start in the standard state.
+    await page.getByRole("tab", { name: /Settings/i }).click();
+    await page.getByTestId("settings-theme-dark").click();
+    await expect
+      .poll(async () =>
+        page.evaluate(() => document.documentElement.classList.contains("dark"))
+      )
+      .toBe(true);
+  });
+
+  test("density radio writes localStorage.techpulse-density but does not change html attrs", async ({
+    page,
+  }) => {
+    test.setTimeout(30_000);
+
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: /TechPulse AI/i })).toBeVisible();
+    await page.getByRole("tab", { name: /Settings/i }).click();
+    await expect(page.getByText(/^Appearance$/i)).toBeVisible({ timeout: 10_000 });
+
+    await page.getByTestId("settings-density-compact").click();
+    const stored = await page.evaluate(() =>
+      localStorage.getItem("techpulse-density")
+    );
+    expect(stored).toBe("compact");
+
+    await page.getByTestId("settings-density-comfortable").click();
+    const stored2 = await page.evaluate(() =>
+      localStorage.getItem("techpulse-density")
+    );
+    expect(stored2).toBe("comfortable");
+
+    // Helper text — explicit deferred-behavior note.
+    await expect(
+      page.getByText(/Density behavior coming in a future release/i)
+    ).toBeVisible();
+  });
+});
