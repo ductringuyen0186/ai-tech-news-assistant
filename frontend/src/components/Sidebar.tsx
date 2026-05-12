@@ -134,7 +134,10 @@ export function Sidebar({ activeTab, badges }: SidebarProps) {
                 />
               )}
               {item.placeholder && (
-                <span className="text-[10px] text-muted-foreground/70 tracking-wide uppercase">
+                <span
+                  aria-hidden="true"
+                  className="text-[10px] text-muted-foreground/70 tracking-wide uppercase"
+                >
                   Soon
                 </span>
               )}

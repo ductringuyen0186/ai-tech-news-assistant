@@ -26,6 +26,7 @@ import {
   ReactNode,
 } from "react";
 import { Command } from "cmdk";
+import { DialogTitle } from "./ui/dialog";
 import {
   Newspaper,
   Lightbulb,
@@ -233,6 +234,13 @@ function CommandPaletteModal({
       contentClassName="fixed top-[15vh] left-1/2 -translate-x-1/2 z-50 w-[min(640px,calc(100vw-2rem))] max-h-[60vh] bg-popover text-popover-foreground border border-border rounded-xl shadow-2xl overflow-hidden"
     >
       <>
+        {/*
+          Radix Dialog requires an accessible title. cmdk's Command.Dialog
+          wraps Radix Dialog but doesn't auto-inject one. Add a
+          screen-reader-only title to silence the a11y warnings AND
+          improve screen-reader UX.
+        */}
+        <DialogTitle className="sr-only">Command palette</DialogTitle>
         <Command.Input
           placeholder="Jump to a tab or recent research..."
           className="w-full px-4 py-3 text-sm bg-transparent border-b border-border outline-none placeholder:text-muted-foreground"
