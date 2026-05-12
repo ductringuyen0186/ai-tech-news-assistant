@@ -338,15 +338,15 @@ export function SavedResearchList({ refreshKey = 0 }: SavedResearchListProps) {
                     <button
                       type="button"
                       onClick={() => setDetailId(row.id)}
-                      className="flex-1 text-left px-4 py-3 min-w-0"
+                      className="flex-1 px-4 py-3 min-w-0 flex flex-col items-start text-left"
                     >
                       <p
-                        className="text-sm text-foreground font-medium truncate"
+                        className="text-sm text-foreground font-medium truncate text-left w-full"
                         title={row.question}
                       >
                         {row.question}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
+                      <p className="text-xs text-muted-foreground mt-0.5 text-left w-full">
                         {formatRelativeTime(row.created_at)}
                       </p>
                     </button>
