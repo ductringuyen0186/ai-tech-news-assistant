@@ -4,47 +4,51 @@
 
 :root {
   --font-size: 16px;
-  /* M3.M5.5 — Claude-aesthetic warm light palette (cream / parchment). */
-  --background: hsl(40 25% 97%);
-  --foreground: hsl(28 8% 14%);
+  /* M3 polish iter 2 — beige palette from portfolio site
+   * (https://ductringuyen0186.github.io/portfolio-website/).
+   * Hand-picked exact values: #f5f2ed cream, #dbd2c3 light beige,
+   * #c4b69e light beige, #887d69 deep taupe, #6b6252 medium warm
+   * gray, #4e483c dark warm gray. Kept in sync with src/index.css. */
+  --background: hsl(40 24% 95%);
+  --foreground: hsl(35 12% 27%);
   --card: hsl(0 0% 100%);
-  --card-foreground: hsl(28 8% 14%);
+  --card-foreground: hsl(35 12% 27%);
   --popover: hsl(0 0% 100%);
-  --popover-foreground: hsl(28 8% 14%);
-  --primary: hsl(16 65% 48%);
-  --primary-foreground: hsl(40 30% 97%);
-  --secondary: hsl(40 15% 92%);
-  --secondary-foreground: hsl(28 8% 14%);
-  --muted: hsl(40 15% 92%);
-  --muted-foreground: hsl(28 8% 38%);
-  --accent: hsl(40 15% 92%);
-  --accent-foreground: hsl(28 8% 14%);
+  --popover-foreground: hsl(35 12% 27%);
+  --primary: hsl(35 14% 47%);
+  --primary-foreground: hsl(40 24% 95%);
+  --secondary: hsl(38 24% 80%);
+  --secondary-foreground: hsl(35 12% 27%);
+  --muted: hsl(38 24% 90%);
+  --muted-foreground: hsl(35 12% 40%);
+  --accent: hsl(38 24% 80%);
+  --accent-foreground: hsl(35 12% 27%);
   --destructive: hsl(0 65% 50%);
   --destructive-foreground: #FFFFFF;
-  --border: hsl(28 8% 88%);
-  --input: hsl(28 8% 88%);
+  --border: hsl(38 24% 76%);
+  --input: hsl(38 24% 80%);
   --input-background: #FFFFFF;
-  --switch-background: hsl(28 8% 88%);
+  --switch-background: hsl(38 24% 76%);
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --ring: hsl(16 65% 48%);
+  --ring: hsl(35 14% 47%);
   --chart-1: #3B82F6;
   --chart-2: #8B5CF6;
   --chart-3: #EC4899;
   --chart-4: #F59E0B;
   --chart-5: #10B981;
   --radius: 0.75rem;
-  --sidebar: hsl(40 25% 95%);
-  --sidebar-foreground: hsl(28 8% 14%);
-  --sidebar-primary: hsl(16 65% 48%);
-  --sidebar-primary-foreground: hsl(40 30% 97%);
-  --sidebar-accent: hsl(40 15% 92%);
-  --sidebar-accent-foreground: hsl(28 8% 14%);
-  --sidebar-border: hsl(28 8% 88%);
-  --sidebar-ring: hsl(16 65% 48%);
-  /* Status palette — warm-tuned for parchment surface. */
-  --status-running: hsl(28 30% 50%);
-  --status-done: hsl(140 35% 40%);
+  --sidebar: hsl(40 24% 92%);
+  --sidebar-foreground: hsl(35 12% 27%);
+  --sidebar-primary: hsl(35 14% 47%);
+  --sidebar-primary-foreground: hsl(40 24% 95%);
+  --sidebar-accent: hsl(38 24% 80%);
+  --sidebar-accent-foreground: hsl(35 12% 27%);
+  --sidebar-border: hsl(38 24% 76%);
+  --sidebar-ring: hsl(35 14% 47%);
+  /* Status palette — tuned for beige surface. */
+  --status-running: hsl(35 14% 55%);
+  --status-done: hsl(140 30% 40%);
   --status-error: hsl(0 65% 50%);
 }
 
@@ -54,38 +58,40 @@
  * before React mounts by the inline script in index.html).
  */
 .dark {
-  /* M3.M5.5 — Claude-aesthetic warm dark palette (taupe / charcoal). */
-  --background: hsl(28 8% 14%);
-  --foreground: hsl(40 30% 92%);
-  --card: hsl(28 8% 17%);
-  --card-foreground: hsl(40 30% 92%);
-  --popover: hsl(28 8% 17%);
-  --popover-foreground: hsl(40 30% 92%);
-  --primary: hsl(16 65% 52%);
-  --primary-foreground: hsl(40 30% 95%);
-  --secondary: hsl(28 8% 22%);
-  --secondary-foreground: hsl(40 30% 92%);
-  --muted: hsl(28 8% 22%);
-  --muted-foreground: hsl(40 10% 65%);
-  --accent: hsl(28 8% 22%);
-  --accent-foreground: hsl(40 30% 92%);
+  /* M3 polish iter 2 — beige dark palette (portfolio site).
+   * Background a touch deeper than #4e483c, accent lifts to #c4b69e
+   * so it pops on the warm taupe surface. */
+  --background: hsl(35 12% 18%);
+  --foreground: hsl(40 24% 92%);
+  --card: hsl(35 12% 22%);
+  --card-foreground: hsl(40 24% 92%);
+  --popover: hsl(35 12% 22%);
+  --popover-foreground: hsl(40 24% 92%);
+  --primary: hsl(35 24% 70%);
+  --primary-foreground: hsl(35 12% 18%);
+  --secondary: hsl(35 12% 28%);
+  --secondary-foreground: hsl(40 24% 92%);
+  --muted: hsl(35 12% 28%);
+  --muted-foreground: hsl(35 24% 70%);
+  --accent: hsl(35 12% 28%);
+  --accent-foreground: hsl(40 24% 92%);
   --destructive: hsl(0 65% 55%);
   --destructive-foreground: #FFFFFF;
-  --border: hsl(28 8% 24%);
-  --input: hsl(28 8% 22%);
-  --input-background: hsl(28 8% 17%);
-  --switch-background: hsl(28 8% 22%);
-  --ring: hsl(16 65% 52%);
-  --sidebar: hsl(28 8% 12%);
-  --sidebar-foreground: hsl(40 30% 92%);
-  --sidebar-primary: hsl(16 65% 52%);
-  --sidebar-primary-foreground: hsl(40 30% 95%);
-  --sidebar-accent: hsl(28 8% 22%);
-  --sidebar-accent-foreground: hsl(40 30% 92%);
-  --sidebar-border: hsl(28 8% 22%);
-  --sidebar-ring: hsl(16 65% 52%);
-  --status-running: hsl(28 30% 60%);
-  --status-done: hsl(140 35% 50%);
+  --border: hsl(35 12% 32%);
+  --input: hsl(35 12% 28%);
+  --input-background: hsl(35 12% 22%);
+  --switch-background: hsl(35 12% 32%);
+  --ring: hsl(35 24% 70%);
+  --sidebar: hsl(35 12% 15%);
+  --sidebar-foreground: hsl(40 24% 92%);
+  --sidebar-primary: hsl(35 24% 70%);
+  --sidebar-primary-foreground: hsl(35 12% 18%);
+  --sidebar-accent: hsl(35 12% 28%);
+  --sidebar-accent-foreground: hsl(40 24% 92%);
+  --sidebar-border: hsl(35 12% 28%);
+  --sidebar-ring: hsl(35 24% 70%);
+  --status-running: hsl(35 24% 70%);
+  --status-done: hsl(140 30% 55%);
   --status-error: hsl(0 65% 55%);
 }
 

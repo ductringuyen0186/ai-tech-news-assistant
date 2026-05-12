@@ -139,7 +139,7 @@ export function DigestView({ digest }: DigestViewProps) {
                     <div className="flex flex-wrap gap-1.5">
                       <Badge
                         variant="outline"
-                        className="h-5 px-1.5 text-[10px] font-normal border-border"
+                        className="h-5 px-1.5 text-[10px] font-medium border-border bg-muted text-foreground"
                       >
                         {story.source}
                       </Badge>

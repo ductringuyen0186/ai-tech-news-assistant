@@ -178,18 +178,27 @@ export function SubQuestionsPanel({
                     <li
                       key={a.id}
                       data-testid="research-sub-question-article"
-                      className="flex items-center gap-2 text-xs text-muted-foreground min-w-0"
+                      className="flex items-center gap-2 text-xs min-w-0"
                     >
+                      {/* Article title - foreground (not muted) so it
+                          reads on the warm-taupe card background.
+                          M3 polish iter 2 contrast fix. */}
                       <span
-                        className="truncate"
+                        className="truncate text-foreground"
                         style={{ overflowWrap: "anywhere" }}
                       >
                         {a.title}
                       </span>
                       {a.source && (
+                        /* Source chip - solid bg + bordered + foreground
+                           text so source names ("Sa Verge" / "Hacker News"
+                           / "CNBCnews") are legible. Was previously an
+                           outline-only chip whose text inherited the
+                           parent li's text-muted-foreground.
+                           M3 polish iter 2 contrast fix. */
                         <Badge
                           variant="outline"
-                          className="text-[10px] py-0 px-1 flex-shrink-0"
+                          className="text-[10px] py-0 px-1 flex-shrink-0 bg-muted text-foreground border-border font-medium"
                         >
                           {a.source}
                         </Badge>
