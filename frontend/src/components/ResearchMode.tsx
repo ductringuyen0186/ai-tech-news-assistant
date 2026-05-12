@@ -20,6 +20,8 @@ import {
   Download,
   X,
   Check,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { API_BASE_URL, API_ENDPOINTS } from "../config/api";
@@ -311,9 +313,29 @@ function MarkdownReport({
 }
 
 interface AgentEvent {
-  type: "phase" | "token" | "error";
+  type: "phase" | "token" | "error" | "subagent";
   data: string;
   report?: string;
+  // Subagent telemetry fields (M5). Present only on ``type: "subagent"``
+  // frames where ``data`` is one of "start" | "done" | "error".
+  skill?: string;
+  article_id?: number;
+  duration_ms?: number;
+  message?: string;
+}
+
+/**
+ * Per-subagent row tracked in component state. Keyed in the parent Map by
+ * ``${skill}:${article_id}`` so a re-emitted ``start`` for the same pair
+ * updates the existing row instead of duplicating.
+ */
+interface SubagentRow {
+  skill: string;
+  articleId: number;
+  status: "running" | "done" | "error";
+  startedAt: number;
+  durationMs?: number;
+  message?: string;
 }
 
 interface ResearchModeProps {
@@ -328,6 +350,15 @@ export function ResearchMode({}: ResearchModeProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lastSubmittedQuery, setLastSubmittedQuery] = useState<string>("");
   const [copied, setCopied] = useState(false);
+  // M5 — Subagents panel state. ``subagents`` is a Map<key, SubagentRow>
+  // where the key is ``${skill}:${article_id}``. React's Map preserves
+  // insertion order so iteration matches arrival order. ``subagentsOpen``
+  // controls the collapsible panel chevron; it auto-flips to true on the
+  // first ``subagent: start`` event of a run and the user can collapse it.
+  const [subagents, setSubagents] = useState<Map<string, SubagentRow>>(
+    () => new Map()
+  );
+  const [subagentsOpen, setSubagentsOpen] = useState<boolean>(false);
 
   const abortRef = useRef<AbortController | null>(null);
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -372,6 +403,59 @@ export function ResearchMode({}: ResearchModeProps) {
       setReportText(tokenAcc.current);
       return { done: false };
     }
+    if (ev.type === "subagent") {
+      // ``data`` carries the lifecycle stage; ``skill`` + ``article_id``
+      // form the row key. Defensive defaults guard against the backend
+      // omitting a field — we still want a row, just with placeholder
+      // labels, rather than crashing the parser.
+      const stage = ev.data;
+      const skill = ev.skill ?? "unknown";
+      const articleId =
+        typeof ev.article_id === "number" ? ev.article_id : -1;
+      const key = `${skill}:${articleId}`;
+      setSubagents((prev) => {
+        const next = new Map(prev);
+        const existing = next.get(key);
+        if (stage === "start") {
+          // Re-emitted ``start`` for the same key resets the row back to
+          // ``running`` (no duplicate); preserves insertion order via
+          // ``next.set`` of an existing key.
+          next.set(key, {
+            skill,
+            articleId,
+            status: "running",
+            startedAt: existing?.startedAt ?? Date.now(),
+          });
+        } else if (stage === "done") {
+          const startedAt = existing?.startedAt ?? Date.now();
+          next.set(key, {
+            skill,
+            articleId,
+            status: "done",
+            startedAt,
+            durationMs:
+              typeof ev.duration_ms === "number" ? ev.duration_ms : undefined,
+          });
+        } else if (stage === "error") {
+          const startedAt = existing?.startedAt ?? Date.now();
+          next.set(key, {
+            skill,
+            articleId,
+            status: "error",
+            startedAt,
+            message: ev.message,
+          });
+        }
+        return next;
+      });
+      // Auto-expand on the first event of a run. We use the start stage
+      // specifically so a stray late ``done`` event doesn't re-open the
+      // panel after the user has collapsed it.
+      if (stage === "start") {
+        setSubagentsOpen((open) => open || true);
+      }
+      return { done: false };
+    }
     if (ev.type === "error") {
       return { done: true, errored: ev.data || "Unknown error" };
     }
@@ -396,6 +480,11 @@ export function ResearchMode({}: ResearchModeProps) {
     setErrorMessage(null);
     setLastSubmittedQuery(question);
     setCopied(false);
+    // M5 — clear the subagents map at the start of every run so rows
+    // from a previous query don't bleed into the current one. The panel
+    // also collapses; it'll re-expand on the first ``subagent: start``.
+    setSubagents(new Map());
+    setSubagentsOpen(false);
 
     const ac = new AbortController();
     abortRef.current = ac;
@@ -607,6 +696,40 @@ export function ResearchMode({}: ResearchModeProps) {
   const showReport = !showErrorPanel && reportText.length > 0;
   const showEmptyState = !showErrorPanel && !showReport && !isResearching;
 
+  // M5 — Subagent panel derived state. We render the panel only once at
+  // least one event has been received so a fresh load doesn't show an
+  // empty panel. Counts feed the header summary text.
+  const subagentRows = Array.from(subagents.values());
+  const showSubagentsPanel = subagentRows.length > 0;
+  let runningCount = 0;
+  let doneCount = 0;
+  let erroredCount = 0;
+  for (const row of subagentRows) {
+    if (row.status === "running") runningCount += 1;
+    else if (row.status === "done") doneCount += 1;
+    else if (row.status === "error") erroredCount += 1;
+  }
+  const subagentsHeaderText = `Subagents (${runningCount} running, ${doneCount} done, ${erroredCount} errored)`;
+
+  /**
+   * Format a duration in milliseconds as a short human-readable string.
+   * Used in the subagent row when a ``done`` event arrives — the user sees
+   * "1.2s" or "342ms" next to the badge.
+   */
+  function formatDuration(ms: number): string {
+    if (ms < 1000) return `${ms}ms`;
+    return `${(ms / 1000).toFixed(1)}s`;
+  }
+
+  /**
+   * Truncate a subagent error message for the row display. The full text
+   * is preserved on the row's ``title`` attribute so hovering reveals it.
+   */
+  function truncateMessage(msg: string, max = 80): string {
+    if (msg.length <= max) return msg;
+    return msg.slice(0, max - 1) + "…";
+  }
+
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <Card>
@@ -737,6 +860,85 @@ export function ResearchMode({}: ResearchModeProps) {
             </div>
           </CardHeader>
           <CardContent>
+            {showSubagentsPanel && (
+              <div
+                data-testid="research-subagents-panel"
+                className="mb-4 border border-gray-200 rounded-lg overflow-hidden"
+              >
+                <button
+                  type="button"
+                  onClick={() => setSubagentsOpen((open) => !open)}
+                  data-testid="research-subagents-header"
+                  aria-expanded={subagentsOpen}
+                  className="w-full flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 text-left text-sm font-medium text-gray-800"
+                >
+                  {subagentsOpen ? (
+                    <ChevronDown className="w-4 h-4 text-gray-600" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-gray-600" />
+                  )}
+                  <span>{subagentsHeaderText}</span>
+                </button>
+                {subagentsOpen && (
+                  <ul className="divide-y divide-gray-100">
+                    {subagentRows.map((row) => {
+                      const key = `${row.skill}:${row.articleId}`;
+                      const badgeVariant:
+                        | "default"
+                        | "secondary"
+                        | "destructive"
+                        | "outline" =
+                        row.status === "running"
+                          ? "secondary"
+                          : row.status === "error"
+                          ? "destructive"
+                          : "default";
+                      const statusLabel =
+                        row.status === "running"
+                          ? "running"
+                          : row.status === "error"
+                          ? "error"
+                          : "done";
+                      return (
+                        <li
+                          key={key}
+                          data-testid="research-subagent-row"
+                          className="flex items-center gap-3 px-3 py-2 text-sm text-gray-800 min-w-0"
+                        >
+                          <span
+                            className="font-mono text-xs text-gray-700 truncate"
+                            style={{ overflowWrap: "anywhere" }}
+                          >
+                            {row.skill}
+                          </span>
+                          <span className="text-gray-500 text-xs">
+                            #{row.articleId}
+                          </span>
+                          <Badge variant={badgeVariant} className="capitalize">
+                            {statusLabel}
+                          </Badge>
+                          {row.status === "done" &&
+                            typeof row.durationMs === "number" && (
+                              <span className="text-xs text-gray-500">
+                                {formatDuration(row.durationMs)}
+                              </span>
+                            )}
+                          {row.status === "error" && row.message && (
+                            <span
+                              className="text-xs text-red-600 truncate"
+                              title={row.message}
+                              style={{ overflowWrap: "anywhere" }}
+                            >
+                              {truncateMessage(row.message)}
+                            </span>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            )}
             {showErrorPanel ? (
               <div
                 data-testid="research-error-panel"

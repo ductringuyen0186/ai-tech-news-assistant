@@ -55,20 +55,48 @@ const beat = (page: Page, mult = 1) =>
 // SSE mock helper
 // ---------------------------------------------------------------------------
 
+interface SubagentMockEvent {
+  data: "start" | "done" | "error";
+  skill: string;
+  article_id: number;
+  duration_ms?: number;
+  message?: string;
+}
+
 interface MockOpts {
   phases?: string[];
   tokens?: string[];
   report?: string;
+  subagents?: SubagentMockEvent[];
 }
+
+// Default subagent events for every mocked run — gives the Subagents
+// panel (M5) something to render during the deterministic tests so we
+// don't regress its render path. Two starts + two dones land us in a
+// "0 running, 2 done, 0 errored" steady state.
+const DEFAULT_SUBAGENTS: SubagentMockEvent[] = [
+  { data: "start", skill: "summarize_article", article_id: 1 },
+  { data: "start", skill: "summarize_article", article_id: 2 },
+  { data: "done", skill: "summarize_article", article_id: 1, duration_ms: 1234 },
+  { data: "done", skill: "summarize_article", article_id: 2, duration_ms: 1456 },
+];
 
 function buildSSEBody({
   phases,
   tokens,
   report,
+  subagents,
 }: Required<MockOpts>): string {
   const frames: string[] = [];
   for (const p of phases) {
     frames.push(`data: ${JSON.stringify({ type: "phase", data: p })}\n\n`);
+  }
+  // Subagent telemetry lives between the phase ramp-up and the token
+  // stream. The order matches the production backend: agent decomposes
+  // and searches (phases), then fans out per-article subagents, then
+  // streams the synthesised report (tokens).
+  for (const sa of subagents) {
+    frames.push(`data: ${JSON.stringify({ type: "subagent", ...sa })}\n\n`);
   }
   for (const t of tokens) {
     frames.push(`data: ${JSON.stringify({ type: "token", data: t })}\n\n`);
@@ -113,7 +141,8 @@ async function installResearchMock(
   const phases = opts.phases ?? DEFAULT_PHASES;
   const tokens = opts.tokens ?? DEFAULT_TOKENS;
   const report = opts.report ?? DEFAULT_REPORT;
-  const body = buildSSEBody({ phases, tokens, report });
+  const subagents = opts.subagents ?? DEFAULT_SUBAGENTS;
+  const body = buildSSEBody({ phases, tokens, report, subagents });
 
   let count = 0;
   await page.route("**/api/research", async (route: Route) => {
@@ -626,5 +655,129 @@ test.describe("Research tab — rubric pass on streamed report", () => {
       assertConsoleClean(errors);
       await beat(page, 1.5);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 6 — Subagents panel rendering (mocked)
+// ---------------------------------------------------------------------------
+
+test.describe("Research tab — subagents panel", () => {
+  test("Subagents panel renders rows for streamed subagent events", async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+
+    const errors = installConsoleErrorListener(page);
+
+    await test.step(
+      "Test setup — install mock with explicit subagent telemetry events",
+      async () => {
+        await installResearchMock(page, {
+          subagents: [
+            { data: "start", skill: "summarize_article", article_id: 42 },
+            { data: "start", skill: "summarize_article", article_id: 99 },
+            {
+              data: "done",
+              skill: "summarize_article",
+              article_id: 42,
+              duration_ms: 1234,
+            },
+            {
+              data: "done",
+              skill: "summarize_article",
+              article_id: 99,
+              duration_ms: 2718,
+            },
+          ],
+        });
+      }
+    );
+
+    try {
+      await landOnApp(page);
+      await openResearchTab(page);
+      await submitResearch(page);
+
+      const phaseChip = page.getByTestId("research-phase-chip");
+      await test.step(
+        "User waits for the run to complete so all subagent frames have arrived",
+        async () => {
+          await expect(
+            phaseChip,
+            "I expect the phase chip to land on Done after the mocked run completes"
+          ).toHaveText(/Done/i, { timeout: 15_000 });
+          await beat(page);
+        }
+      );
+
+      const panel = page.getByTestId("research-subagents-panel");
+      await test.step(
+        "User expects the Subagents panel to be visible (events did arrive)",
+        async () => {
+          await expect(
+            panel,
+            "I expect the Subagents panel to render once at least one subagent event has been received"
+          ).toBeVisible({ timeout: 5_000 });
+          await beat(page);
+        }
+      );
+
+      await test.step(
+        "User expects the panel header to summarize the live counts",
+        async () => {
+          const header = page.getByTestId("research-subagents-header");
+          await expect(
+            header,
+            "I expect the panel header to be visible and labeled 'Subagents (...)'"
+          ).toBeVisible();
+          await expect(
+            header,
+            "I expect the header to contain the running/done/errored count summary so the user can read the run at a glance"
+          ).toContainText(/Subagents \(\d+ running, \d+ done, \d+ errored\)/i);
+          await expect(
+            header,
+            "I expect the header to reflect at least 2 'done' subagents from the mock"
+          ).toContainText(/2 done/i);
+          await beat(page);
+        }
+      );
+
+      await test.step(
+        "User expects one row per fanned-out subagent (≥2 from the mock)",
+        async () => {
+          const rows = page.getByTestId("research-subagent-row");
+          await expect(
+            rows,
+            "I expect at least 2 subagent rows — one per article the mock streamed"
+          ).toHaveCount(2, { timeout: 5_000 });
+
+          const firstRow = rows.first();
+          await expect(
+            firstRow,
+            "I expect the first row to display the skill name 'summarize_article'"
+          ).toContainText(/summarize_article/i);
+          await expect(
+            firstRow,
+            "I expect the first row to display an article ID marker (e.g. #42)"
+          ).toContainText(/#\d+/);
+          await expect(
+            firstRow,
+            "I expect the first row to advertise its 'done' status badge"
+          ).toContainText(/done/i);
+          await beat(page);
+        }
+      );
+
+      await test.step(
+        "User expects no console errors during the subagent render path",
+        async () => {
+          assertConsoleClean(errors);
+          await beat(page);
+        }
+      );
+    } finally {
+      await page.unroute("**/api/research");
+    }
   });
 });
