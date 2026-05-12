@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
+import { Tabs, TabsContent } from "./components/ui/tabs";
 import { Button } from "./components/ui/button";
 import { Badge } from "./components/ui/badge";
 import { Toaster } from "./components/ui/sonner";
@@ -11,13 +11,33 @@ import { DigestView } from "./components/DigestView";
 import { ChatInterface } from "./components/ChatInterface";
 import { ResearchMode } from "./components/ResearchMode";
 import { KnowledgeGraph } from "./components/KnowledgeGraph";
-import { Newspaper, Settings, Mail, MessageCircle, TrendingUp, Loader2, Grid, List, Lightbulb, Network } from "lucide-react";
-import { API_BASE_URL, API_ENDPOINTS, apiFetch } from "./config/api";
+import { ThemeProvider } from "./components/ThemeProvider";
+import { CommandPaletteProvider } from "./components/CommandPalette";
+import { Sidebar } from "./components/Sidebar";
+import {
+  Newspaper,
+  TrendingUp,
+  Loader2,
+  Grid,
+  List,
+  Bookmark,
+} from "lucide-react";
+import { API_ENDPOINTS, apiFetch } from "./config/api";
 
-export default function App() {
+/**
+ * AppShell — the actual UI. Lives inside <ThemeProvider> via the default
+ * <App /> export below. The shell renders the sidebar + main content
+ * inside a controlled Radix <Tabs> root so we keep the existing
+ * `role="tab"` / `role="tablist"` / `role="tabpanel"` accessibility tree
+ * that the 35 Playwright tests rely on.
+ */
+function AppShell() {
   const [articles, setArticles] = useState<any[]>([]);
   const [filteredArticles, setFilteredArticles] = useState<any[]>([]);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(["AI", "Machine Learning"]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([
+    "AI",
+    "Machine Learning",
+  ]);
   const [searchQuery, setSearchQuery] = useState("");
   const [digest, setDigest] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -27,24 +47,22 @@ export default function App() {
   const [savedCategories, setSavedCategories] = useState<string[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [totalArticleCount, setTotalArticleCount] = useState<number>(0);
+  // Active tab — controlled at App level so Sidebar (owns the TabsList) and
+  // CommandPalette can both mutate it. Radix Tabs becomes controlled via
+  // value/onValueChange.
+  const [activeTab, setActiveTab] = useState<string>("feed");
 
-  // Fetch articles
+  // -------------------------------------------------------------------------
+  // Data fetchers (unchanged from M2 — behavior is out of scope for M3.M1).
+  // -------------------------------------------------------------------------
   const fetchArticles = async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
-      
-      // Backend expects page_size, page, and an OR-ed `category` repeatable
-      // query param for category filtering. We previously sent
-      // `source=<category>` which never matched (categories live in the
-      // categories JSON column, not the source column) and forced the feed
-      // to "0 articles" the moment a chip was selected.
       params.append("page", "1");
       params.append("page_size", "50");
 
       if (selectedCategories.length > 0) {
-        // Send each selected chip as its own ?category= entry so the
-        // backend OR-matches them (?category=AI/ML&category=Cloud).
         for (const cat of selectedCategories) {
           if (cat && cat.trim()) {
             params.append("category", cat);
@@ -57,57 +75,43 @@ export default function App() {
 
       const data = await apiFetch<any>(`${API_ENDPOINTS.news}?${params}`);
       console.log("API Response:", data);
-      
-      // Map FastAPI response to expected format
-      // Backend returns PaginatedResponse with "data" field containing articles
+
       const articles = data.data || data.items || [];
-      // Build summaryShort + summaryMedium as truly distinct slices so the
-      // NewsCard expanded view doesn't render the same text twice. The
-      // backend's ``summary`` column for RSS-only rows is the same string as
-      // ``content`` (we only get one body per entry), so we truncate the
-      // available body to two different lengths instead of falling back to
-      // the same value.
       const buildSummaries = (a: any): { summaryShort: string; summaryMedium: string } => {
-        const body: string = (a.summary || a.content || '').toString().trim();
+        const body: string = (a.summary || a.content || "").toString().trim();
         if (!body) {
-          return { summaryShort: '', summaryMedium: '' };
+          return { summaryShort: "", summaryMedium: "" };
         }
         const short =
-          body.length > 200 ? body.slice(0, 200).trimEnd() + '...' : body;
+          body.length > 200 ? body.slice(0, 200).trimEnd() + "..." : body;
         const medium =
-          body.length > 600 ? body.slice(0, 600).trimEnd() + '...' : body;
+          body.length > 600 ? body.slice(0, 600).trimEnd() + "..." : body;
         return { summaryShort: short, summaryMedium: medium };
       };
-      const mappedArticles = articles.map((article: any) => {
-        const { summaryShort, summaryMedium } = buildSummaries(article);
-        return {
-          id: article.id,
-          title: article.title,
-          content: article.content,
-          summaryShort,
-          summaryMedium,
-          url: article.url,
-          publishedAt: article.published_at,
-          // Inline SVG fallback. Was previously
-          // `https://via.placeholder.com/400x300?text=Tech+News`, but that
-          // host has gone unreachable in our environment, which (a) lit up
-          // the rubric "console must be clean" check with a real
-          // `net::ERR_CONNECTION_CLOSED` for every imageless article on the
-          // feed, and (b) made the empty-state-or-results gate on the News
-          // Feed flap. A data: URI never round-trips and renders deterministically.
-          imageUrl:
-            article.image_url ||
-            "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'><rect width='400' height='300' fill='%23e5e7eb'/><text x='50%25' y='50%25' font-family='sans-serif' font-size='24' fill='%236b7280' text-anchor='middle' dominant-baseline='middle'>Tech News</text></svg>",
-          category: article.categories || [],
-          source: article.source,
-          credibilityScore: 85, // Default score
-          trending: false,
-          sentiment: 'neutral',
-          keyInsights: [],
-          sourcesUsed: [article.source],
-        };
-      }) || [];
-      
+      const mappedArticles =
+        articles.map((article: any) => {
+          const { summaryShort, summaryMedium } = buildSummaries(article);
+          return {
+            id: article.id,
+            title: article.title,
+            content: article.content,
+            summaryShort,
+            summaryMedium,
+            url: article.url,
+            publishedAt: article.published_at,
+            imageUrl:
+              article.image_url ||
+              "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'><rect width='400' height='300' fill='%23e5e7eb'/><text x='50%25' y='50%25' font-family='sans-serif' font-size='24' fill='%236b7280' text-anchor='middle' dominant-baseline='middle'>Tech News</text></svg>",
+            category: article.categories || [],
+            source: article.source,
+            credibilityScore: 85,
+            trending: false,
+            sentiment: "neutral",
+            keyInsights: [],
+            sourcesUsed: [article.source],
+          };
+        }) || [];
+
       setArticles(mappedArticles);
       setFilteredArticles(mappedArticles);
     } catch (error) {
@@ -118,10 +122,6 @@ export default function App() {
     }
   };
 
-  // Fetch stats - powers the "Articles Today" / total-count badge in the header.
-  // Backend wraps ArticleStats in BaseResponse: { success, message, data: { total_articles, recent_articles, ... } }
-  // We prefer recent_articles (last-24h) when populated, else fall back to total_articles
-  // so the header shows a meaningful number instead of 0.
   const fetchStats = async () => {
     try {
       const envelope = await apiFetch<any>(API_ENDPOINTS.newsStats);
@@ -134,12 +134,9 @@ export default function App() {
     }
   };
 
-  // Fetch digest - calls the real /api/digest/ endpoint which builds
-  // top stories, category breakdown, and trending topics from the DB.
   const fetchDigest = async () => {
     try {
       const data = await apiFetch<any>(API_ENDPOINTS.digest);
-      // Endpoint returns the DigestView-shaped payload directly (no envelope).
       setDigest(data);
     } catch (error) {
       console.error("Error fetching digest:", error);
@@ -147,9 +144,6 @@ export default function App() {
     }
   };
 
-  // Save preferences — write to the backend (source of truth) and mirror
-  // to localStorage as an offline cache so the next mount has something to
-  // fall back on if the network is down.
   const savePreferences = async () => {
     setIsSavingPreferences(true);
     try {
@@ -165,7 +159,6 @@ export default function App() {
       });
       const saved = envelope?.data ?? envelope;
 
-      // Mirror the persisted shape into local state + offline cache.
       const persistedCategories: string[] = Array.isArray(saved?.categories)
         ? saved.categories
         : selectedCategories;
@@ -174,7 +167,7 @@ export default function App() {
 
       try {
         localStorage.setItem(
-          'techpulse_categories',
+          "techpulse_categories",
           JSON.stringify(persistedCategories)
         );
       } catch {
@@ -182,11 +175,10 @@ export default function App() {
       }
 
       toast.success("Preferences saved successfully!", {
-        description: `Your feed will now show ${persistedCategories.length} selected topic${persistedCategories.length !== 1 ? 's' : ''}.`,
+        description: `Your feed will now show ${persistedCategories.length} selected topic${persistedCategories.length !== 1 ? "s" : ""}.`,
         duration: 3000,
       });
 
-      // Refresh articles after saving preferences
       await fetchArticles();
     } catch (error) {
       console.error("Error saving preferences:", error);
@@ -199,14 +191,12 @@ export default function App() {
     }
   };
 
-  // Ask question in chat - calls FastAPI RAG endpoint (retrieval + LLM).
   const handleAskQuestion = async (question: string) => {
     try {
       const envelope = await apiFetch<any>("/api/rag/query", {
         method: "POST",
         body: JSON.stringify({ question, top_k: 5, min_score: 0.3 }),
       });
-      // Backend wraps RAG output in BaseResponse: { success, message, data: { answer, sources, ... } }
       const data = envelope?.data ?? envelope;
       const rawSources = (data.sources || []).map((s: any) => ({
         id: String(s.id ?? ""),
@@ -214,14 +204,6 @@ export default function App() {
         title: s.title ?? "Untitled",
         summaryShort: s.source ?? "",
       }));
-      // Dedup by url FIRST (canonical identity — two retrieval hits that
-      // point at the same article URL are the same article even if the
-      // backend issued different ids), then fall back to id and title.
-      // Worker A's previous dedup was id+title only, but the user kept
-      // seeing duplicates because identical titles can vary by trailing
-      // whitespace / quote style — and the same canonical article can
-      // come back with different DB ids if it was re-ingested. URL is
-      // the only stable key the backend guarantees per article.
       const seenUrls = new Set<string>();
       const seenIds = new Set<string>();
       const seenTitles = new Set<string>();
@@ -237,52 +219,52 @@ export default function App() {
         if (titleKey) seenTitles.add(titleKey);
         return true;
       });
-      return { answer: data.answer ?? "(no answer returned)", relevantArticles: sources, success: true };
+      return {
+        answer: data.answer ?? "(no answer returned)",
+        relevantArticles: sources,
+        success: true,
+      };
     } catch (error) {
       console.error("Error processing question:", error);
-      return { answer: "Sorry - the chat backend is unreachable right now.", success: false };
+      return {
+        answer: "Sorry - the chat backend is unreachable right now.",
+        success: false,
+      };
     }
   };
 
-  // Load preferences and articles on mount.
-  //
-  // Source-of-truth order:
-  //   1. Backend GET /api/settings (authoritative — wins on success)
-  //   2. localStorage 'techpulse_categories' cache (offline fallback)
-  //   3. Hard-coded defaults already in component state
   useEffect(() => {
     const loadData = async () => {
       try {
         const envelope = await apiFetch<any>(API_ENDPOINTS.settings);
         const data = envelope?.data ?? envelope;
-        if (data && typeof data === 'object') {
+        if (data && typeof data === "object") {
           if (Array.isArray(data.categories)) {
             setSelectedCategories(data.categories);
             setSavedCategories(data.categories);
-            // Refresh the offline cache with the authoritative value.
             try {
               localStorage.setItem(
-                'techpulse_categories',
+                "techpulse_categories",
                 JSON.stringify(data.categories)
               );
             } catch {
               // Ignore cache write failures.
             }
           }
-          if (data.view_mode === 'compact' || data.view_mode === 'detailed') {
+          if (data.view_mode === "compact" || data.view_mode === "detailed") {
             setViewMode(data.view_mode);
           }
-          if (typeof data.show_trending_only === 'boolean') {
+          if (typeof data.show_trending_only === "boolean") {
             setShowTrendingOnly(data.show_trending_only);
           }
         }
       } catch (backendError) {
         console.warn(
-          'Backend settings unreachable; falling back to localStorage cache',
+          "Backend settings unreachable; falling back to localStorage cache",
           backendError
         );
         try {
-          const saved = localStorage.getItem('techpulse_categories');
+          const saved = localStorage.getItem("techpulse_categories");
           if (saved) {
             const cats = JSON.parse(saved);
             if (Array.isArray(cats)) {
@@ -291,7 +273,7 @@ export default function App() {
             }
           }
         } catch (cacheError) {
-          console.error('Error loading preferences from cache:', cacheError);
+          console.error("Error loading preferences from cache:", cacheError);
         }
       }
 
@@ -303,231 +285,254 @@ export default function App() {
     loadData();
   }, []);
 
-  // Check for unsaved changes
   useEffect(() => {
-    const categoriesChanged = JSON.stringify(selectedCategories.sort()) !== JSON.stringify(savedCategories.sort());
+    const categoriesChanged =
+      JSON.stringify(selectedCategories.sort()) !==
+      JSON.stringify(savedCategories.sort());
     setHasUnsavedChanges(categoriesChanged);
   }, [selectedCategories, savedCategories]);
 
-  // Refetch when filters change
   useEffect(() => {
     fetchArticles();
   }, [selectedCategories, searchQuery, showTrendingOnly]);
 
+  // -------------------------------------------------------------------------
+  // Render — sidebar + main pane inside a controlled Radix Tabs root.
+  // -------------------------------------------------------------------------
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 subtle-pattern">
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-lg border-b border-gray-200 shadow-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 gradient-primary rounded-xl flex items-center justify-center shadow-md">
-                <Newspaper className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl text-gradient">TechPulse AI</h1>
-                <p className="text-sm text-gray-600">AI-Powered Tech News Aggregation</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="gap-1 border-orange-200 bg-orange-50 text-orange-700">
-                <span>🔥</span>
-                {articles.filter((a) => a.trending).length} Trending
-              </Badge>
-              <Badge variant="outline" className="gap-1 border-blue-200 bg-blue-50 text-blue-700">
-                {totalArticleCount || articles.length} Articles Today
-              </Badge>
-            </div>
-          </div>
-        </div>
-      </header>
+    <Tabs
+      value={activeTab}
+      onValueChange={setActiveTab}
+      className="min-h-screen flex flex-row bg-background text-foreground"
+    >
+      <CommandPaletteProvider activeTab={activeTab} onSelectTab={setActiveTab}>
+        <Sidebar
+          activeTab={activeTab}
+          badges={hasUnsavedChanges ? { preferences: "unsaved" } : undefined}
+        />
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        <Tabs defaultValue="feed" className="space-y-6">
-          <TabsList className="grid grid-cols-6 w-full max-w-4xl mx-auto">
-            <TabsTrigger value="feed" className="gap-2">
-              <Newspaper className="w-4 h-4" />
-              News Feed
-            </TabsTrigger>
-            <TabsTrigger value="research" className="gap-2">
-              <Lightbulb className="w-4 h-4" />
-              Research
-            </TabsTrigger>
-            <TabsTrigger value="knowledge" className="gap-2">
-              <Network className="w-4 h-4" />
-              Knowledge
-            </TabsTrigger>
-            <TabsTrigger value="digest" className="gap-2">
-              <Mail className="w-4 h-4" />
-              Digest
-            </TabsTrigger>
-            <TabsTrigger value="chat" className="gap-2">
-              <MessageCircle className="w-4 h-4" />
-              Ask AI
-            </TabsTrigger>
-            <TabsTrigger value="preferences" className="gap-2 relative">
-              <Settings className="w-4 h-4" />
-              Settings
-              {hasUnsavedChanges && (
-                <span className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
-              )}
-            </TabsTrigger>
-          </TabsList>
-
-          {/* News Feed Tab */}
-          <TabsContent value="feed" className="space-y-6">
-            <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-              <div className="flex-1 w-full md:max-w-md">
-                <SearchBar onSearch={setSearchQuery} />
+        <main
+          data-slot="main-content"
+          className="flex-1 min-w-0 flex flex-col overflow-x-hidden"
+        >
+          {/* Top bar keeps the TechPulse heading visible — the existing
+              Playwright suite asserts `getByRole("heading", { name: /TechPulse AI/i })`
+              on every test. Brand mark itself lives in the sidebar. */}
+          <header className="border-b border-border bg-background/80 backdrop-blur-sm sticky top-0 z-10">
+            <div className="px-6 py-3 flex items-center justify-between">
+              <div className="flex items-baseline gap-2">
+                <h1 className="text-lg font-semibold tracking-tight">
+                  TechPulse AI
+                </h1>
+                <span className="text-xs text-muted-foreground">
+                  AI-powered tech news aggregation
+                </span>
               </div>
-              <div className="flex gap-2 items-center">
-                <Button
-                  variant={showTrendingOnly ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setShowTrendingOnly(!showTrendingOnly)}
-                  className="gap-2"
+              <div className="flex items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className="gap-1 text-xs border-border bg-muted/40 text-foreground"
                 >
-                  <TrendingUp className="w-4 h-4" />
-                  Trending Only
-                </Button>
-                <div className="flex gap-1 border rounded-lg p-1">
+                  <span>🔥</span>
+                  {articles.filter((a) => a.trending).length} Trending
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className="gap-1 text-xs border-border bg-muted/40 text-foreground"
+                >
+                  {totalArticleCount || articles.length} Articles Today
+                </Badge>
+              </div>
+            </div>
+          </header>
+
+          <div className="px-6 py-5 flex-1">
+            {/* News Feed Tab */}
+            <TabsContent value="feed" className="space-y-6 mt-0">
+              <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+                <div className="flex-1 w-full md:max-w-md">
+                  <SearchBar onSearch={setSearchQuery} />
+                </div>
+                <div className="flex gap-2 items-center">
                   <Button
-                    variant={viewMode === "detailed" ? "default" : "ghost"}
+                    variant={showTrendingOnly ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setViewMode("detailed")}
+                    onClick={() => setShowTrendingOnly(!showTrendingOnly)}
+                    className="gap-2"
                   >
-                    <Grid className="w-4 h-4" />
+                    <TrendingUp className="w-4 h-4" />
+                    Trending Only
                   </Button>
-                  <Button
-                    variant={viewMode === "compact" ? "default" : "ghost"}
-                    size="sm"
-                    onClick={() => setViewMode("compact")}
-                  >
-                    <List className="w-4 h-4" />
-                  </Button>
+                  <div className="flex gap-1 border rounded-lg p-1">
+                    <Button
+                      variant={viewMode === "detailed" ? "default" : "ghost"}
+                      size="sm"
+                      onClick={() => setViewMode("detailed")}
+                    >
+                      <Grid className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant={viewMode === "compact" ? "default" : "ghost"}
+                      size="sm"
+                      onClick={() => setViewMode("compact")}
+                    >
+                      <List className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {selectedCategories.length > 0 && (
-              <div className="flex flex-wrap gap-2 items-center bg-white p-4 rounded-xl border border-gray-200 elevation-sm">
-                <span className="text-sm text-gray-600">Filtered by:</span>
-                {selectedCategories.map((cat) => (
-                  <Badge key={cat} variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
-                    {cat}
-                  </Badge>
-                ))}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSelectedCategories([])}
-                  className="ml-auto text-gray-600 hover:text-blue-600"
+              {selectedCategories.length > 0 && (
+                <div className="flex flex-wrap gap-2 items-center bg-card p-3 rounded-lg border border-border">
+                  <span className="text-xs text-muted-foreground">
+                    Filtered by:
+                  </span>
+                  {selectedCategories.map((cat) => (
+                    <Badge
+                      key={cat}
+                      variant="secondary"
+                      className="text-xs"
+                    >
+                      {cat}
+                    </Badge>
+                  ))}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedCategories([])}
+                    className="ml-auto text-muted-foreground hover:text-foreground"
+                  >
+                    Clear Filters
+                  </Button>
+                </div>
+              )}
+
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                </div>
+              ) : filteredArticles.length === 0 ? (
+                <div className="text-center py-12 bg-card rounded-xl border border-border">
+                  <Newspaper className="w-12 h-12 text-primary mx-auto mb-3" />
+                  <h3 className="text-lg mb-2">No articles found</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Try adjusting your filters or search query
+                  </p>
+                  <Button
+                    onClick={() => {
+                      setSearchQuery("");
+                      setShowTrendingOnly(false);
+                      setSelectedCategories([]);
+                    }}
+                  >
+                    Reset Filters
+                  </Button>
+                </div>
+              ) : (
+                <div
+                  className={`grid gap-6 ${
+                    viewMode === "detailed"
+                      ? "grid-cols-1 lg:grid-cols-2"
+                      : "grid-cols-1"
+                  }`}
                 >
-                  Clear Filters
-                </Button>
-              </div>
-            )}
+                  {filteredArticles.map((article) => (
+                    <NewsCard
+                      key={article.id}
+                      article={article}
+                      viewMode={viewMode}
+                    />
+                  ))}
+                </div>
+              )}
+            </TabsContent>
 
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+            {/* Research Mode Tab — unchanged in M1; M2 will polish content. */}
+            <TabsContent value="research" className="mt-0">
+              <ResearchMode />
+            </TabsContent>
+
+            {/* Knowledge Graph Tab */}
+            <TabsContent value="knowledge" className="mt-0">
+              <KnowledgeGraph />
+            </TabsContent>
+
+            {/* Daily Digest Tab */}
+            <TabsContent value="digest" className="mt-0">
+              {digest ? (
+                <DigestView digest={digest} />
+              ) : (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                </div>
+              )}
+            </TabsContent>
+
+            {/* Chat Tab */}
+            <TabsContent value="chat" className="mt-0">
+              <div className="max-w-4xl mx-auto">
+                <ChatInterface onAskQuestion={handleAskQuestion} />
               </div>
-            ) : filteredArticles.length === 0 ? (
-              <div className="text-center py-12 bg-white rounded-xl border border-gray-200 elevation-md">
-                <Newspaper className="w-12 h-12 text-blue-600 mx-auto mb-3" />
-                <h3 className="text-lg mb-2 text-gray-900">No articles found</h3>
-                <p className="text-gray-600 mb-4">
-                  Try adjusting your filters or search query
+            </TabsContent>
+
+            {/* Saved Research Tab — placeholder for M5. The sidebar entry
+                renders so the IA is discoverable, but the panel is just a
+                "coming soon" message until M5 wires up the backend. */}
+            <TabsContent value="saved" className="mt-0">
+              <div className="max-w-2xl mx-auto py-12 text-center">
+                <Bookmark className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                <h2 className="text-base font-medium mb-1">Saved research</h2>
+                <p className="text-sm text-muted-foreground">
+                  Save a completed research report to revisit it here. Coming
+                  in the next milestone.
                 </p>
-                <Button onClick={() => {
-                  setSearchQuery("");
-                  setShowTrendingOnly(false);
-                  setSelectedCategories([]);
-                }} className="gradient-primary text-white">
-                  Reset Filters
-                </Button>
               </div>
-            ) : (
-              <div className={`grid gap-6 ${
-                viewMode === "detailed" 
-                  ? "grid-cols-1 lg:grid-cols-2" 
-                  : "grid-cols-1"
-              }`}>
-                {filteredArticles.map((article) => (
-                  <NewsCard
-                    key={article.id}
-                    article={article}
-                    viewMode={viewMode}
-                  />
-                ))}
+            </TabsContent>
+
+            {/* Preferences Tab */}
+            <TabsContent value="preferences" className="mt-0">
+              <div className="max-w-4xl mx-auto">
+                <TopicFilter
+                  selectedCategories={selectedCategories}
+                  onCategoriesChange={setSelectedCategories}
+                  onSave={savePreferences}
+                  isSaving={isSavingPreferences}
+                  hasUnsavedChanges={hasUnsavedChanges}
+                />
               </div>
-            )}
-          </TabsContent>
-
-          {/* Research Mode Tab */}
-          <TabsContent value="research">
-            <ResearchMode />
-          </TabsContent>
-
-          {/* Knowledge Graph Tab */}
-          <TabsContent value="knowledge">
-            <KnowledgeGraph />
-          </TabsContent>
-
-          {/* Daily Digest Tab */}
-          <TabsContent value="digest">
-            {digest ? (
-              <DigestView digest={digest} />
-            ) : (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-              </div>
-            )}
-          </TabsContent>
-
-          {/* Chat Tab */}
-          <TabsContent value="chat">
-            <div className="max-w-4xl mx-auto">
-              <ChatInterface onAskQuestion={handleAskQuestion} />
-            </div>
-          </TabsContent>
-
-          {/* Preferences Tab */}
-          <TabsContent value="preferences">
-            <div className="max-w-4xl mx-auto">
-              <TopicFilter
-                selectedCategories={selectedCategories}
-                onCategoriesChange={setSelectedCategories}
-                onSave={savePreferences}
-                isSaving={isSavingPreferences}
-                hasUnsavedChanges={hasUnsavedChanges}
-              />
-            </div>
-          </TabsContent>
-        </Tabs>
-      </div>
-
-      {/* Toast Notifications */}
-      <Toaster position="bottom-right" />
-
-      {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 mt-12">
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center shadow-md">
-                <Newspaper className="w-4 h-4 text-white" />
-              </div>
-              <span className="text-sm text-gray-700">
-                TechPulse AI - Your personalized tech news hub
-              </span>
-            </div>
-            <p className="text-sm text-gray-500">
-              Aggregating from TechCrunch, The Verge, Wired, Ars Technica & more
-            </p>
+            </TabsContent>
           </div>
-        </div>
-      </footer>
-    </div>
+
+          {/* Toast Notifications */}
+          <Toaster position="bottom-right" />
+
+          {/* Footer */}
+          <footer className="border-t border-border mt-8">
+            <div className="px-6 py-4">
+              <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
+                <span>TechPulse AI — your personalised tech-news hub</span>
+                <span>
+                  Aggregating from TechCrunch, The Verge, Wired, Ars Technica
+                  &amp; more
+                </span>
+              </div>
+            </div>
+          </footer>
+        </main>
+      </CommandPaletteProvider>
+    </Tabs>
+  );
+}
+
+/**
+ * Top-level App — wraps the shell in ThemeProvider so the rest of the app
+ * (including the inline-bootstrap-set `<html class="dark">`) shares one
+ * source of truth for the current theme.
+ */
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppShell />
+    </ThemeProvider>
   );
 }

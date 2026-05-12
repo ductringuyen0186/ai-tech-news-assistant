@@ -6,6 +6,30 @@
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <link rel="icon" href="data:," />
       <title>AI-Powered Tech News Aggregator</title>
+      <!--
+        FOUC-free theme bootstrap. Runs synchronously BEFORE React mounts
+        so the `<html class="dark">` class is applied on the very first
+        paint and the page never flashes the light-default styling.
+
+        Read-only: we do NOT write to localStorage here. The downstream
+        Settings persistence test asserts a fresh browser context has
+        empty localStorage on first paint; auto-writing the default
+        would break that contract.
+      -->
+      <script>
+        (function () {
+          try {
+            var stored = localStorage.getItem("techpulse-theme");
+            var theme = (stored === "light" || stored === "dark") ? stored : "dark";
+            if (theme === "dark") {
+              document.documentElement.classList.add("dark");
+            }
+          } catch (e) {
+            // Privacy mode / disabled storage — fall back to dark default.
+            try { document.documentElement.classList.add("dark"); } catch (_) {}
+          }
+        })();
+      </script>
     </head>
 
     <body>
