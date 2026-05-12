@@ -61,6 +61,13 @@ interface SubagentMockEvent {
   article_id: number;
   duration_ms?: number;
   message?: string;
+  /** M3.M2 — per-article summary preview (truncated to 280 chars). */
+  summary?: string;
+}
+
+interface SearchResultsMockEvent {
+  sub_question_index: number;
+  articles: Array<{ id: number; title: string; source: string }>;
 }
 
 interface MockOpts {
@@ -68,17 +75,69 @@ interface MockOpts {
   tokens?: string[];
   report?: string;
   subagents?: SubagentMockEvent[];
+  /** M3.M2 — sub-questions list emitted in the `decomposed` event. */
+  subQuestions?: string[];
+  /** M3.M2 — search_results events; one per sub-question typically. */
+  searchResults?: SearchResultsMockEvent[];
 }
+
+// Default sub-questions for every mocked run — lets the new
+// SubQuestionsPanel render during the existing tests.
+const DEFAULT_SUB_QUESTIONS: string[] = [
+  "What companies are leading AI chip design?",
+  "How are prices evolving across vendors?",
+  "Which edge-deployment use cases are growing?",
+];
+
+// Default search_results events — one per sub-question. The article IDs
+// match the DEFAULT_SUBAGENTS below so the sub-questions panel can map
+// subagent rows back to the questions that triggered them.
+const DEFAULT_SEARCH_RESULTS: SearchResultsMockEvent[] = [
+  {
+    sub_question_index: 0,
+    articles: [
+      { id: 1, title: "AI Chip Leader Profile", source: "TechCrunch" },
+      { id: 2, title: "Latest Chip Benchmarks", source: "ArsTechnica" },
+    ],
+  },
+  {
+    sub_question_index: 1,
+    articles: [
+      { id: 1, title: "Pricing Pressure Report", source: "TechCrunch" },
+    ],
+  },
+  {
+    sub_question_index: 2,
+    articles: [
+      { id: 2, title: "Edge AI Deployments Surge", source: "ArsTechnica" },
+    ],
+  },
+];
 
 // Default subagent events for every mocked run — gives the Subagents
 // panel (M5) something to render during the deterministic tests so we
 // don't regress its render path. Two starts + two dones land us in a
-// "0 running, 2 done, 0 errored" steady state.
+// "0 running, 2 done, 0 errored" steady state. M3.M2 enriches each
+// `done` event with a per-article `summary` preview.
 const DEFAULT_SUBAGENTS: SubagentMockEvent[] = [
   { data: "start", skill: "summarize_article", article_id: 1 },
   { data: "start", skill: "summarize_article", article_id: 2 },
-  { data: "done", skill: "summarize_article", article_id: 1, duration_ms: 1234 },
-  { data: "done", skill: "summarize_article", article_id: 2, duration_ms: 1456 },
+  {
+    data: "done",
+    skill: "summarize_article",
+    article_id: 1,
+    duration_ms: 1234,
+    summary:
+      "Article 1 summary: leading AI chip vendor announced a new architecture targeting edge inference workloads with 40% lower power.",
+  },
+  {
+    data: "done",
+    skill: "summarize_article",
+    article_id: 2,
+    duration_ms: 1456,
+    summary:
+      "Article 2 summary: benchmark comparison across tier-1 vendors shows pricing pressure squeezing margins on commodity SKUs.",
+  },
 ];
 
 function buildSSEBody({
@@ -86,21 +145,47 @@ function buildSSEBody({
   tokens,
   report,
   subagents,
+  subQuestions,
+  searchResults,
 }: Required<MockOpts>): string {
   const frames: string[] = [];
+  // 1) Decomposing phase first (legacy contract).
+  // We assume the first phase in `phases` is "Decomposing" — emit the
+  // M3.M2 `decomposed` event right after it.
+  let decomposedEmitted = false;
+  let searchIndex = 0;
   for (const p of phases) {
     frames.push(`data: ${JSON.stringify({ type: "phase", data: p })}\n\n`);
+    if (!decomposedEmitted && p === "Decomposing") {
+      frames.push(
+        `data: ${JSON.stringify({
+          type: "decomposed",
+          sub_questions: subQuestions,
+        })}\n\n`
+      );
+      decomposedEmitted = true;
+      continue;
+    }
+    // After each "Searching (i/N)" phase, emit the matching search_results.
+    if (p.startsWith("Searching ") && searchIndex < searchResults.length) {
+      frames.push(
+        `data: ${JSON.stringify({
+          type: "search_results",
+          ...searchResults[searchIndex],
+        })}\n\n`
+      );
+      searchIndex += 1;
+    }
   }
-  // Subagent telemetry lives between the phase ramp-up and the token
-  // stream. The order matches the production backend: agent decomposes
-  // and searches (phases), then fans out per-article subagents, then
-  // streams the synthesised report (tokens).
+  // 2) Subagent events come after the search phases.
   for (const sa of subagents) {
     frames.push(`data: ${JSON.stringify({ type: "subagent", ...sa })}\n\n`);
   }
+  // 3) Synthesizing tokens.
   for (const t of tokens) {
     frames.push(`data: ${JSON.stringify({ type: "token", data: t })}\n\n`);
   }
+  // 4) Terminal done.
   frames.push(
     `data: ${JSON.stringify({ type: "phase", data: "done", report })}\n\n`
   );
@@ -142,7 +227,16 @@ async function installResearchMock(
   const tokens = opts.tokens ?? DEFAULT_TOKENS;
   const report = opts.report ?? DEFAULT_REPORT;
   const subagents = opts.subagents ?? DEFAULT_SUBAGENTS;
-  const body = buildSSEBody({ phases, tokens, report, subagents });
+  const subQuestions = opts.subQuestions ?? DEFAULT_SUB_QUESTIONS;
+  const searchResults = opts.searchResults ?? DEFAULT_SEARCH_RESULTS;
+  const body = buildSSEBody({
+    phases,
+    tokens,
+    report,
+    subagents,
+    subQuestions,
+    searchResults,
+  });
 
   let count = 0;
   await page.route("**/api/research", async (route: Route) => {
@@ -773,6 +867,230 @@ test.describe("Research tab — subagents panel", () => {
         "User expects no console errors during the subagent render path",
         async () => {
           assertConsoleClean(errors);
+          await beat(page);
+        }
+      );
+    } finally {
+      await page.unroute("**/api/research");
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 7 (M3.M2) — Markdown table rendering
+// ---------------------------------------------------------------------------
+
+test.describe("Research tab — markdown table rendering", () => {
+  test("a markdown table in the report body renders as a <table> with <th>/<td>", async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+
+    await test.step(
+      "Test setup — install mock whose report contains a GFM markdown table",
+      async () => {
+        await installResearchMock(page, {
+          report:
+            "## Executive Summary\n" +
+            "Recent AI funding rounds [1].\n\n" +
+            "## Key Findings\n\n" +
+            "| Company | Amount | Round |\n" +
+            "|---|---|---|\n" +
+            "| Pit | $9M | Seed |\n" +
+            "| Anthropic | $4B | Series E |\n" +
+            "| OpenAI | $40B | Strategic |\n\n" +
+            "## Sources Used\n" +
+            "1. TechCrunch -- https://example.com/ai-funding\n",
+        });
+      }
+    );
+
+    try {
+      await landOnApp(page);
+      await openResearchTab(page);
+      await submitResearch(page);
+
+      const phaseChip = page.getByTestId("research-phase-chip");
+      await test.step(
+        "User waits for the run to land on Done so the full report renders",
+        async () => {
+          await expect(
+            phaseChip,
+            "I expect the phase chip to land on Done after the mocked run"
+          ).toHaveText(/Done/i, { timeout: 15_000 });
+          await beat(page);
+        }
+      );
+
+      const reportBody = page.getByTestId("research-report-body");
+
+      await test.step(
+        "User expects the markdown table to render as a real <table> element",
+        async () => {
+          const table = reportBody.locator("table").first();
+          await expect(
+            table,
+            "I expect a <table> element in the report body (the M3.M2 table-bug fix)"
+          ).toBeVisible({ timeout: 5_000 });
+
+          const headers = table.locator("th");
+          await expect(
+            headers,
+            "I expect 3 <th> header cells corresponding to | Company | Amount | Round |"
+          ).toHaveCount(3, { timeout: 5_000 });
+
+          const cells = table.locator("td");
+          await expect(
+            cells,
+            "I expect 9 <td> data cells (3 rows x 3 columns)"
+          ).toHaveCount(9, { timeout: 5_000 });
+
+          await expect(
+            table,
+            "I expect the first row to contain 'Pit'"
+          ).toContainText(/Pit/);
+          await expect(
+            table,
+            "I expect the table body to contain 'Anthropic'"
+          ).toContainText(/Anthropic/);
+          await beat(page);
+        }
+      );
+    } finally {
+      await page.unroute("**/api/research");
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 8 (M3.M2) — Sub-questions panel renders >=3 numbered items
+// ---------------------------------------------------------------------------
+
+test.describe("Research tab — sub-questions panel", () => {
+  test("sub-questions panel renders the decomposed list within 5 seconds of submit", async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+
+    await test.step(
+      "Test setup — install mock with the default 3 sub-questions",
+      async () => {
+        await installResearchMock(page);
+      }
+    );
+
+    try {
+      await landOnApp(page);
+      await openResearchTab(page);
+      await submitResearch(page);
+
+      const panel = page.getByTestId("research-sub-questions-panel");
+
+      await test.step(
+        "User expects the sub-questions panel to appear within 5 seconds",
+        async () => {
+          await expect(
+            panel,
+            "I expect the sub-questions panel to render within 5s of submit (M3.M2 time-to-first-content target)"
+          ).toBeVisible({ timeout: 5_000 });
+        }
+      );
+
+      await test.step(
+        "User expects 3 numbered sub-question rows from the default mock",
+        async () => {
+          const rows = page.getByTestId("research-sub-question-row");
+          await expect(
+            rows,
+            "I expect at least 3 sub-question rows from the default mock"
+          ).toHaveCount(3, { timeout: 5_000 });
+
+          await expect(
+            rows.first(),
+            "I expect the first row to contain the first sub-question text"
+          ).toContainText(/AI chip/i);
+          await beat(page);
+        }
+      );
+
+      await test.step(
+        "User expects article titles to appear under sub-questions after search_results arrive",
+        async () => {
+          const articles = page.getByTestId("research-sub-question-article");
+          await expect(
+            articles.first(),
+            "I expect at least one article row under a sub-question"
+          ).toBeVisible({ timeout: 10_000 });
+          await beat(page);
+        }
+      );
+    } finally {
+      await page.unroute("**/api/research");
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 9 (M3.M2) — Subagent row expands to reveal summary preview
+// ---------------------------------------------------------------------------
+
+test.describe("Research tab — subagent row expand", () => {
+  test("clicking a done subagent row reveals its per-article summary preview", async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+
+    await test.step(
+      "Test setup — install mock with enriched subagent:done summary fields",
+      async () => {
+        await installResearchMock(page);
+      }
+    );
+
+    try {
+      await landOnApp(page);
+      await openResearchTab(page);
+      await submitResearch(page);
+
+      const phaseChip = page.getByTestId("research-phase-chip");
+      await test.step(
+        "User waits for the run to complete so subagent done events arrive",
+        async () => {
+          await expect(
+            phaseChip,
+            "I expect the phase chip to land on Done so all subagent events arrived"
+          ).toHaveText(/Done/i, { timeout: 15_000 });
+          await beat(page);
+        }
+      );
+
+      const rows = page.getByTestId("research-subagent-row");
+      const firstRow = rows.first();
+      await test.step(
+        "User clicks the first subagent row expecting the summary preview to appear",
+        async () => {
+          await expect(
+            firstRow,
+            "I expect at least one subagent row from the mock"
+          ).toBeVisible({ timeout: 5_000 });
+          const toggle = firstRow.getByTestId("research-subagent-row-toggle");
+          await toggle.click();
+          await beat(page, 0.5);
+        }
+      );
+
+      await test.step(
+        "User expects the per-article summary text to appear inline",
+        async () => {
+          const summary = firstRow.getByTestId("research-subagent-summary");
+          await expect(
+            summary,
+            "I expect the expanded summary preview to render the M3.M2 enriched-event text"
+          ).toBeVisible({ timeout: 5_000 });
+          await expect(
+            summary,
+            "I expect the summary preview to contain real text from the mock"
+          ).toContainText(/summary/i);
           await beat(page);
         }
       );

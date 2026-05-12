@@ -339,3 +339,196 @@ def test_inflight_gate_releases_on_completion(monkeypatch):
         "POST", "/api/research", json={"question": "two"}
     ) as resp:
         assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------- #
+#  M3.M2 — Three additive event types: decomposed, search_results,
+#  subagent:done with `summary` field. Backward compatible with the 6
+#  existing tests above.
+# ---------------------------------------------------------------------- #
+
+
+def test_decomposed_event_emitted(monkeypatch):
+    """A ``decomposed`` event MUST arrive with the sub-questions list.
+
+    The new event allows the frontend to render the sub-questions panel
+    within ~5s of submit (before any synthesis tokens). It's ADDITIVE —
+    existing phase events still fire in the same sequence.
+    """
+    stub = _StubAgent(
+        events=[
+            {"type": "phase", "data": "Decomposing"},
+            {
+                "type": "decomposed",
+                "sub_questions": [
+                    "What companies are involved?",
+                    "How does the new chip compare?",
+                    "What's the funding situation?",
+                ],
+            },
+            {"type": "phase", "data": "Searching (1/3)"},
+            {"type": "phase", "data": "Synthesizing"},
+            {"type": "token", "data": "## Summary\n"},
+            {
+                "type": "phase",
+                "data": "done",
+                "report": "## Summary\n[1] x\n",
+            },
+        ]
+    )
+    monkeypatch.setattr(research_route, "_build_service", lambda: stub)
+
+    app = _build_app()
+    client = TestClient(app)
+    with client.stream(
+        "POST", "/api/research", json={"question": "anything"}
+    ) as resp:
+        assert resp.status_code == 200
+        body = b"".join(resp.iter_bytes())
+
+    payloads = _data_payloads(_parse_sse_blocks(body))
+    decomposed = [p for p in payloads if p.get("type") == "decomposed"]
+    assert len(decomposed) == 1, payloads
+    assert isinstance(decomposed[0].get("sub_questions"), list)
+    assert len(decomposed[0]["sub_questions"]) == 3
+    assert all(isinstance(q, str) for q in decomposed[0]["sub_questions"])
+
+    # Decomposed event MUST arrive BEFORE any Searching phase event so
+    # the frontend can pre-render the sub-question slots.
+    decomposed_idx = next(
+        i for i, p in enumerate(payloads) if p.get("type") == "decomposed"
+    )
+    searching_indices = [
+        i for i, p in enumerate(payloads)
+        if p.get("type") == "phase"
+        and isinstance(p.get("data"), str)
+        and p["data"].startswith("Searching")
+    ]
+    assert searching_indices, "expected at least one Searching phase event"
+    assert decomposed_idx < min(searching_indices), (
+        "decomposed event must arrive before the first Searching phase event"
+    )
+
+
+def test_search_results_event_per_sub_question(monkeypatch):
+    """One ``search_results`` event MUST arrive per sub-question.
+
+    Each event names the sub-question index (0-based) and an articles
+    list of ``{id, title, source}`` previews. Body / snippet are NOT
+    included — those keep the frame small.
+    """
+    stub = _StubAgent(
+        events=[
+            {"type": "phase", "data": "Decomposing"},
+            {
+                "type": "decomposed",
+                "sub_questions": ["q1", "q2"],
+            },
+            {"type": "phase", "data": "Searching (1/2)"},
+            {
+                "type": "search_results",
+                "sub_question_index": 0,
+                "articles": [
+                    {"id": 42, "title": "Article 42", "source": "TechCrunch"},
+                    {"id": 17, "title": "Article 17", "source": "ArsTechnica"},
+                ],
+            },
+            {"type": "phase", "data": "Searching (2/2)"},
+            {
+                "type": "search_results",
+                "sub_question_index": 1,
+                "articles": [
+                    {"id": 99, "title": "Article 99", "source": "Wired"},
+                ],
+            },
+            {"type": "phase", "data": "Synthesizing"},
+            {
+                "type": "phase",
+                "data": "done",
+                "report": "## Summary\n[1] x\n",
+            },
+        ]
+    )
+    monkeypatch.setattr(research_route, "_build_service", lambda: stub)
+
+    app = _build_app()
+    client = TestClient(app)
+    with client.stream(
+        "POST", "/api/research", json={"question": "anything"}
+    ) as resp:
+        body = b"".join(resp.iter_bytes())
+
+    payloads = _data_payloads(_parse_sse_blocks(body))
+    sr = [p for p in payloads if p.get("type") == "search_results"]
+    assert len(sr) == 2, payloads
+    # Indices are 0-based.
+    assert {e.get("sub_question_index") for e in sr} == {0, 1}
+
+    for e in sr:
+        articles = e.get("articles")
+        assert isinstance(articles, list)
+        for a in articles:
+            assert set(a.keys()) >= {"id", "title", "source"}, a
+            # Body / snippet keys MUST be absent from the SSE frame.
+            assert "body" not in a
+            assert "snippet" not in a
+            assert "summary" not in a
+
+
+def test_subagent_done_includes_summary_field(monkeypatch):
+    """Each ``subagent: done`` event MUST include a ``summary`` field.
+
+    The summary is the first 280 chars of the per-article summary; the
+    frontend uses it for the expandable-row preview. Other subagent
+    lifecycle fields (skill, article_id, duration_ms) are preserved.
+    """
+    stub = _StubAgent(
+        events=[
+            {
+                "type": "subagent",
+                "data": "start",
+                "skill": "summarize_article",
+                "article_id": 42,
+            },
+            {
+                "type": "subagent",
+                "data": "done",
+                "skill": "summarize_article",
+                "article_id": 42,
+                "duration_ms": 1234,
+                "summary": "The article describes a new AI chip launch. "
+                "Pricing pressure across tier-1 vendors. "
+                "Edge-deployment focus growing. " * 2,
+            },
+            {
+                "type": "phase",
+                "data": "done",
+                "report": "x\n[1] y\n",
+            },
+        ]
+    )
+    monkeypatch.setattr(research_route, "_build_service", lambda: stub)
+
+    app = _build_app()
+    client = TestClient(app)
+    with client.stream(
+        "POST", "/api/research", json={"question": "anything"}
+    ) as resp:
+        body = b"".join(resp.iter_bytes())
+
+    payloads = _data_payloads(_parse_sse_blocks(body))
+    dones = [
+        p
+        for p in payloads
+        if p.get("type") == "subagent" and p.get("data") == "done"
+    ]
+    assert len(dones) == 1, payloads
+    done = dones[0]
+    # The new field MUST be present.
+    assert "summary" in done, done
+    assert isinstance(done["summary"], str)
+    assert len(done["summary"]) > 0
+    # Existing fields preserved (backward compat).
+    assert done.get("skill") == "summarize_article"
+    assert done.get("article_id") == 42
+    assert done.get("duration_ms") == 1234

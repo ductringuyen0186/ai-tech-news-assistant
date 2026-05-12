@@ -196,6 +196,7 @@ def _assert_subagent_telemetry(events: List[Dict[str, Any]]) -> None:
     2. ``>= 1`` ``{"type": "subagent", "data": "done"}`` events.
     3. Every ``start`` event names the ``summarize_article`` skill —
        the only per-article subagent shipped in Mission 2.
+    4. (M3.M2) Every ``done`` event carries a ``summary`` field (str).
     """
     starts = [
         e for e in events
@@ -213,6 +214,42 @@ def _assert_subagent_telemetry(events: List[Dict[str, Any]]) -> None:
         f"unexpected subagent skill set: {skills!r} "
         f"(expected only {{'summarize_article'}})"
     )
+
+    # M3.M2: every `done` event MUST include a `summary` field.
+    for d in dones:
+        assert "summary" in d, (
+            f"M3.M2 contract violated: subagent:done missing 'summary' "
+            f"field: {d!r}"
+        )
+        assert isinstance(d["summary"], str)
+
+
+def _assert_m3m2_events_present(events: List[Dict[str, Any]]) -> None:
+    """M3.M2 contract: ``decomposed`` and ``search_results`` events MUST
+    appear in the live SSE stream so the frontend can render the
+    sub-questions panel + per-question article previews within ~5s of
+    submit.
+    """
+    decomposed = [e for e in events if e.get("type") == "decomposed"]
+    search_results = [e for e in events if e.get("type") == "search_results"]
+    assert len(decomposed) >= 1, (
+        "M3.M2 contract: no `decomposed` event in SSE stream"
+    )
+    assert isinstance(decomposed[0].get("sub_questions"), list)
+    assert len(decomposed[0]["sub_questions"]) >= 1
+
+    assert len(search_results) >= 1, (
+        "M3.M2 contract: no `search_results` event in SSE stream"
+    )
+    for sr in search_results:
+        assert isinstance(sr.get("sub_question_index"), int)
+        articles = sr.get("articles")
+        assert isinstance(articles, list)
+        for a in articles:
+            assert set(a.keys()) >= {"id", "title", "source"}, a
+            # SSE-frame size discipline: body / snippet must not leak.
+            assert "body" not in a
+            assert "snippet" not in a
 
 
 def _distinct_citations(report: str) -> int:
@@ -276,6 +313,9 @@ def test_one_article_scenario():
     # M6 contract: subagent telemetry MUST flow over SSE.
     _assert_subagent_telemetry(events)
 
+    # M3.M2 contract: decomposed + search_results events present.
+    _assert_m3m2_events_present(events)
+
     # Subagent fan-out: the agent's decomposer expands the focused
     # question into 3-5 sub-questions, each searching with top_k=5; with
     # dedup that yields up to ~15 unique articles, capped at 20 by the
@@ -322,6 +362,9 @@ def test_ten_article_scenario():
 
     # M6 contract: subagent telemetry MUST flow over SSE.
     _assert_subagent_telemetry(events)
+
+    # M3.M2 contract: decomposed + search_results events present.
+    _assert_m3m2_events_present(events)
 
     # Subagent count: between 3 and 20 (we accept a wide band because
     # search top_k * sub_q count varies by decomposer).
@@ -385,6 +428,9 @@ def test_twenty_article_scenario():
 
     # M6 contract: subagent telemetry MUST flow over SSE.
     _assert_subagent_telemetry(events)
+
+    # M3.M2 contract: decomposed + search_results events present.
+    _assert_m3m2_events_present(events)
 
     # Subagent count: 5-25 (broad query). The fan-out CAP is 20
     # (MAX_ARTICLES_FANOUT); the floor depends on how many distinct

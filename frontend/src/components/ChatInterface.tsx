@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
+import { MarkdownReport } from "./MarkdownReport";
 
 interface Message {
   id: string;
@@ -122,7 +123,11 @@ export function ChatInterface({ onAskQuestion }: ChatInterfaceProps) {
                   }`}
                   style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
                 >
-                  <p className="text-sm whitespace-pre-wrap break-words" style={{ overflowWrap: "anywhere" }}>{message.content}</p>
+                  {message.role === "assistant" ? (
+                    <MarkdownReport text={message.content} linkifyCitations />
+                  ) : (
+                    <p className="text-sm whitespace-pre-wrap break-words" style={{ overflowWrap: "anywhere" }}>{message.content}</p>
+                  )}
                   
                   {message.relevantArticles && message.relevantArticles.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-gray-300 space-y-2">

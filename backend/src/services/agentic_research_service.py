@@ -299,6 +299,11 @@ class AgenticResearchService:
             question[:80],
         )
 
+        # ------- M3.M2: emit `decomposed` event so the frontend can render
+        # the sub-questions list within ~5s of submit, well before any
+        # synthesis tokens. Additive — coexists with existing phase events.
+        yield {"type": "decomposed", "sub_questions": list(sub_questions)}
+
         # ------- Phase 2: Search per sub-question -------
         sub_results: List[_SubQuestionResult] = []
         for i, sub in enumerate(sub_questions, start=1):
@@ -313,6 +318,31 @@ class AgenticResearchService:
                 )
                 hits = []
             sub_results.append(_SubQuestionResult(question=sub, hits=hits))
+
+            # ------- M3.M2: emit `search_results` event with the article
+            # preview list for this sub-question. Keep frame small — only
+            # id, title, source (NOT body or snippet).
+            preview: List[Dict[str, Any]] = []
+            for h in hits:
+                aid = h.get("id")
+                try:
+                    aid_int = int(aid) if aid is not None else None
+                except (TypeError, ValueError):
+                    aid_int = None
+                if aid_int is None:
+                    continue
+                preview.append(
+                    {
+                        "id": aid_int,
+                        "title": (h.get("title") or "")[:200],
+                        "source": (h.get("source") or "")[:60],
+                    }
+                )
+            yield {
+                "type": "search_results",
+                "sub_question_index": i - 1,  # 0-based for the frontend
+                "articles": preview,
+            }
 
         # ------- Phase 3: Per-article subagent fan-out -------
         article_summaries: List[_ArticleSummary] = []
@@ -751,16 +781,47 @@ class AgenticResearchService:
 
         async def _one(c: Dict[str, Any]) -> None:
             aid = c["id"]
-            on_event = lambda e: queue.put_nowait(("event", e))  # noqa: E731
+
+            # M3.M2: buffer the pool's `done` event for THIS article so we
+            # can enrich it with the first 280 chars of the per-article
+            # summary before forwarding to the SSE consumer. Other events
+            # (start, error, other articles) pass through unchanged.
+            buffered_done: Dict[str, Optional[Dict[str, Any]]] = {"frame": None}
+
+            def _on_event(evt: Dict[str, Any]) -> None:
+                if (
+                    evt.get("type") == "subagent"
+                    and evt.get("data") == "done"
+                    and evt.get("article_id") == aid
+                ):
+                    # Hold this frame; we'll re-emit it after dispatch
+                    # returns with the parsed summary in hand.
+                    buffered_done["frame"] = evt
+                    return
+                queue.put_nowait(("event", evt))
+
             args = {
                 "article_id": aid,
                 "focus_question": question,
             }
             try:
-                parsed = await pool.dispatch(skill, args, on_event)
+                parsed = await pool.dispatch(skill, args, _on_event)
             except Exception as exc:  # noqa: BLE001 — pool guarantees no raise
                 logger.warning("dispatch raised unexpectedly: %s", exc)
                 parsed = None
+
+            # Flush the buffered done event (if any), enriched with a
+            # truncated summary preview for the M3.M2 UX. The truncation
+            # bound (280 chars) keeps SSE frames small; the frontend uses
+            # this only for the expandable-row preview.
+            done_frame = buffered_done["frame"]
+            if done_frame is not None:
+                summary_preview = ""
+                if isinstance(parsed, dict):
+                    summary_preview = (parsed.get("summary") or "")[:280]
+                # Mutate the buffered frame (it's our own dict) and emit.
+                done_frame["summary"] = summary_preview
+                queue.put_nowait(("event", done_frame))
 
             if isinstance(parsed, dict) and parsed.get("summary"):
                 summary_text = (parsed.get("summary") or "")[
