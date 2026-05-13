@@ -41,6 +41,12 @@ function AppShell() {
   ]);
   const [searchQuery, setSearchQuery] = useState("");
   const [digest, setDigest] = useState<any>(null);
+  // Polish iter 3 / Part C — separate state for the three new digest panels
+  // so the existing /api/digest/ call doesn't block the rest of the UI.
+  const [dailySummary, setDailySummary] = useState<any>(null);
+  const [dailySummaryLoading, setDailySummaryLoading] = useState(false);
+  const [curatedHeadlines, setCuratedHeadlines] = useState<any[] | null>(null);
+  const [topicClusters, setTopicClusters] = useState<any[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"compact" | "detailed">("detailed");
   const [showTrendingOnly, setShowTrendingOnly] = useState(false);
@@ -154,6 +160,43 @@ function AppShell() {
     }
   };
 
+  // Polish iter 3 / Part C — pull the three new digest panels. Each is
+  // independent so a slow LLM doesn't block the curated/topics renders.
+  const fetchDailySummary = async () => {
+    setDailySummaryLoading(true);
+    try {
+      const data = await apiFetch<any>(API_ENDPOINTS.digestDailySummary);
+      setDailySummary(data);
+    } catch (error) {
+      console.error("Error fetching daily summary:", error);
+      // No toast — the hero card just stays hidden on failure.
+    } finally {
+      setDailySummaryLoading(false);
+    }
+  };
+
+  const fetchCuratedHeadlines = async () => {
+    try {
+      const data = await apiFetch<any>(API_ENDPOINTS.digestCurated);
+      setCuratedHeadlines(
+        Array.isArray(data?.headlines) ? data.headlines : []
+      );
+    } catch (error) {
+      console.error("Error fetching curated headlines:", error);
+      setCuratedHeadlines([]);
+    }
+  };
+
+  const fetchTopicClusters = async () => {
+    try {
+      const data = await apiFetch<any>(API_ENDPOINTS.digestTopics);
+      setTopicClusters(Array.isArray(data?.topics) ? data.topics : []);
+    } catch (error) {
+      console.error("Error fetching topic clusters:", error);
+      setTopicClusters([]);
+    }
+  };
+
   const savePreferences = async () => {
     setIsSavingPreferences(true);
     try {
@@ -248,6 +291,12 @@ function AppShell() {
       fetchArticles();
       fetchDigest();
       fetchStats();
+      // Polish iter 3 / Part C — kick off the three new digest fetches in
+      // parallel. Daily-summary may take 20-60s on cache miss, the others
+      // are cheap DB reads.
+      fetchDailySummary();
+      fetchCuratedHeadlines();
+      fetchTopicClusters();
     };
 
     loadData();
@@ -479,7 +528,13 @@ function AppShell() {
                 transition={panelTransition}
               >
                 {digest ? (
-                  <DigestView digest={digest} />
+                  <DigestView
+                    digest={digest}
+                    dailySummary={dailySummary}
+                    dailySummaryLoading={dailySummaryLoading}
+                    curatedHeadlines={curatedHeadlines}
+                    topicClusters={topicClusters}
+                  />
                 ) : (
                   <div className="flex items-center justify-center py-12">
                     <Loader2 className="w-8 h-8 animate-spin text-primary" />
