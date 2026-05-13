@@ -3274,3 +3274,67 @@ body {
   /* Subagent row hover -- light slab. */
   .hover\:bg-\[var\(--background-tint\)\]:hover { background-color: var(--background-tint); }
 }
+
+/* ============================================================
+ * M3b utility additions -- SubQuestionsPanel, MarkdownReport
+ * (standalone, when not wrapped in `.research-report`), and
+ * CitationHoverCard.
+ *
+ * See docs/designs/frontend-overhaul.md M3 + S9 step 5.
+ * Every selector is hand-authored because Tailwind v4 prebuilt
+ * does not regenerate utilities on the fly.
+ * ============================================================ */
+@layer utilities {
+  /* Vertical-align utilities -- citation pills sit on the
+     baseline, table cells top-align. */
+  .align-baseline { vertical-align: baseline; }
+  .align-top { vertical-align: top; }
+
+  /* List-style utilities for the standalone MarkdownReport. The
+     wrapper-scoped `.research-report ul/ol` rules also paint
+     bullets, but SavedResearchList renders MarkdownReport
+     bare so we still need these. */
+  .list-disc { list-style-type: disc; }
+  .list-decimal { list-style-type: decimal; }
+
+  /* Soft-ink list markers -- applied to the wrapper <ul>/<ol>
+     in MarkdownReport. Tailwind's `marker:` prefix needs
+     bundle support we don't have; the helper class works
+     everywhere. */
+  .markdown-list-soft-marker > li::marker { color: var(--foreground-soft); }
+
+  /* Underline tuning for external markdown links. */
+  .underline-offset-2 { text-underline-offset: 2px; }
+  .decoration-1 { text-decoration-thickness: 1px; }
+  .decoration-\[var\(--accent-signal\)\] { text-decoration-color: var(--accent-signal); }
+  .no-underline { text-decoration-line: none; }
+
+  /* Width / max-width primitives for CitationHoverCard. */
+  .w-\[420px\] { width: 420px; }
+  .max-w-\[60%\] { max-width: 60%; }
+  .min-w-full { min-width: 100%; }
+
+  /* Sub-pixel spacing primitives. */
+  .mt-0\.5 { margin-top: calc(var(--spacing) * 0.5); }
+  .px-0\.5 {
+    padding-left: calc(var(--spacing) * 0.5);
+    padding-right: calc(var(--spacing) * 0.5);
+  }
+
+  /* Signal-wash background on citation pill hover. */
+  .hover\:bg-signal-wash:hover { background-color: var(--accent-signal-bg); }
+
+  /* Foreground -> signal-color hover used by SubQuestionsPanel
+     article references. */
+  .hover\:text-signal:hover { color: var(--accent-signal); }
+
+  /* Tight row-gap for stacked article references under a
+     sub-question. */
+  :where(.space-y-0\.5 > :not(:last-child)) {
+    margin-bottom: calc(var(--spacing) * 0.5);
+  }
+
+  /* Line-height step we need that wasn't already covered. */
+  .leading-\[1\.5\] { line-height: 1.5; }
+  .leading-\[1\.6\] { line-height: 1.6; }
+}

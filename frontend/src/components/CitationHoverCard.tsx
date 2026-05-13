@@ -1,26 +1,35 @@
 /**
- * CitationHoverCard — M3.M4
+ * CitationHoverCard -- M3b restyle.
  *
- * Wraps a child element (typically the `[N]` citation anchor produced by
- * MarkdownReport) and shows a 300px hover card with article metadata
- * (title, source, publish date, summary preview) when the user hovers the
- * anchor for at least 200ms.
+ * Wraps a child element (typically the `[N]` citation anchor produced
+ * by MarkdownReport) and shows a 420px hover card with article
+ * metadata (title, source, publish date, summary preview) when the
+ * user hovers the anchor for at least 200ms.
  *
  * Contract:
- *  - `articleId: number` — the backend `/api/news/{id}` integer id.
- *  - `children: ReactNode` — the element to wrap. Most callers pass the
- *    `<a class="citation">` produced by MarkdownReport's `linkifyChildren`.
- *  - Hover 200ms+ -> fetch + show card; debounce-cancel on mouse leave.
+ *  - `articleId: number` -- the backend `/api/news/{id}` integer id.
+ *  - `children: ReactNode` -- the element to wrap. Most callers pass
+ *    the `<a class="citation">` produced by MarkdownReport's
+ *    `linkifyChildren`.
+ *  - Hover 200ms+ -> fetch + show card; debounce-cancel on mouse
+ *    leave.
  *  - Map cache: the first fetch for an articleId is shared across all
- *    instances rendered in the same session (module-level Map), so the
- *    same citation re-shown in different bubbles will not re-hit the
- *    backend.
+ *    instances rendered in the same session (module-level Map), so
+ *    the same citation re-shown in different bubbles will not re-hit
+ *    the backend.
  *  - Card uses `pointer-events: none` so the user can still click the
- *    underlying citation anchor through it (which scrolls to the source
- *    list in the report).
+ *    underlying citation anchor through it (which scrolls to the
+ *    source list in the report).
  *
- * Reused by: Research tab (citation hover on report markdown). Built so
- * other tabs can drop it in without behavior changes.
+ * Reused by: Research tab (citation hover on report markdown). Built
+ * so other tabs can drop it in without behavior changes.
+ *
+ * M3b skin:
+ *   - Hairline-bordered mono card (no rounded corners).
+ *   - "-- SOURCE" mono eyebrow + `[N]` reference at the top-right.
+ *   - Fraunces 16px title (line-clamp-2).
+ *   - 13px excerpt (line-clamp-3) in soft ink.
+ *   - "read at <hostname> ->" mono link in signal color.
  */
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -31,6 +40,7 @@ interface CachedArticle {
   id: number | string;
   title: string;
   source: string;
+  url?: string | null;
   published_at?: string | null;
   summary?: string | null;
   content?: string | null;
@@ -41,6 +51,7 @@ interface ApiArticleEnvelope {
     id: number | string;
     title: string;
     source: string;
+    url?: string | null;
     published_at?: string | null;
     summary?: string | null;
     content?: string | null;
@@ -48,14 +59,16 @@ interface ApiArticleEnvelope {
   id?: number | string;
   title?: string;
   source?: string;
+  url?: string | null;
   published_at?: string | null;
   summary?: string | null;
   content?: string | null;
 }
 
-// Module-level cache so all CitationHoverCard instances in the page share
-// fetch results. Using a plain Map keyed by integer id; the value is a
-// Promise so concurrent hovers for the same id only fire one request.
+// Module-level cache so all CitationHoverCard instances in the page
+// share fetch results. Using a plain Map keyed by integer id; the
+// value is a Promise so concurrent hovers for the same id only fire
+// one request.
 const articleCache = new Map<number, Promise<CachedArticle | null>>();
 
 function fetchArticle(articleId: number): Promise<CachedArticle | null> {
@@ -74,7 +87,10 @@ function fetchArticle(articleId: number): Promise<CachedArticle | null> {
     .catch((err) => {
       // Drop the cached failure so a later hover can retry.
       articleCache.delete(articleId);
-      console.warn(`CitationHoverCard: failed to load article ${articleId}`, err);
+      console.warn(
+        `CitationHoverCard: failed to load article ${articleId}`,
+        err
+      );
       return null;
     });
   articleCache.set(articleId, promise);
@@ -82,8 +98,8 @@ function fetchArticle(articleId: number): Promise<CachedArticle | null> {
 }
 
 /**
- * Test-only — clears the module-level cache. Not exported for runtime use;
- * only the rubric tests would conceivably need this.
+ * Test-only -- clears the module-level cache. Not exported for runtime
+ * use; only the rubric tests would conceivably need this.
  */
 export function __clearCitationHoverCardCache(): void {
   articleCache.clear();
@@ -91,6 +107,13 @@ export function __clearCitationHoverCardCache(): void {
 
 interface CitationHoverCardProps {
   articleId: number;
+  /**
+   * Citation index (1-based) -- rendered in the masthead eyebrow as
+   * "[N]" so the user knows which footnote the card is previewing.
+   * Optional for backward-compat with existing callers that only pass
+   * the article id.
+   */
+  citationNumber?: number;
   children: React.ReactNode;
 }
 
@@ -112,19 +135,30 @@ function formatDate(iso: string | null | undefined): string | null {
 function buildSummaryPreview(article: CachedArticle): string {
   const raw = (article.summary || article.content || "").toString().trim();
   if (!raw) return "";
-  if (raw.length <= 200) return raw;
-  return raw.slice(0, 200).trimEnd() + "...";
+  if (raw.length <= 240) return raw;
+  return raw.slice(0, 240).trimEnd() + "...";
+}
+
+/** Best-effort hostname extractor -- strips leading `www.`. */
+function hostname(url: string | null | undefined): string {
+  if (!url) return "";
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
 }
 
 export function CitationHoverCard({
   articleId,
+  citationNumber,
   children,
 }: CitationHoverCardProps): JSX.Element {
   const reduceMotion = useReducedMotion();
   const [article, setArticle] = useState<CachedArticle | null>(null);
   const [visible, setVisible] = useState(false);
-  // We track cursor position so we can render the card right next to the
-  // citation anchor without needing portals.
+  // We track cursor position so we can render the card right next to
+  // the citation anchor without needing portals.
   const [pos, setPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   const enterTimerRef = useRef<number | null>(null);
@@ -150,10 +184,10 @@ export function CitationHoverCard({
     setPos({ x: startX, y: startY });
     if (enterTimerRef.current) window.clearTimeout(enterTimerRef.current);
     enterTimerRef.current = window.setTimeout(async () => {
-      // Pull from cache (or kick off a fetch) and only flip visible if we
-      // got data. The hover may have ended before this fires, but in that
-      // case `handleLeave` already scheduled a hide and visible will flip
-      // back; this is fine.
+      // Pull from cache (or kick off a fetch) and only flip visible
+      // if we got data. The hover may have ended before this fires,
+      // but in that case `handleLeave` already scheduled a hide and
+      // visible will flip back; this is fine.
       const data = await fetchArticle(articleId);
       if (data) {
         setArticle(data);
@@ -168,8 +202,8 @@ export function CitationHoverCard({
       window.clearTimeout(enterTimerRef.current);
       enterTimerRef.current = null;
     }
-    // 100ms grace before hiding — gives the cursor a moment to enter the
-    // card itself if we ever switched off `pointer-events: none`.
+    // 100ms grace before hiding -- gives the cursor a moment to enter
+    // the card itself if we ever switched off `pointer-events: none`.
     if (leaveTimerRef.current) window.clearTimeout(leaveTimerRef.current);
     leaveTimerRef.current = window.setTimeout(() => {
       setVisible(false);
@@ -178,15 +212,17 @@ export function CitationHoverCard({
 
   const summary = article ? buildSummaryPreview(article) : "";
   const dateLabel = article ? formatDate(article.published_at) : null;
+  const host = article ? hostname(article.url) : "";
+  const readAt = host || (article ? article.source : "");
 
   // The card is positioned near the cursor, slightly offset down/right.
-  // We use position: fixed so it floats above content; pointer-events: none
-  // means clicks pass through to the underlying citation anchor.
+  // We use position: fixed so it floats above content; pointer-events:
+  // none means clicks pass through to the underlying citation anchor.
   const cardStyle: React.CSSProperties = {
     position: "fixed",
     left: `${pos.x + 12}px`,
     top: `${pos.y + 16}px`,
-    width: "300px",
+    width: "420px",
     maxWidth: "calc(100vw - 32px)",
     zIndex: 50,
     pointerEvents: "none",
@@ -205,33 +241,38 @@ export function CitationHoverCard({
             data-testid="citation-hover-card"
             role="tooltip"
             style={cardStyle}
-            className="rounded-md border border-border bg-popover text-popover-foreground p-3 shadow-md text-[13px] leading-snug"
+            className="block bg-background border border-[var(--rule)] p-4 shadow-lg"
             initial={
-              reduceMotion
-                ? { opacity: 1, scale: 1 }
-                : { opacity: 0, scale: 0.95 }
+              reduceMotion ? { opacity: 1 } : { opacity: 0 }
             }
-            animate={{ opacity: 1, scale: 1 }}
+            animate={{ opacity: 1 }}
             exit={
-              reduceMotion
-                ? { opacity: 0, scale: 1 }
-                : { opacity: 0, scale: 0.95 }
+              reduceMotion ? { opacity: 0 } : { opacity: 0 }
             }
             transition={{
               duration: reduceMotion ? 0 : 0.18,
               ease: "easeOut",
             }}
           >
-            <span className="block font-medium text-foreground line-clamp-2">
+            <span className="flex items-center gap-2 font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft mb-2">
+              <span>━ SOURCE</span>
+              <span className="flex-1 border-t border-[var(--rule)]" />
+              {typeof citationNumber === "number" && (
+                <span className="text-foreground-soft">
+                  [<span className="text-signal">{citationNumber}</span>]
+                </span>
+              )}
+            </span>
+            <span className="block font-display text-[16px] font-medium text-foreground leading-[1.3] mb-2 line-clamp-2">
               {article.title}
             </span>
-            <span className="mt-1 block text-[11px] text-muted-foreground">
-              <span className="font-medium">{article.source}</span>
+            <span className="block font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft mb-2">
+              <span>{article.source}</span>
               {dateLabel ? <> &middot; {dateLabel}</> : null}
             </span>
             {summary && (
               <span
-                className="mt-2 block text-[12px] text-muted-foreground"
+                className="block text-[13px] leading-[1.55] text-foreground-soft mb-2 line-clamp-3"
                 style={{
                   display: "-webkit-box",
                   WebkitLineClamp: 3,
@@ -240,6 +281,11 @@ export function CitationHoverCard({
                 }}
               >
                 {summary}
+              </span>
+            )}
+            {readAt && (
+              <span className="inline-flex items-center gap-1 font-mono-tx text-[11px] uppercase-eyebrow text-signal">
+                read at {readAt} →
               </span>
             )}
           </motion.span>
