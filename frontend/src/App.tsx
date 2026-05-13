@@ -684,12 +684,20 @@ function AppShell() {
                   className="flex flex-wrap gap-2 items-center border-t border-b border-[var(--rule)] py-2 font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft"
                 >
                   <span className="mr-2">filtered &#9656;</span>
+                  {/* The inner <span> carrying just the raw `cat` text
+                      keeps the e2e contract intact: news-feed.spec.ts asserts
+                      `activeFilters.getByText(chipCategory, { exact: true })`,
+                      which matches an element whose textContent equals the
+                      value exactly. Bracket decoration lives in aria-hidden
+                      sibling spans so the visual "[ AI ]" survives. */}
                   {selectedCategories.map((cat) => (
                     <span
                       key={`cat-${cat}`}
                       className="px-1.5 py-0.5 border border-[var(--rule)] text-foreground"
                     >
-                      [ {cat} ]
+                      <span aria-hidden="true">[&nbsp;</span>
+                      <span>{cat}</span>
+                      <span aria-hidden="true">&nbsp;]</span>
                     </span>
                   ))}
                   {selectedEntities.map((ent) => (
@@ -697,7 +705,9 @@ function AppShell() {
                       key={`ent-${ent}`}
                       className="px-1.5 py-0.5 border border-[var(--rule)] text-signal"
                     >
-                      [ {ent} ]
+                      <span aria-hidden="true">[&nbsp;</span>
+                      <span>{ent}</span>
+                      <span aria-hidden="true">&nbsp;]</span>
                     </span>
                   ))}
                   <button
