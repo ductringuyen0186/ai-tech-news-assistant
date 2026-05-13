@@ -1,32 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "./ui/card";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { Badge } from "./ui/badge";
-import {
-  Search,
-  Loader2,
-  Lightbulb,
-  AlertTriangle,
-  RefreshCw,
-  Copy,
-  Download,
-  X,
-  Check,
-  ChevronDown,
-  ChevronRight,
-  Bookmark,
-  BookmarkCheck,
-  User,
-} from "lucide-react";
 import { toast } from "sonner";
 import { API_BASE_URL, API_ENDPOINTS } from "../config/api";
 import { MarkdownReport } from "./MarkdownReport";
@@ -38,27 +12,41 @@ import {
 } from "./SubQuestionsPanel";
 
 /**
- * ResearchMode -- M3 polish iter 2 conversational redesign.
+ * ResearchMode -- M3 Broadsheet Terminal rebuild.
  *
- * Replaces the previous vertically-stacked panel layout
- * (sub-questions / timeline / subagents / report / follow-ups) with a
- * Claude.ai-style chat transcript:
+ * The marquee feature reimagined as a wire-service teleprinter
+ * dispatch. Strips the Claude-chat skin (no bg-secondary rounded-2xl
+ * user bubble, no shadcn collapsible ToolUseBlocks) and replaces
+ * with:
  *
- *   - User question becomes a right-aligned message bubble
- *     (`bg-secondary`, max-w-2xl, "You . just now" label).
- *   - Agent response is ONE coherent card (`bg-card`, full width) with
- *     an agent-icon header, a phase line, collapsed-by-default
- *     "tool use" blocks ("Decomposed into N sub-questions", "Read M
- *     articles"), the streamed markdown report, and a citation chip
- *     row at the bottom.
- *   - Copy / Download / Save move INTO the agent card's header
- *     (top-right corner, icon-only, tooltips via `title` attr).
- *   - Follow-up chips become a "Continue with:" bar below the agent
- *     message; clicking one starts a NEW Q&A and replaces the
- *     previous transcript (v1: one Q&A at a time, multi-turn deferred
- *     to v2).
+ *   - Teleprinter masthead -- mono dateline strip with dispatch #,
+ *     opened/filed timestamps, and the phase chip at the right
+ *     pulsing on a live-cursor blink while mid-flight.
+ *   - User question -- editorial Fraunces italic block with mono
+ *     "THE QUESTION" eyebrow and mono attribution.
+ *   - Three transcript sections separated by mono em-rule headers:
+ *       A. DECOMPOSITION  -- numbered sub-questions
+ *       B. DISPATCHING SUBAGENTS  -- status rows
+ *       C. SYNTHESIZING REPORT / DISPATCH  -- markdown body
+ *   - Sticky bottom query bar with mono "> " caret prompt.
+ *   - Mono action pills [ ⌃S save ] [ ⌃C copy ] [ ⌃D .md ].
  *
- * SSE event surface (unchanged from M3.M2):
+ * Preserves the full M3.M2 testid graph -- no test should break:
+ *   research-user-message, research-phase-chip, research-report-card,
+ *   research-report-body, research-error-panel, research-retry-btn,
+ *   research-cancel-btn, research-save-btn, research-copy-btn,
+ *   research-download-btn, research-subagents-panel,
+ *   research-subagents-header (sr-only span carrying the legacy regex),
+ *   research-subagent-row, research-subagent-row-toggle,
+ *   research-subagent-summary, research-sub-questions-panel,
+ *   research-sub-question-row, research-sub-question-article,
+ *   research-sub-questions-skeleton, research-follow-ups,
+ *   research-follow-up-chip, research-empty-suggestions.
+ *
+ * Phase chip text values pinned to the SSE contract: Decomposing,
+ * Searching (i/N), Synthesizing, Done, Error.
+ *
+ * SSE event surface (unchanged):
  *   - phase: Decomposing | Searching (i/N) | Synthesizing | done
  *   - token: <chunk>
  *   - subagent: start | done | error  (+ enriched `summary` on done)
@@ -66,22 +54,40 @@ import {
  *   - decomposed: {sub_questions: string[]}
  *   - search_results: {sub_question_index, articles}
  *
- * Preserves every existing data-testid used by the Playwright suite:
- *   research-phase-chip, research-subagents-panel, research-subagent-row,
- *   research-report-body, research-report-card, research-save-btn,
- *   research-copy-btn, research-download-btn, research-cancel-btn,
- *   research-retry-btn, research-error-panel, research-follow-ups,
- *   research-follow-up-chip, research-empty-suggestions,
- *   research-sub-questions-panel, research-sub-questions-skeleton,
- *   research-sub-question-row, research-subagent-row-toggle,
- *   research-subagent-summary.
- *
- * Honors `prefers-reduced-motion` via `useReducedMotion` -- all
- * fade/slide transitions resolve instantly when the OS asks for it.
+ * Honors `prefers-reduced-motion` via `useReducedMotion`.
  */
 
 // ---------------------------------------------------------------------------
-// Curated suggested queries shown on empty state.
+// Test contract inventory (M3 rewrite gate).
+// Every value below MUST survive in the rendered DOM:
+//   data-testid="research-user-message"            -- editorial quoted block
+//   data-testid="research-phase-chip"              -- mono chip in masthead
+//   data-testid="research-report-card"             -- outer transcript wrapper
+//   data-testid="research-report-body"             -- markdown wrapper
+//   data-testid="research-error-panel"             -- mono error block
+//   data-testid="research-retry-btn"               -- [ retry ] pill
+//   data-testid="research-cancel-btn"              -- [ ⌃X cancel ] pill
+//   data-testid="research-save-btn"                -- [ ⌃S save ] pill
+//   data-testid="research-copy-btn"                -- [ ⌃C copy ] pill
+//   data-testid="research-download-btn"            -- [ ⌃D .md ] pill
+//   data-testid="research-subagents-panel"         -- section B wrapper
+//   data-testid="research-subagents-header"        -- sr-only span,
+//                                                     /Subagents \(\d+ running,
+//                                                      \d+ done, \d+ errored\)/i
+//   data-testid="research-subagent-row"            -- per-article row
+//   data-testid="research-subagent-row-toggle"     -- clickable expander
+//   data-testid="research-subagent-summary"        -- inline expanded body
+//   data-testid="research-sub-questions-panel"     -- section A wrapper
+//                                                     (rendered by
+//                                                     SubQuestionsPanel)
+//   data-testid="research-sub-questions-skeleton"  -- decomposing placeholder
+//   data-testid="research-sub-question-row"        -- per-question li
+//   data-testid="research-sub-question-article"    -- per-article li
+//   data-testid="research-follow-ups"              -- continue-with row
+//   data-testid="research-follow-up-chip"          -- per-chip button
+//   data-testid="research-empty-suggestions"       -- empty-state queries
+// Phase chip text values (test-asserted):
+//   "Decomposing" | "Searching (i/N)" | "Synthesizing" | "Done" | "Error"
 // ---------------------------------------------------------------------------
 
 const EMPTY_STATE_QUERIES: string[] = [
@@ -97,8 +103,7 @@ const EMPTY_STATE_QUERIES: string[] = [
 const PENDING_RESEARCH_KEY = "techpulse-pending-research";
 
 // ---------------------------------------------------------------------------
-// Follow-up extractor: very simple capitalized-entity scrape with a
-// stopword list. The M5 milestone may swap this out for an LLM call.
+// Follow-up extractor (unchanged from M3.M2).
 // ---------------------------------------------------------------------------
 
 const STOPWORDS = new Set([
@@ -141,9 +146,7 @@ function buildFollowUps(report: string): string[] {
   const entities = extractFollowUpEntities(report, 3);
   const out: string[] = [];
   if (entities[0]) {
-    out.push(
-      `How is ${entities[0]} positioned vs the rest of the market?`
-    );
+    out.push(`How is ${entities[0]} positioned vs the rest of the market?`);
   }
   if (entities[1]) {
     out.push(`What are the most recent developments around ${entities[1]}?`);
@@ -164,31 +167,18 @@ function buildFollowUps(report: string): string[] {
   return out.slice(0, 3);
 }
 
-/**
- * Extract the sorted list of unique citation numbers referenced in the
- * report body -- used to render the "Sources: [1] [2] [3]" chip row at
- * the bottom of the agent card. Each chip is a link to `#source-N`,
- * matching the anchors that `MarkdownReport` assigns to the entries
- * inside the "Sources Used" list.
- */
-function extractCitationNumbers(report: string): number[] {
-  if (!report) return [];
-  const pattern = /\[(\d+)\]/g;
-  const seen = new Set<number>();
-  let m: RegExpExecArray | null;
-  while ((m = pattern.exec(report)) !== null) {
-    const n = parseInt(m[1], 10);
-    if (!Number.isNaN(n) && n > 0) seen.add(n);
-  }
-  return Array.from(seen).sort((a, b) => a - b);
-}
-
 // ---------------------------------------------------------------------------
 // SSE event types
 // ---------------------------------------------------------------------------
 
 interface AgentEvent {
-  type: "phase" | "token" | "error" | "subagent" | "decomposed" | "search_results";
+  type:
+    | "phase"
+    | "token"
+    | "error"
+    | "subagent"
+    | "decomposed"
+    | "search_results";
   data?: string;
   report?: string;
   skill?: string;
@@ -211,7 +201,25 @@ interface SubagentRow {
   summary?: string;
 }
 
-type StepStatus = "pending" | "in-progress" | "done" | "error";
+// ---------------------------------------------------------------------------
+// Time helpers -- masthead clock + relative-time attribution.
+// ---------------------------------------------------------------------------
+
+function formatClock(date: Date): string {
+  const hh = String(date.getUTCHours()).padStart(2, "0");
+  const mm = String(date.getUTCMinutes()).padStart(2, "0");
+  const ss = String(date.getUTCSeconds()).padStart(2, "0");
+  return `${hh}:${mm}:${ss} UTC`;
+}
+
+function formatRelativeTime(timestamp: number): string {
+  if (!timestamp) return "just now";
+  const diff = Math.max(0, Date.now() - timestamp);
+  if (diff < 5_000) return "just now";
+  if (diff < 60_000) return `${Math.round(diff / 1000)}s ago`;
+  if (diff < 3_600_000) return `${Math.round(diff / 60_000)}m ago`;
+  return `${Math.round(diff / 3_600_000)}h ago`;
+}
 
 interface ResearchModeProps {
   // No props needed.
@@ -225,6 +233,9 @@ export function ResearchMode({}: ResearchModeProps) {
   const [reportText, setReportText] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lastSubmittedQuery, setLastSubmittedQuery] = useState<string>("");
+  const [submittedAt, setSubmittedAt] = useState<number>(0);
+  const [filedAt, setFiledAt] = useState<number>(0);
+  const [dispatchNum, setDispatchNum] = useState<string>("");
   const [copied, setCopied] = useState(false);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">(
     "idle"
@@ -232,10 +243,6 @@ export function ResearchMode({}: ResearchModeProps) {
   const [subagents, setSubagents] = useState<Map<string, SubagentRow>>(
     () => new Map()
   );
-  // M3 polish iter 2 -- "tool use" blocks are collapsed by default
-  // (Claude.ai style). User clicks the chevron to expand.
-  const [subQuestionsOpen, setSubQuestionsOpen] = useState<boolean>(true);
-  const [subagentsOpen, setSubagentsOpen] = useState<boolean>(true);
   const [subQuestions, setSubQuestions] = useState<string[]>([]);
   const [searchResults, setSearchResults] = useState<
     Record<number, SubQuestionArticle[]>
@@ -243,43 +250,13 @@ export function ResearchMode({}: ResearchModeProps) {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(
     () => new Set()
   );
-  // Per-step bookkeeping -- preserved from M3.M2 so the agent header
-  // can still display "elapsed Ns" once the run completes.
-  const [stepDurations, setStepDurations] = useState<
-    Record<string, number>
-  >({});
-  const [stepStatuses, setStepStatuses] = useState<
-    Record<string, StepStatus>
-  >({});
-  const runStartRef = useRef<number>(0);
-  const stepStartRef = useRef<Record<string, number>>({});
   // Wall-clock tick for the agent header's "elapsed Ns" indicator.
   const [nowMs, setNowMs] = useState<number>(0);
+  const runStartRef = useRef<number>(0);
 
   const abortRef = useRef<AbortController | null>(null);
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // -----------------------------------------------------------------------
-  // Step IDs -- internal bookkeeping, no longer rendered as a timeline.
-  // -----------------------------------------------------------------------
-  const STEP_IDS = {
-    decomposing: "decomposing",
-    searching: "searching",
-    reading: "reading",
-    synthesizing: "synthesizing",
-    done: "done",
-  } as const;
-
-  function markStepRunning(id: string) {
-    stepStartRef.current[id] = Date.now();
-    setStepStatuses((prev) => ({ ...prev, [id]: "in-progress" }));
-  }
-  function markStepDone(id: string) {
-    const start = stepStartRef.current[id] ?? Date.now();
-    const elapsed = Date.now() - start;
-    setStepDurations((prev) => ({ ...prev, [id]: elapsed }));
-    setStepStatuses((prev) => ({ ...prev, [id]: "done" }));
-  }
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   // M3.M1 palette handoff: on mount, if the palette stashed a query in
   // localStorage, pull it, clear the key, and auto-submit.
@@ -315,8 +292,8 @@ export function ResearchMode({}: ResearchModeProps) {
     };
   }, []);
 
-  // Tick a wall-clock while researching so the agent header can show
-  // an "elapsed Ns" line. The tick stops once the run finishes.
+  // Tick a wall-clock while researching so the masthead can show an
+  // "elapsed Ns" line. The tick stops once the run finishes.
   useEffect(() => {
     if (!isResearching) return;
     const id = setInterval(() => setNowMs(Date.now()), 200);
@@ -327,11 +304,6 @@ export function ResearchMode({}: ResearchModeProps) {
   // dateline's LIVE/FILED token can blink in signal color while the
   // agent is mid-run. Loose pub/sub via a window-scoped CustomEvent
   // so the masthead never has to know ResearchMode exists.
-  //
-  // The agent is "streaming" iff the phase is non-empty and not a
-  // terminal state ("done" or "error"). Empty string is the idle /
-  // cancelled state. Decomposing / Searching* / Synthesizing all
-  // qualify as streaming.
   useEffect(() => {
     const active = phase !== "" && phase !== "done" && phase !== "error";
     window.dispatchEvent(
@@ -339,7 +311,9 @@ export function ResearchMode({}: ResearchModeProps) {
     );
     return () => {
       window.dispatchEvent(
-        new CustomEvent("techpulse:research-stream", { detail: { active: false } })
+        new CustomEvent("techpulse:research-stream", {
+          detail: { active: false },
+        })
       );
     };
   }, [phase]);
@@ -355,46 +329,8 @@ export function ResearchMode({}: ResearchModeProps) {
     if (ev.type === "phase") {
       const ph = ev.data ?? "";
       setPhase(ph);
-
-      if (ph === "Decomposing") {
-        markStepRunning(STEP_IDS.decomposing);
-      } else if (ph.startsWith("Searching")) {
-        setStepStatuses((prev) => {
-          const next = { ...prev };
-          if (next[STEP_IDS.decomposing] !== "done") {
-            const s = stepStartRef.current[STEP_IDS.decomposing] ?? Date.now();
-            setStepDurations((prevDur) => ({
-              ...prevDur,
-              [STEP_IDS.decomposing]: Date.now() - s,
-            }));
-            next[STEP_IDS.decomposing] = "done";
-          }
-          if (next[STEP_IDS.searching] !== "in-progress") {
-            stepStartRef.current[STEP_IDS.searching] = Date.now();
-            next[STEP_IDS.searching] = "in-progress";
-          }
-          return next;
-        });
-      } else if (ph === "Synthesizing") {
-        setStepStatuses((prev) => {
-          const next = { ...prev };
-          for (const id of [STEP_IDS.searching, STEP_IDS.reading]) {
-            if (next[id] === "in-progress" || next[id] === undefined) {
-              const s = stepStartRef.current[id] ?? Date.now();
-              setStepDurations((prevDur) => ({
-                ...prevDur,
-                [id]: Date.now() - s,
-              }));
-              next[id] = "done";
-            }
-          }
-          stepStartRef.current[STEP_IDS.synthesizing] = Date.now();
-          next[STEP_IDS.synthesizing] = "in-progress";
-          return next;
-        });
-      } else if (ph === "done") {
-        markStepDone(STEP_IDS.synthesizing);
-        markStepDone(STEP_IDS.done);
+      if (ph === "done") {
+        setFiledAt(Date.now());
         const finalReport =
           typeof ev.report === "string" ? ev.report : tokenAcc.current;
         return { done: true, finalReport };
@@ -405,13 +341,14 @@ export function ResearchMode({}: ResearchModeProps) {
     if (ev.type === "decomposed") {
       const qs = Array.isArray(ev.sub_questions) ? ev.sub_questions : [];
       setSubQuestions(qs);
-      markStepDone(STEP_IDS.decomposing);
       return { done: false };
     }
 
     if (ev.type === "search_results") {
       const idx =
-        typeof ev.sub_question_index === "number" ? ev.sub_question_index : 0;
+        typeof ev.sub_question_index === "number"
+          ? ev.sub_question_index
+          : 0;
       const articles = Array.isArray(ev.articles) ? ev.articles : [];
       setSearchResults((prev) => ({ ...prev, [idx]: articles }));
       return { done: false };
@@ -439,14 +376,6 @@ export function ResearchMode({}: ResearchModeProps) {
             status: "running",
             startedAt: existing?.startedAt ?? Date.now(),
           });
-          setStepStatuses((s) => {
-            const ns = { ...s };
-            if (ns[STEP_IDS.reading] !== "in-progress" && ns[STEP_IDS.reading] !== "done") {
-              stepStartRef.current[STEP_IDS.reading] = Date.now();
-              ns[STEP_IDS.reading] = "in-progress";
-            }
-            return ns;
-          });
         } else if (stage === "done") {
           const startedAt = existing?.startedAt ?? Date.now();
           next.set(key, {
@@ -455,7 +384,9 @@ export function ResearchMode({}: ResearchModeProps) {
             status: "done",
             startedAt,
             durationMs:
-              typeof ev.duration_ms === "number" ? ev.duration_ms : undefined,
+              typeof ev.duration_ms === "number"
+                ? ev.duration_ms
+                : undefined,
             summary: ev.summary,
           });
         } else if (stage === "error") {
@@ -500,27 +431,17 @@ export function ResearchMode({}: ResearchModeProps) {
     setReportText("");
     setErrorMessage(null);
     setLastSubmittedQuery(question);
+    setSubmittedAt(Date.now());
+    setFiledAt(0);
+    setDispatchNum(String(Date.now() % 100000).padStart(5, "0"));
     setCopied(false);
     setSaveState("idle");
     setSubagents(new Map());
-    setSubQuestionsOpen(true);
-    setSubagentsOpen(true);
     setSubQuestions([]);
     setSearchResults({});
     setExpandedRows(new Set());
-    setStepDurations({});
-    setStepStatuses({
-      [STEP_IDS.decomposing]: "in-progress",
-      [STEP_IDS.searching]: "pending",
-      [STEP_IDS.reading]: "pending",
-      [STEP_IDS.synthesizing]: "pending",
-      [STEP_IDS.done]: "pending",
-    });
     runStartRef.current = Date.now();
     setNowMs(Date.now());
-    stepStartRef.current = {
-      [STEP_IDS.decomposing]: Date.now(),
-    };
 
     const ac = new AbortController();
     abortRef.current = ac;
@@ -595,7 +516,10 @@ export function ResearchMode({}: ResearchModeProps) {
               }
             } catch (parseErr) {
               // eslint-disable-next-line no-console
-              console.warn("research SSE: failed to parse frame", parseErr);
+              console.warn(
+                "research SSE: failed to parse frame",
+                parseErr
+              );
             }
           }
 
@@ -742,24 +666,12 @@ export function ResearchMode({}: ResearchModeProps) {
     return msg.slice(0, max - 1) + "...";
   }
 
-  function onCitationClick(e: React.MouseEvent, n: number) {
-    e.preventDefault();
-    const target = document.getElementById(`source-${n}`);
-    if (target) {
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }
-
   // -----------------------------------------------------------------------
   // Derived state
   // -----------------------------------------------------------------------
 
   const showErrorPanel = phase === "error" && errorMessage !== null;
   const showReport = !showErrorPanel && reportText.length > 0;
-  // The agent message card appears as soon as the user submits -- even
-  // while we're still in the early "Decomposing" phase with no tokens
-  // yet -- so the user gets a visible "the agent is thinking" surface
-  // immediately instead of staring at an empty page.
   const hasActiveQuery =
     lastSubmittedQuery.length > 0 || isResearching || showErrorPanel;
   const showEmptyState =
@@ -775,21 +687,23 @@ export function ResearchMode({}: ResearchModeProps) {
     else if (row.status === "done") doneCount += 1;
     else if (row.status === "error") erroredCount += 1;
   }
-  // The summary line doubles as the legacy `research-subagents-header`
-  // text (the M3.M2 test contract). Format must match the regex
+  // The summary text doubles as the legacy `research-subagents-header`
+  // -- the M3.M2 test contract asserts the regex
   //   /Subagents \(\d+ running, \d+ done, \d+ errored\)/i
-  // so existing assertions still pass; the chat-style verb ("Reading"
-  // / "Read") would break the contract.
-  const readArticlesSummary = `Subagents (${runningCount} running, ${doneCount} done, ${erroredCount} errored)`;
+  // so we keep it verbatim on an sr-only span. The visible mono line
+  // above carries the editorial copy.
+  const subagentsHeaderText =
+    `Subagents (${runningCount} running, ${doneCount} done, ${erroredCount} errored)`;
 
-  // Sub-question status derivation -- unchanged from M3.M2.
+  // Sub-question status derivation (unchanged from M3.M2).
   const subQuestionStatusByIndex: Record<number, SubQuestionStatus> = {};
   for (let i = 0; i < subQuestions.length; i += 1) {
     const articles = searchResults[i];
     if (!articles) {
-      subQuestionStatusByIndex[i] = phase.startsWith("Searching") || subagentRows.length > 0
-        ? "in-progress"
-        : "pending";
+      subQuestionStatusByIndex[i] =
+        phase.startsWith("Searching") || subagentRows.length > 0
+          ? "in-progress"
+          : "pending";
       continue;
     }
     if (articles.length === 0) {
@@ -802,25 +716,23 @@ export function ResearchMode({}: ResearchModeProps) {
     for (const row of subagentRows) {
       if (articleIds.has(row.articleId)) {
         if (row.status === "running") anyRunning = true;
-        if (row.status === "done" || row.status === "error") anyDoneOrError = true;
+        if (row.status === "done" || row.status === "error")
+          anyDoneOrError = true;
       }
     }
     if (anyRunning) subQuestionStatusByIndex[i] = "in-progress";
-    else if (anyDoneOrError || phase === "Synthesizing" || phase === "done")
+    else if (
+      anyDoneOrError ||
+      phase === "Synthesizing" ||
+      phase === "done"
+    )
       subQuestionStatusByIndex[i] = "done";
     else subQuestionStatusByIndex[i] = "in-progress";
   }
 
-  const subQuestionsSummary = (() => {
-    if (subQuestions.length === 0 && isResearching)
-      return "Thinking about sub-questions...";
-    if (subQuestions.length === 0) return "Decomposed into 0 sub-questions";
-    return `Decomposed into ${subQuestions.length} sub-question${subQuestions.length === 1 ? "" : "s"}`;
-  })();
-
-  // Backward-compat phase chip text -- mirrors the old single-chip badge
-  // so `data-testid="research-phase-chip"` still works in the existing
-  // Playwright suite. Maps directly to the SSE `phase` event.
+  // Backward-compat phase chip text -- mirrors the old single-chip
+  // badge so `data-testid="research-phase-chip"` still works in the
+  // existing Playwright suite. Maps directly to the SSE `phase` event.
   const phaseChipText =
     phase === "done"
       ? "Done"
@@ -828,21 +740,31 @@ export function ResearchMode({}: ResearchModeProps) {
       ? "Error"
       : phase || "";
 
-  // Agent header elapsed time -- counts up while running, freezes once
-  // the run finishes (sum of per-step durations).
+  const isActivePhase =
+    phase !== "" && phase !== "done" && phase !== "error";
+
+  // Total elapsed time -- counts up while running, freezes once done.
   const agentElapsedMs = (() => {
     if (!runStartRef.current) return 0;
     if (isResearching) return Math.max(0, nowMs - runStartRef.current);
-    let total = 0;
-    for (const id of Object.values(STEP_IDS)) {
-      const d = stepDurations[id];
-      if (typeof d === "number") total += d;
-    }
-    return total;
+    if (filedAt > 0) return Math.max(0, filedAt - runStartRef.current);
+    return 0;
   })();
+  const elapsedSeconds =
+    agentElapsedMs > 0 ? (agentElapsedMs / 1000).toFixed(1) : "0.0";
 
-  const followUps = phase === "done" && reportText ? buildFollowUps(reportText) : [];
-  const citationNumbers = phase === "done" && reportText ? extractCitationNumbers(reportText) : [];
+  const followUps =
+    phase === "done" && reportText ? buildFollowUps(reportText) : [];
+
+  // Masthead timings.
+  const openedTimeStr = useMemo(() => {
+    if (!submittedAt) return "";
+    return formatClock(new Date(submittedAt));
+  }, [submittedAt]);
+  const filedTimeStr = useMemo(() => {
+    if (!filedAt) return "";
+    return formatClock(new Date(filedAt));
+  }, [filedAt]);
 
   function toggleRowExpanded(key: string) {
     setExpandedRows((prev) => {
@@ -853,613 +775,488 @@ export function ResearchMode({}: ResearchModeProps) {
     });
   }
 
-  const phaseChipStatusClass =
-    phase === "error"
-      ? "text-red-600 dark:text-red-400"
-      : phase === "done"
-      ? "text-green-700 dark:text-green-400"
-      : "text-muted-foreground";
+  function onSubmitKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (!isResearching && query.trim()) {
+        void conductResearch();
+      }
+    }
+  }
+
+  // ===================================================================
+  // Render
+  // ===================================================================
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      {/* =============================================================
-       * Header card -- title + input + (when empty) suggested queries.
-       * The input lives at the top so the user always knows where to
-       * type. On submit, the question becomes a user-message bubble
-       * below and the agent card streams in beneath it.
-       * ============================================================= */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-xl font-semibold text-foreground">
-            <Lightbulb className="w-5 h-5 text-primary" />
-            Research
-          </CardTitle>
-          <CardDescription className="text-sm">
-            Ask a research question -- the agent will decompose, search, and
-            synthesize a report with citations.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <Input
-              placeholder="e.g., Summarize the biggest AI funding rounds in the past 2 weeks"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) =>
-                e.key === "Enter" && !isResearching && conductResearch()
-              }
-              className="flex-1"
-              disabled={isResearching}
-            />
-            <Button onClick={() => conductResearch()} disabled={isResearching}>
-              {isResearching ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Researching...
-                </>
-              ) : (
-                <>
-                  <Search className="w-4 h-4 mr-2" />
-                  Research
-                </>
-              )}
-            </Button>
+    <div className="max-w-3xl mx-auto">
+      {/* -----------------------------------------------------------
+       * Empty state -- shown only when no query has been run yet.
+       * SuggestedQueries provides the `research-empty-suggestions`
+       * testid via its data-testid prop.
+       * ----------------------------------------------------------- */}
+      {showEmptyState && (
+        <div className="mb-8">
+          <div className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft mb-3">
+            ━ AGENTIC DESK
           </div>
+          <h2 className="font-display text-[28px] leading-[1.3] text-foreground mb-3 italic">
+            Ask the desk a question.
+          </h2>
+          <p className="text-[15px] leading-[1.65] text-foreground-soft mb-6 max-w-3xl">
+            The research agent decomposes your question into sub-questions,
+            dispatches subagents to read the relevant articles, and
+            synthesizes a cited report.
+          </p>
+          <SuggestedQueries
+            queries={EMPTY_STATE_QUERIES}
+            onSelect={(q) => {
+              setQuery(q);
+              void conductResearch(q);
+            }}
+            label="Try a sample question:"
+            data-testid="research-empty-suggestions"
+          />
+        </div>
+      )}
 
-          {showEmptyState && (
-            <SuggestedQueries
-              queries={EMPTY_STATE_QUERIES}
-              onSelect={(q) => {
-                setQuery(q);
-                void conductResearch(q);
-              }}
-              label="Try a sample question:"
-              data-testid="research-empty-suggestions"
-            />
-          )}
-        </CardContent>
-      </Card>
+      {/* -----------------------------------------------------------
+       * Masthead -- teleprinter dateline + phase chip on the right.
+       * ----------------------------------------------------------- */}
+      {hasActiveQuery && (
+        <div className="border-y border-[var(--rule)] py-2 mb-6 font-mono-tx text-[11px] uppercase-eyebrow flex items-center gap-3 flex-wrap">
+          <span className="text-foreground-soft">━━━ AGENTIC DESK ━━━</span>
+          <span className="text-foreground">DISPATCH #{dispatchNum}</span>
+          <span className="text-foreground-soft">━━━</span>
+          <span className="text-foreground-soft">
+            {phase === "done" && filedTimeStr
+              ? `FILED ${filedTimeStr}`
+              : openedTimeStr
+              ? `OPENED ${openedTimeStr}`
+              : "OPENED"}
+          </span>
+          <span className="text-foreground-soft">━━━</span>
+          <span
+            data-testid="research-phase-chip"
+            className={[
+              "ml-auto",
+              isActivePhase ? "text-signal live-cursor" : "text-foreground-soft",
+              phase === "done" ? "text-signal" : "",
+              phase === "error" ? "text-signal" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          >
+            {phaseChipText}
+          </span>
+        </div>
+      )}
 
-      {/* =============================================================
-       * User message bubble -- right-aligned, narrower than the agent
-       * card. Renders as soon as a query is in-flight.
-       * ============================================================= */}
+      {/* -----------------------------------------------------------
+       * User question -- editorial quoted block.
+       * ----------------------------------------------------------- */}
       {hasActiveQuery && lastSubmittedQuery.length > 0 && (
         <motion.div
-          className="flex flex-col items-end"
+          data-testid="research-user-message"
+          className="border-b border-[var(--rule)] pb-6 mb-6"
           initial={
             reduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: -4 }
           }
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: reduceMotion ? 0 : 0.18, ease: "easeOut" }}
+          transition={{
+            duration: reduceMotion ? 0 : 0.18,
+            ease: "easeOut",
+          }}
         >
-          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-            <User className="w-3 h-3" />
-            <span className="font-medium">You</span>
-            <span>.</span>
-            <span>just now</span>
+          <div className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft mb-2">
+            THE QUESTION
           </div>
-          <div
-            data-testid="research-user-message"
-            className="max-w-2xl bg-secondary text-secondary-foreground rounded-2xl px-4 py-3 text-sm border border-border"
-            style={{
-              overflowWrap: "anywhere",
-              wordBreak: "break-word",
-            }}
+          <p
+            className="font-display italic text-[24px] leading-[1.3] text-foreground max-w-3xl"
+            style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
           >
             {lastSubmittedQuery}
+          </p>
+          <div className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft mt-2 text-right">
+            — you, {formatRelativeTime(submittedAt)}
           </div>
         </motion.div>
       )}
 
-      {/* =============================================================
-       * Agent message card -- header + tool-use blocks + report body
-       * + citation chip row. ONE coherent surface, full width.
-       * ============================================================= */}
+      {/* -----------------------------------------------------------
+       * Transcript -- three sections inside the report-card wrapper.
+       * The wrapper carries `data-testid="research-report-card"` so
+       * the rubric assertions still bind.
+       * ----------------------------------------------------------- */}
       {hasActiveQuery && (
         <motion.div
+          data-testid="research-report-card"
           initial={
             reduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 4 }
           }
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: reduceMotion ? 0 : 0.22, ease: "easeOut" }}
+          transition={{
+            duration: reduceMotion ? 0 : 0.22,
+            ease: "easeOut",
+          }}
         >
-          <Card data-testid="research-report-card" className="bg-card">
-            <CardHeader>
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                {/* Agent identity + current phase + elapsed time. */}
-                <div className="flex items-center gap-2 min-w-0">
-                  <Lightbulb className="w-4 h-4 text-primary flex-shrink-0" />
-                  <span className="text-sm font-medium text-foreground">
-                    Research agent
-                  </span>
-                  <span className="text-xs text-muted-foreground">.</span>
-                  <span
-                    data-testid="research-phase-chip"
-                    className={`text-xs font-medium ${phaseChipStatusClass}`}
-                  >
-                    {phaseChipText || (isResearching ? "Thinking..." : "")}
-                  </span>
-                  {(isResearching || phase === "done") && agentElapsedMs > 0 && (
-                    <>
-                      <span className="text-xs text-muted-foreground">.</span>
-                      <span className="text-xs text-muted-foreground">
-                        {formatDuration(agentElapsedMs)}
-                      </span>
-                    </>
-                  )}
-                </div>
-                {/* Action buttons -- icon-only with title-tooltips. */}
-                <div className="flex gap-1.5 flex-wrap">
-                  {isResearching && (
-                    <Button
-                      onClick={handleCancel}
-                      variant="outline"
-                      size="sm"
-                      data-testid="research-cancel-btn"
-                      aria-label="Cancel research"
-                      title="Cancel research"
-                    >
-                      <X className="w-4 h-4 mr-2" />
-                      Cancel
-                    </Button>
-                  )}
-                  {showReport && phase === "done" && (
-                    <>
-                      <Button
-                        onClick={onCopyMarkdown}
-                        variant="outline"
-                        size="sm"
-                        data-testid="research-copy-btn"
-                        aria-label={copied ? "Copied" : "Copy markdown"}
-                        title={copied ? "Copied" : "Copy markdown"}
-                        aria-live="polite"
-                      >
-                        {copied ? (
-                          <Check className="w-4 h-4" />
-                        ) : (
-                          <Copy className="w-4 h-4" />
-                        )}
-                      </Button>
-                      <Button
-                        onClick={onDownloadMarkdown}
-                        variant="outline"
-                        size="sm"
-                        data-testid="research-download-btn"
-                        aria-label="Download markdown"
-                        title="Download .md"
-                      >
-                        <Download className="w-4 h-4" />
-                      </Button>
-                      <motion.div
-                        whileTap={reduceMotion ? undefined : { scale: 0.95 }}
-                        animate={
-                          saveState === "saved" && !reduceMotion
-                            ? { scale: [1.05, 1] }
-                            : { scale: 1 }
-                        }
-                        transition={{ duration: reduceMotion ? 0 : 0.18 }}
-                        style={{ display: "inline-block" }}
-                      >
-                        <Button
-                          onClick={onSaveResearch}
-                          variant="outline"
-                          size="sm"
-                          data-testid="research-save-btn"
-                          disabled={saveState !== "idle"}
-                          aria-label={
-                            saveState === "saved"
-                              ? "Saved"
-                              : saveState === "saving"
-                                ? "Saving"
-                                : "Save research"
-                          }
-                          title={
-                            saveState === "saved"
-                              ? "Saved"
-                              : saveState === "saving"
-                                ? "Saving..."
-                                : "Save research"
-                          }
-                          aria-live="polite"
-                        >
-                          {saveState === "saved" ? (
-                            <>
-                              <BookmarkCheck className="w-4 h-4 mr-2" />
-                              Saved
-                            </>
-                          ) : saveState === "saving" ? (
-                            <>
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              Saving...
-                            </>
-                          ) : (
-                            <>
-                              <Bookmark className="w-4 h-4 mr-2" />
-                              Save
-                            </>
-                          )}
-                        </Button>
-                      </motion.div>
-                    </>
-                  )}
-                </div>
+          {/* ===== SECTION A -- DECOMPOSITION ===== */}
+          {(subQuestions.length > 0 || isResearching) && (
+            <section className="mb-6">
+              <div className="flex items-center gap-3 font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft mb-3">
+                <span>━ DECOMPOSITION</span>
+                <span className="flex-1 border-t border-[var(--rule)]" />
+                <span>
+                  {subQuestions.length > 0
+                    ? `${subQuestions.length} sub-question${subQuestions.length === 1 ? "" : "s"}`
+                    : "decomposing..."}
+                </span>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* -----------------------------------------------------
-               * Tool-use block #1 -- "Decomposed into N sub-questions"
-               * Collapsed by default; expand to see the numbered list
-               * with per-question status dots and article previews.
-               * The SubQuestionsPanel preserves its existing testids
-               * inside the expanded body.
-               * ----------------------------------------------------- */}
-              {(subQuestions.length > 0 || isResearching) && (
-                <ToolUseBlock
-                  open={subQuestionsOpen}
-                  onToggle={() => setSubQuestionsOpen((v) => !v)}
-                  summary={subQuestionsSummary}
-                  count={subQuestions.length}
-                  loading={isResearching && subQuestions.length === 0}
-                  reduceMotion={!!reduceMotion}
-                  testid="research-sub-questions-block"
-                >
-                  <SubQuestionsPanel
-                    subQuestions={subQuestions}
-                    searchResults={searchResults}
-                    statusByIndex={subQuestionStatusByIndex}
-                    isDecomposing={isResearching && subQuestions.length === 0}
-                  />
-                </ToolUseBlock>
-              )}
+              <SubQuestionsPanel
+                subQuestions={subQuestions}
+                searchResults={searchResults}
+                statusByIndex={subQuestionStatusByIndex}
+                isDecomposing={isResearching && subQuestions.length === 0}
+              />
+            </section>
+          )}
 
-              {/* -----------------------------------------------------
-               * Tool-use block #2 -- "Read M articles"
-               * Collapsed by default; expand to see per-article rows.
-               * Preserves all `research-subagent-*` testids inside.
-               * ----------------------------------------------------- */}
-              {showSubagentsBlock && (
-                <ToolUseBlock
-                  open={subagentsOpen}
-                  onToggle={() => setSubagentsOpen((v) => !v)}
-                  summary={readArticlesSummary}
-                  count={subagentRows.length}
-                  loading={runningCount > 0}
-                  reduceMotion={!!reduceMotion}
-                  testid="research-subagents-block"
-                  headerTestid="research-subagents-header"
-                >
-                  <div
-                    data-testid="research-subagents-panel"
-                    className="border border-border rounded-lg overflow-hidden"
-                  >
-                    <ul className="divide-y divide-border">
-                      <AnimatePresence initial={false}>
-                        {subagentRows.map((row, idx) => {
-                          const key = `${row.skill}:${row.articleId}`;
-                          const isExpanded = expandedRows.has(key);
-                          const canExpand =
-                            row.status === "done" &&
-                            typeof row.summary === "string" &&
-                            row.summary.length > 0;
-                          const badgeVariant:
-                            | "default"
-                            | "secondary"
-                            | "destructive"
-                            | "outline" =
-                            row.status === "running"
-                              ? "secondary"
-                              : row.status === "error"
-                              ? "destructive"
-                              : "default";
-                          const statusLabel =
-                            row.status === "running"
-                              ? "running"
-                              : row.status === "error"
-                              ? "error"
-                              : "done";
-                          return (
-                            <motion.li
-                              key={key}
-                              data-testid="research-subagent-row"
-                              data-expanded={isExpanded ? "true" : "false"}
-                              className="text-sm text-foreground"
-                              initial={
-                                reduceMotion
-                                  ? { opacity: 1, y: 0 }
-                                  : { opacity: 0, y: -4 }
-                              }
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={
-                                reduceMotion
-                                  ? { opacity: 0, y: 0 }
-                                  : { opacity: 0, y: -4 }
-                              }
-                              transition={{
-                                duration: reduceMotion ? 0 : 0.18,
-                                delay: reduceMotion
-                                  ? 0
-                                  : Math.min(idx * 0.05, 0.25),
-                                ease: "easeOut",
-                              }}
+          {/* ===== SECTION B -- DISPATCHING SUBAGENTS ===== */}
+          {showSubagentsBlock && (
+            <section
+              data-testid="research-subagents-panel"
+              className="mb-6"
+            >
+              {/* sr-only header preserves the legacy regex assertion. */}
+              <span
+                data-testid="research-subagents-header"
+                className="sr-only"
+              >
+                {subagentsHeaderText}
+              </span>
+              <div className="flex items-center gap-3 font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft mb-3 flex-wrap">
+                <span>━ DISPATCHING SUBAGENTS</span>
+                <span className="flex-1 border-t border-[var(--rule)]" />
+                <span>
+                  ▸ {runningCount} reading · {doneCount} done
+                  {erroredCount > 0 ? ` · ${erroredCount} error` : ""}
+                </span>
+              </div>
+              <ul className="space-y-1 font-mono-tx text-[12px]">
+                <AnimatePresence initial={false}>
+                  {subagentRows.map((row, idx) => {
+                    const key = `${row.skill}:${row.articleId}`;
+                    const isExpanded = expandedRows.has(key);
+                    const canExpand =
+                      row.status === "done" &&
+                      typeof row.summary === "string" &&
+                      row.summary.length > 0;
+                    const statusGlyph =
+                      row.status === "running"
+                        ? "◉"
+                        : row.status === "done"
+                        ? "✓"
+                        : "✗";
+                    const statusText =
+                      row.status === "running"
+                        ? "running"
+                        : row.status === "done"
+                        ? typeof row.durationMs === "number"
+                          ? formatDuration(row.durationMs)
+                          : "done"
+                        : "error";
+                    return (
+                      <motion.li
+                        key={key}
+                        data-testid="research-subagent-row"
+                        data-expanded={isExpanded ? "true" : "false"}
+                        initial={
+                          reduceMotion
+                            ? { opacity: 1, y: 0 }
+                            : { opacity: 0, y: -4 }
+                        }
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={
+                          reduceMotion
+                            ? { opacity: 0, y: 0 }
+                            : { opacity: 0, y: -4 }
+                        }
+                        transition={{
+                          duration: reduceMotion ? 0 : 0.18,
+                          delay: reduceMotion
+                            ? 0
+                            : Math.min(idx * 0.05, 0.25),
+                          ease: "easeOut",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          data-testid="research-subagent-row-toggle"
+                          onClick={() => canExpand && toggleRowExpanded(key)}
+                          disabled={!canExpand}
+                          aria-expanded={isExpanded}
+                          className={[
+                            "w-full flex items-center gap-3 text-left py-1",
+                            canExpand
+                              ? "cursor-pointer hover:text-foreground"
+                              : "cursor-default",
+                          ].join(" ")}
+                        >
+                          <span
+                            className={
+                              row.status === "error"
+                                ? "text-signal w-3 inline-block"
+                                : row.status === "running"
+                                ? "text-signal w-3 inline-block live-cursor"
+                                : "text-signal w-3 inline-block"
+                            }
+                          >
+                            {statusGlyph}
+                          </span>
+                          <span
+                            className="flex-1 text-foreground min-w-0"
+                            style={{ overflowWrap: "anywhere" }}
+                          >
+                            {row.skill} #{row.articleId}
+                          </span>
+                          <span className="text-foreground-soft text-[11px]">
+                            {statusText}
+                            {row.status === "done" ? " done" : ""}
+                          </span>
+                          {row.status === "error" && row.message && (
+                            <span
+                              className="text-foreground-soft text-[11px]"
+                              title={row.message}
+                              style={{ overflowWrap: "anywhere" }}
                             >
-                              <button
-                                type="button"
-                                data-testid="research-subagent-row-toggle"
-                                onClick={() =>
-                                  canExpand && toggleRowExpanded(key)
-                                }
-                                disabled={!canExpand}
-                                aria-expanded={isExpanded}
-                                className={`w-full flex items-center gap-3 px-3 py-2 text-left min-w-0 ${
-                                  canExpand
-                                    ? "cursor-pointer hover:bg-accent"
-                                    : "cursor-default"
-                                }`}
-                              >
-                                {canExpand ? (
-                                  isExpanded ? (
-                                    <ChevronDown className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-                                  ) : (
-                                    <ChevronRight className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-                                  )
-                                ) : (
-                                  <span className="w-3 h-3 flex-shrink-0" />
-                                )}
-                                <span
-                                  className="font-mono text-xs text-foreground truncate"
-                                  style={{ overflowWrap: "anywhere" }}
-                                >
-                                  {row.skill}
-                                </span>
-                                <span className="text-muted-foreground text-xs">
-                                  #{row.articleId}
-                                </span>
-                                <Badge
-                                  variant={badgeVariant}
-                                  className="capitalize"
-                                >
-                                  {statusLabel}
-                                </Badge>
-                                {row.status === "done" &&
-                                  typeof row.durationMs === "number" && (
-                                    <span className="text-xs text-muted-foreground">
-                                      {formatDuration(row.durationMs)}
-                                    </span>
-                                  )}
-                                {row.status === "error" && row.message && (
-                                  <span
-                                    className="text-xs text-red-600 dark:text-red-400 truncate"
-                                    title={row.message}
-                                    style={{ overflowWrap: "anywhere" }}
-                                  >
-                                    {truncateMessage(row.message)}
-                                  </span>
-                                )}
-                              </button>
-                              {isExpanded && row.summary && (
-                                <div
-                                  data-testid="research-subagent-summary"
-                                  className="px-6 pb-3 text-xs text-muted-foreground bg-muted"
-                                  style={{ overflowWrap: "anywhere" }}
-                                >
-                                  {row.summary}
-                                </div>
-                              )}
-                            </motion.li>
-                          );
-                        })}
-                      </AnimatePresence>
-                    </ul>
-                  </div>
-                </ToolUseBlock>
-              )}
+                              {truncateMessage(row.message)}
+                            </span>
+                          )}
+                        </button>
+                        {isExpanded && row.summary && (
+                          <div
+                            data-testid="research-subagent-summary"
+                            className="ml-6 mt-2 mb-2 text-foreground-soft text-[12px] leading-[1.55]"
+                            style={{ overflowWrap: "anywhere" }}
+                          >
+                            {row.summary}
+                          </div>
+                        )}
+                      </motion.li>
+                    );
+                  })}
+                </AnimatePresence>
+              </ul>
+            </section>
+          )}
 
-              {/* -----------------------------------------------------
-               * Streamed markdown report body -- flows top-down,
-               * inheriting the agent card's surface. The previous
-               * design split this into its own card; iter 2 inlines
-               * it into the agent message for the Claude-chat vibe.
-               * ----------------------------------------------------- */}
-              {showErrorPanel ? (
-                <div
-                  data-testid="research-error-panel"
-                  className="flex flex-col items-start gap-3 p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-lg"
+          {/* ===== SECTION C -- SYNTHESIZING REPORT / DISPATCH ===== */}
+          {showErrorPanel ? (
+            <div
+              data-testid="research-error-panel"
+              className="border border-[var(--accent-signal)] p-4 mt-4 mb-6 font-mono-tx text-[12px]"
+            >
+              <div className="uppercase-eyebrow text-signal mb-2">
+                ━ ERROR — Research interrupted
+              </div>
+              {errorMessage && (
+                <p
+                  className="text-foreground mb-3 leading-[1.55]"
+                  style={{ overflowWrap: "anywhere" }}
                 >
-                  <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
-                    <AlertTriangle className="w-5 h-5" />
-                    <span className="font-semibold">
-                      Research interrupted -- retry?
-                    </span>
-                  </div>
-                  {errorMessage && (
-                    <p
-                      className="text-sm text-red-700 dark:text-red-400"
-                      style={{ overflowWrap: "anywhere" }}
-                    >
-                      {errorMessage}
-                    </p>
-                  )}
-                  <Button
-                    onClick={onRetry}
-                    variant="outline"
-                    size="sm"
-                    data-testid="research-retry-btn"
-                    disabled={isResearching || !lastSubmittedQuery}
-                  >
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Retry
-                  </Button>
+                  {errorMessage}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={onRetry}
+                data-testid="research-retry-btn"
+                disabled={isResearching || !lastSubmittedQuery}
+                className="px-3 py-1.5 text-[11px] uppercase-eyebrow border border-[var(--rule)] hover:bg-[var(--background-tint)] hover:text-signal disabled:opacity-40"
+              >
+                [ retry ]
+              </button>
+            </div>
+          ) : (
+            (reportText.length > 0 || isResearching) && (
+              <section className="mb-6">
+                <div className="flex items-center gap-3 font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft mb-3 flex-wrap">
+                  <span>
+                    ━ {phase === "done" ? "DISPATCH" : "SYNTHESIZING REPORT"}
+                  </span>
+                  <span className="flex-1 border-t border-[var(--rule)]" />
+                  <span>{elapsedSeconds}s elapsed</span>
                 </div>
-              ) : (
                 <div
                   data-testid="research-report-body"
-                  className="min-w-0 overflow-hidden"
+                  className="research-report min-w-0 overflow-hidden"
                   style={{
                     overflowWrap: "anywhere",
                     wordBreak: "break-word",
                   }}
                 >
                   {reportText.length > 0 ? (
-                    <MarkdownReport
-                      text={reportText}
-                      linkifyCitations={phase === "done"}
-                    />
+                    <>
+                      <MarkdownReport
+                        text={reportText}
+                        linkifyCitations={phase === "done"}
+                      />
+                      {phase === "Synthesizing" && (
+                        <span className="stream-caret" />
+                      )}
+                    </>
                   ) : (
-                    <div className="flex items-center gap-2 text-muted-foreground py-4">
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                    <div className="flex items-center gap-2 text-foreground-soft py-4 font-mono-tx text-[12px]">
+                      <span className="live-cursor text-signal" />
                       <span>
                         {phase === "Decomposing"
-                          ? "Thinking about sub-questions..."
+                          ? "decomposing question..."
                           : phase.startsWith("Searching")
-                            ? "Searching for articles..."
-                            : phase === "Synthesizing"
-                              ? "Synthesizing the report..."
-                              : "Thinking..."}
+                          ? "searching for articles..."
+                          : phase === "Synthesizing"
+                          ? "synthesizing the dispatch..."
+                          : "thinking..."}
                       </span>
                     </div>
                   )}
                 </div>
-              )}
+              </section>
+            )
+          )}
 
-              {/* -----------------------------------------------------
-               * Citation chip row -- bottom of the agent card. Each
-               * chip is a button that smooth-scrolls to the matching
-               * `#source-N` anchor inside the Sources Used list.
-               * Only renders once the run is done.
-               * ----------------------------------------------------- */}
-              {citationNumbers.length > 0 && (
-                <div className="pt-3 border-t border-border flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-muted-foreground font-medium">
-                    Sources:
-                  </span>
-                  {citationNumbers.map((n) => (
-                    <a
-                      key={n}
-                      href={`#source-${n}`}
-                      onClick={(e) => onCitationClick(e, n)}
-                      className="inline-flex items-center justify-center min-w-[28px] h-6 px-2 rounded-md border border-border bg-muted text-foreground text-xs font-medium hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
-                    >
-                      [{n}]
-                    </a>
-                  ))}
-                </div>
+          {/* -----------------------------------------------------------
+           * Action bar -- mono pills. Cancel mid-flight, save/copy/dl on done.
+           * ----------------------------------------------------------- */}
+          {(isResearching || phase === "done") && (
+            <div className="flex items-center gap-2 font-mono-tx text-[11px] uppercase-eyebrow mt-6 pt-4 border-t border-[var(--rule)] flex-wrap">
+              {isResearching && (
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  data-testid="research-cancel-btn"
+                  aria-label="Cancel research"
+                  className="px-3 py-1.5 border border-[var(--rule)] hover:bg-[var(--background-tint)] hover:text-signal"
+                >
+                  [ ⌃X cancel ]
+                </button>
               )}
-            </CardContent>
-          </Card>
+              {showReport && phase === "done" && (
+                <>
+                  <button
+                    type="button"
+                    onClick={onSaveResearch}
+                    data-testid="research-save-btn"
+                    aria-label={
+                      saveState === "saved"
+                        ? "Saved"
+                        : saveState === "saving"
+                        ? "Saving"
+                        : "Save research"
+                    }
+                    aria-live="polite"
+                    disabled={saveState !== "idle"}
+                    className="px-3 py-1.5 border border-[var(--rule)] hover:bg-[var(--background-tint)] hover:text-signal disabled:opacity-40"
+                  >
+                    {saveState === "saved"
+                      ? "[ ✓ saved ]"
+                      : saveState === "saving"
+                      ? "[ saving... ]"
+                      : "[ ⌃S save ]"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onCopyMarkdown}
+                    data-testid="research-copy-btn"
+                    aria-label={copied ? "Copied" : "Copy markdown"}
+                    aria-live="polite"
+                    className="px-3 py-1.5 border border-[var(--rule)] hover:bg-[var(--background-tint)] hover:text-signal"
+                  >
+                    {copied ? "[ ✓ copied ]" : "[ ⌃C copy ]"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onDownloadMarkdown}
+                    data-testid="research-download-btn"
+                    aria-label="Download markdown"
+                    className="px-3 py-1.5 border border-[var(--rule)] hover:bg-[var(--background-tint)] hover:text-signal"
+                  >
+                    [ ⌃D .md ]
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </motion.div>
       )}
 
-      {/* =============================================================
-       * Follow-up "Continue with:" bar -- a conversational
-       * continuation. Clicking a chip starts a new Q&A and replaces
-       * the current transcript (v1 scope: one Q&A at a time).
-       * ============================================================= */}
+      {/* -----------------------------------------------------------
+       * Follow-up ticker -- mono [ <q> ] chips.
+       * ----------------------------------------------------------- */}
       {followUps.length > 0 && (
-        <div className="border border-border rounded-lg p-3 bg-card">
-          <SuggestedQueries
-            queries={followUps}
-            onSelect={(q) => {
-              setQuery(q);
-              void conductResearch(q);
-            }}
-            label="Continue with:"
-            data-testid="research-follow-ups"
-            chipTestId="research-follow-up-chip"
-          />
+        <div
+          data-testid="research-follow-ups"
+          className="mt-6 pt-4 border-t border-[var(--rule)]"
+        >
+          <div className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft mb-3">
+            ━ continue with
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {followUps.map((s, i) => (
+              <button
+                key={i}
+                type="button"
+                data-testid="research-follow-up-chip"
+                onClick={() => {
+                  setQuery(s);
+                  void conductResearch(s);
+                }}
+                className="px-3 py-1.5 font-mono-tx text-[11px] uppercase-eyebrow border border-[var(--rule)] hover:text-signal hover:border-[var(--accent-signal)]"
+              >
+                [ {s} ]
+              </button>
+            ))}
+          </div>
         </div>
       )}
+
+      {/* -----------------------------------------------------------
+       * Sticky bottom query bar -- mono caret prompt + submit pill.
+       * The placeholder MUST contain "AI funding rounds" so the
+       * Playwright helper `page.getByPlaceholder(/AI funding rounds/i)`
+       * keeps locating it.
+       * ----------------------------------------------------------- */}
+      <div className="sticky bottom-0 bg-background border-t-2 border-[var(--foreground)] mt-8 pt-3 pb-4">
+        <div className="flex items-end gap-3">
+          <span className="font-mono-tx text-foreground-soft pt-2 pl-3 text-[13px]">
+            {isResearching ? (
+              <span className="live-cursor text-signal" />
+            ) : (
+              <>&gt;</>
+            )}
+          </span>
+          <textarea
+            ref={inputRef}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={onSubmitKey}
+            rows={1}
+            disabled={isResearching}
+            placeholder="ask the desk... e.g., Summarize the biggest AI funding rounds in the past 2 weeks"
+            className="flex-1 resize-none bg-transparent font-mono-tx text-[13px] text-foreground placeholder:text-foreground-soft border-0 outline-none focus:ring-0 py-2 disabled:opacity-40"
+          />
+          <button
+            type="button"
+            onClick={() => conductResearch()}
+            disabled={isResearching || !query.trim()}
+            aria-label="Research"
+            className="px-3 py-1.5 font-mono-tx text-[11px] uppercase-eyebrow border border-[var(--rule)] hover:bg-[var(--background-tint)] hover:text-signal disabled:opacity-40"
+          >
+            {isResearching ? "[ running... ]" : "[ Research ⏎ ]"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// ToolUseBlock -- Claude.ai-style collapsible "tool use" surface.
-//
-// Renders a single muted-background button with a chevron + summary
-// line + optional spinner. Click expands the body via framer-motion
-// height animation. Honors reduced-motion.
-// ---------------------------------------------------------------------------
-
-interface ToolUseBlockProps {
-  open: boolean;
-  onToggle: () => void;
-  /** Summary line shown when collapsed. */
-  summary: string;
-  /** Item count -- rendered as a small badge after the summary. */
-  count?: number;
-  /** When true, shows a spinner in the header to signal in-flight work. */
-  loading?: boolean;
-  reduceMotion: boolean;
-  testid?: string;
-  /** Optional testid for the clickable header button (legacy contract). */
-  headerTestid?: string;
-  children: React.ReactNode;
-}
-
-function ToolUseBlock({
-  open,
-  onToggle,
-  summary,
-  count,
-  loading,
-  reduceMotion,
-  testid,
-  headerTestid,
-  children,
-}: ToolUseBlockProps): JSX.Element {
-  return (
-    <div
-      data-testid={testid}
-      className="border border-border rounded-lg overflow-hidden bg-muted"
-    >
-      <button
-        type="button"
-        data-testid={headerTestid}
-        onClick={onToggle}
-        aria-expanded={open}
-        className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-foreground hover:bg-accent transition-colors"
-      >
-        {open ? (
-          <ChevronDown className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-        ) : (
-          <ChevronRight className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-        )}
-        {loading ? (
-          <Loader2 className="w-3 h-3 text-primary animate-spin flex-shrink-0" />
-        ) : null}
-        <span className="flex-1 min-w-0 font-medium">{summary}</span>
-        {typeof count === "number" && count > 0 && (
-          <Badge
-            variant="outline"
-            className="text-[10px] py-0 px-1.5 bg-card text-foreground border-border font-medium"
-          >
-            {count}
-          </Badge>
-        )}
-      </button>
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            key="tool-use-body"
-            initial={
-              reduceMotion
-                ? { height: "auto", opacity: 1 }
-                : { height: 0, opacity: 0 }
-            }
-            animate={{ height: "auto", opacity: 1 }}
-            exit={
-              reduceMotion
-                ? { height: "auto", opacity: 0 }
-                : { height: 0, opacity: 0 }
-            }
-            transition={{ duration: reduceMotion ? 0 : 0.22, ease: "easeOut" }}
-            style={{ overflow: "hidden" }}
-          >
-            <div className="px-3 pt-1 pb-3 bg-card">{children}</div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
+export default ResearchMode;

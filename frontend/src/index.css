@@ -3071,3 +3071,206 @@ body {
   /* Foreground border util for the lead-rule. */
   .border-foreground { border-color: var(--foreground); }
 }
+
+/* ============================================================
+ * Broadsheet Terminal -- M3 utilities
+ * ------------------------------------------------------------
+ * Hand-authored utilities for the Research-mode teleprinter
+ * rebuild. Tailwind v4 prebuilt bundle does NOT regenerate.
+ * See docs/designs/frontend-overhaul.md S7 (M3 spec).
+ * ============================================================ */
+@layer utilities {
+  /* Type scale additions */
+  .text-\[16px\] { font-size: 16px; line-height: 24px; }
+  .text-\[24px\] { font-size: 24px; line-height: 30px; }
+  .text-\[28px\] { font-size: 28px; line-height: 34px; }
+  .leading-\[1\.3\] { line-height: 1.3; }
+  .leading-\[1\.65\] { line-height: 1.65; }
+
+  /* Spacing additions */
+  .pl-5 { padding-left: calc(var(--spacing) * 5); }
+  .pl-6 { padding-left: calc(var(--spacing) * 6); }
+  .ml-6 { margin-left: calc(var(--spacing) * 6); }
+  .mt-8 { margin-top: calc(var(--spacing) * 8); }
+  .pb-2 { padding-bottom: calc(var(--spacing) * 2); }
+  .bottom-0 { bottom: calc(var(--spacing) * 0); }
+
+  /* Sticky bottom query bar primitives. */
+  .resize-none { resize: none; }
+  .border-0 { border-style: var(--tw-border-style); border-width: 0; }
+  .bg-transparent { background-color: transparent; }
+  .opacity-40 { opacity: 0.4; }
+  .disabled\:opacity-40:disabled { opacity: 0.4; }
+  .whitespace-pre-line { white-space: pre-line; }
+
+  /* Placeholder color tied to our editorial palette. */
+  .placeholder\:text-foreground-soft::placeholder {
+    color: var(--foreground-soft);
+  }
+
+  /* Focus-ring tame for the textarea. */
+  .focus\:ring-0:focus { box-shadow: none; }
+  .focus\:ring-0:focus-visible { box-shadow: none; }
+
+  /* Border-color accents on hover for ticker chips and follow-ups. */
+  .hover\:border-\[var\(--accent-signal\)\]:hover { border-color: var(--accent-signal); }
+
+  /* Foreground text on hover -- used by subagent row toggle. */
+  .hover\:text-foreground:hover { color: var(--foreground); }
+
+  /* space-y-1.5 is referenced by the markdown lists. */
+  :where(.space-y-1\.5 > :not(:last-child)) {
+    margin-bottom: calc(var(--spacing) * 1.5);
+  }
+
+  /* Inline space-y-1 already exists; ensure space-y-3 too. */
+  :where(.space-y-3 > :not(:last-child)) {
+    margin-bottom: calc(var(--spacing) * 3);
+  }
+
+  /* Editorial markdown rendering -- per design doc S9 step 5.
+     Applied via the `.research-report` wrapper so we don't have to
+     replicate every selector inside MarkdownReport's render. */
+  .research-report h1 {
+    font-family: 'Fraunces', 'Times New Roman', serif;
+    font-optical-sizing: auto;
+    font-size: 28px;
+    line-height: 34px;
+    font-weight: 500;
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: calc(var(--spacing) * 2);
+    margin-top: calc(var(--spacing) * 6);
+    margin-bottom: calc(var(--spacing) * 3);
+    color: var(--foreground);
+    letter-spacing: -0.015em;
+  }
+  .research-report h2 {
+    font-family: 'Fraunces', 'Times New Roman', serif;
+    font-optical-sizing: auto;
+    font-size: 22px;
+    line-height: 28px;
+    font-weight: 500;
+    margin-top: calc(var(--spacing) * 5);
+    margin-bottom: calc(var(--spacing) * 2);
+    color: var(--foreground);
+    letter-spacing: -0.01em;
+  }
+  .research-report h3 {
+    font-family: 'Fraunces', 'Times New Roman', serif;
+    font-optical-sizing: auto;
+    font-size: 18px;
+    line-height: 24px;
+    font-weight: 500;
+    margin-top: calc(var(--spacing) * 4);
+    margin-bottom: calc(var(--spacing) * 2);
+    color: var(--foreground);
+  }
+  .research-report h4 {
+    font-family: 'Fraunces', 'Times New Roman', serif;
+    font-size: 16px;
+    line-height: 22px;
+    font-weight: 600;
+    margin-top: calc(var(--spacing) * 3);
+    margin-bottom: calc(var(--spacing) * 1.5);
+    color: var(--foreground);
+  }
+  .research-report p {
+    font-size: 15px;
+    line-height: 1.65;
+    margin-bottom: calc(var(--spacing) * 4);
+    color: var(--foreground);
+  }
+  .research-report p.editorial-drop::first-letter {
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    float: left;
+    font-size: 4.6em;
+    line-height: 0.82;
+    padding: 0.08em 0.12em 0 0;
+    color: var(--accent-signal);
+  }
+  .research-report blockquote {
+    font-family: 'Fraunces', 'Times New Roman', serif;
+    font-style: italic;
+    font-size: 18px;
+    line-height: 1.55;
+    border-left: 2px solid var(--accent-signal);
+    padding-left: calc(var(--spacing) * 4);
+    margin-top: calc(var(--spacing) * 4);
+    margin-bottom: calc(var(--spacing) * 4);
+    color: var(--foreground);
+  }
+  .research-report code {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 13px;
+    background-color: var(--background-tint);
+    padding: 2px 4px;
+    border-radius: 0;
+  }
+  .research-report pre {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 13px;
+    background-color: var(--background-tint);
+    padding: calc(var(--spacing) * 3);
+    margin-top: calc(var(--spacing) * 4);
+    margin-bottom: calc(var(--spacing) * 4);
+    overflow-x: auto;
+  }
+  .research-report pre code {
+    background: transparent;
+    padding: 0;
+  }
+  .research-report ul,
+  .research-report ol {
+    padding-left: calc(var(--spacing) * 5);
+    margin-top: calc(var(--spacing) * 3);
+    margin-bottom: calc(var(--spacing) * 3);
+  }
+  .research-report ul > li,
+  .research-report ol > li {
+    margin-bottom: calc(var(--spacing) * 1.5);
+    line-height: 1.55;
+    color: var(--foreground);
+  }
+  .research-report ul > li::marker,
+  .research-report ol > li::marker {
+    color: var(--foreground-soft);
+  }
+  .research-report a.citation {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.85em;
+    text-decoration: none;
+  }
+  .research-report a:not(.citation) {
+    color: var(--accent-signal);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    word-break: break-word;
+  }
+  .research-report table {
+    border: 1px solid var(--rule);
+    border-collapse: collapse;
+    margin-top: calc(var(--spacing) * 4);
+    margin-bottom: calc(var(--spacing) * 4);
+    font-size: 14px;
+  }
+  .research-report th,
+  .research-report td {
+    border: 1px solid var(--rule);
+    padding: calc(var(--spacing) * 2) calc(var(--spacing) * 3);
+    text-align: left;
+    color: var(--foreground);
+  }
+  .research-report thead {
+    background-color: var(--background-tint);
+  }
+  .research-report hr {
+    border: 0;
+    border-top: 1px solid var(--rule);
+    margin-top: calc(var(--spacing) * 4);
+    margin-bottom: calc(var(--spacing) * 4);
+  }
+
+  /* Subagent row hover -- light slab. */
+  .hover\:bg-\[var\(--background-tint\)\]:hover { background-color: var(--background-tint); }
+}
