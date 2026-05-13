@@ -65,14 +65,67 @@ function AppShell() {
   const [savedCategories, setSavedCategories] = useState<string[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [totalArticleCount, setTotalArticleCount] = useState<number>(0);
-  // Active tab — controlled at App level so Sidebar (owns the TabsList) and
+  // Active tab -- controlled at App level so Sidebar (owns the TabsList) and
   // CommandPalette can both mutate it. Radix Tabs becomes controlled via
   // value/onValueChange.
-  const [activeTab, setActiveTab] = useState<string>("feed");
-  // First-load welcome screen -- shown until the user dismisses it via
-  // one of the CTAs (Try Research / Browse Feed / Skip intro). Persists
-  // in localStorage so returning visitors land directly on the feed.
-  const [showWelcome, setShowWelcome] = useState<boolean>(() => !hasSeenWelcome());
+  //
+  // Polish iter 6: tab state is synced with `window.location.hash` so
+  // reload preserves the tab. URLs look like:
+  //   /            -> welcome (when not seen) OR feed (default)
+  //   /#feed       -> News Feed
+  //   /#research   -> Research
+  //   /#knowledge  -> Knowledge Graph
+  //   /#digest     -> Daily Digest
+  //   /#saved      -> Saved Research
+  //   /#preferences -> Settings
+  // Initialise from the hash on first render so we never flash the wrong
+  // tab on reload.
+  const VALID_TABS = ["feed", "research", "knowledge", "digest", "saved", "preferences"] as const;
+  const readHashTab = (): string | null => {
+    if (typeof window === "undefined") return null;
+    const raw = (window.location.hash || "").replace(/^#\/?/, "");
+    return (VALID_TABS as readonly string[]).includes(raw) ? raw : null;
+  };
+  const [activeTab, setActiveTabState] = useState<string>(() => readHashTab() || "feed");
+
+  // First-load welcome screen -- shown when the user has not dismissed it
+  // before AND no tab hash is set in the URL. Visiting a deep link like
+  // /#research skips the welcome entirely so shared URLs always land on
+  // the intended content.
+  const [showWelcome, setShowWelcome] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    if (readHashTab() !== null) return false; // deep link wins
+    return !hasSeenWelcome();
+  });
+
+  // Tab setter that also pushes the new value into the URL hash. We
+  // wrap the raw setter so every callsite (sidebar, command palette,
+  // welcome CTAs) automatically updates the URL.
+  const setActiveTab = (next: string) => {
+    setActiveTabState(next);
+    if (typeof window !== "undefined") {
+      const desired = `#${next}`;
+      if (window.location.hash !== desired) {
+        window.history.replaceState(null, "", desired);
+      }
+    }
+  };
+
+  // Listen for hashchange (back/forward button, manual URL edit, link
+  // click) and reflect it into state. Also swallow the welcome overlay
+  // when the user navigates to a real tab via the hash.
+  useEffect(() => {
+    const onHash = () => {
+      const tab = readHashTab();
+      if (tab) {
+        setActiveTabState(tab);
+        setShowWelcome(false);
+      }
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
   const reduceMotion = useReducedMotion();
   // Page-tab fade-in: each TabsContent's children are wrapped in a
   // motion.div that fades in from opacity 0 → 1 on mount. Radix unmounts
@@ -442,6 +495,7 @@ function AppShell() {
                 onSkip={() => {
                   markWelcomeSeen();
                   setShowWelcome(false);
+                  setActiveTab("feed");
                 }}
               />
             )}

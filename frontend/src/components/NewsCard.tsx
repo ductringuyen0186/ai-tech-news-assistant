@@ -96,6 +96,9 @@ interface NewsCardProps {
     publishedAt: string;
     imageUrl: string;
     category: string[];
+    /** Full article body. When longer than `summaryShort` we render
+     *  a "Read More" expander that surfaces this on click. */
+    content?: string;
     summaryShort: string;
     summaryMedium: string;
     keyInsights: string[];
@@ -330,64 +333,83 @@ export function NewsCard({ article, viewMode }: NewsCardProps) {
         </div>
       </div>
 
-      {viewMode === "detailed" && (
-        <div className="min-w-0">
-          {expanded ? (
-            <div className="space-y-2">
-              {article.summaryMedium &&
-                article.summaryMedium.trim() !==
-                  (article.summaryShort || "").trim() && (
+      {/* Detailed-view "Read More" expander. Polish iter 6 fix: the
+          previous implementation always rendered the button even when
+          there was nothing more to show (summaryMedium === summaryShort
+          and keyInsights is hardcoded to []), so clicking it just
+          flipped to "Show Less" with no visible change. Now we
+          compute whether there's actually more content to surface,
+          and only render the expander when there is. On expand we
+          prefer the full article.content (truncated to 1800 chars)
+          which is genuinely longer than what's already shown. */}
+      {viewMode === "detailed" && (() => {
+        const short = (article.summaryShort || "").trim();
+        const body = (article.content || article.summaryMedium || "").trim();
+        // 40-char threshold avoids flipping the expander for nearly-identical
+        // strings (whitespace, an ellipsis, etc).
+        const hasMoreBody = body.length > short.length + 40;
+        const hasInsights =
+          Array.isArray(article.keyInsights) && article.keyInsights.length > 0;
+        const hasMore = hasMoreBody || hasInsights;
+        if (!hasMore) return null;
+        const expandedBody = body.length > 1800 ? body.slice(0, 1800).trimEnd() + "..." : body;
+        return (
+          <div className="min-w-0">
+            {expanded ? (
+              <div className="space-y-2">
+                {hasMoreBody && (
                   <p
-                    className="text-sm leading-relaxed text-foreground/80"
+                    className="text-sm leading-relaxed text-foreground/80 whitespace-pre-line"
                     style={{
                       overflowWrap: "anywhere",
                       wordBreak: "break-word",
                     }}
                   >
-                    {article.summaryMedium}
+                    {expandedBody}
                   </p>
                 )}
-              {article.keyInsights && article.keyInsights.length > 0 && (
-                <div className="bg-muted/40 p-3 rounded-md">
-                  <h4 className="text-xs font-semibold mb-2 text-foreground">
-                    Key Insights
-                  </h4>
-                  <ul className="space-y-1.5">
-                    {article.keyInsights.map((insight, idx) => (
-                      <li
-                        key={idx}
-                        className="text-xs text-muted-foreground flex items-start gap-2 leading-relaxed"
-                      >
-                        <span className="text-primary mt-0.5">·</span>
-                        <span style={{ overflowWrap: "anywhere" }}>
-                          {insight}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+                {hasInsights && (
+                  <div className="bg-muted/40 p-3 rounded-md">
+                    <h4 className="text-xs font-semibold mb-2 text-foreground">
+                      Key Insights
+                    </h4>
+                    <ul className="space-y-1.5">
+                      {article.keyInsights.map((insight, idx) => (
+                        <li
+                          key={idx}
+                          className="text-xs text-muted-foreground flex items-start gap-2 leading-relaxed"
+                        >
+                          <span className="text-primary mt-0.5">·</span>
+                          <span style={{ overflowWrap: "anywhere" }}>
+                            {insight}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-full text-xs"
+                  onClick={() => setExpanded(false)}
+                >
+                  Show Less <ChevronUp className="w-3 h-3 ml-1" />
+                </Button>
+              </div>
+            ) : (
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 w-full text-xs"
-                onClick={() => setExpanded(false)}
+                className="h-7 w-full text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => setExpanded(true)}
               >
-                Show Less <ChevronUp className="w-3 h-3 ml-1" />
+                Read More <ChevronDown className="w-3 h-3 ml-1" />
               </Button>
-            </div>
-          ) : (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 w-full text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => setExpanded(true)}
-            >
-              Read More <ChevronDown className="w-3 h-3 ml-1" />
-            </Button>
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        );
+      })()}
 
       {/* Footer — category chips on the left, "Read article →" CTA on
           the right. The CTA is the dominant action: visible text +
