@@ -39,6 +39,12 @@ function AppShell() {
     "AI",
     "Machine Learning",
   ]);
+  // Polish iter 3 / Part D — entities the user has chip-toggled from the
+  // TrendingRail. Kept separate from ``selectedCategories`` (which still
+  // hits the backend ``?category=`` filter) because entity names are NOT
+  // valid categories — we apply them client-side as a substring match on
+  // each article's title + summary.
+  const [selectedEntities, setSelectedEntities] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [digest, setDigest] = useState<any>(null);
   // Polish iter 3 / Part C — separate state for the three new digest panels
@@ -313,6 +319,41 @@ function AppShell() {
     fetchArticles();
   }, [selectedCategories, searchQuery, showTrendingOnly]);
 
+  // Polish iter 3 / Part D — Apply the entity chip filter client-side.
+  //
+  // When the user toggles an entity chip in the TrendingRail, we add the
+  // entity name to ``selectedEntities``. Filtering is approximate: an
+  // article "mentions" an entity iff its title or summaryShort/summaryMedium
+  // contains the entity name as a case-insensitive substring. This v1
+  // doesn't consult the knowledge-graph's tracked mentions, so it may miss
+  // articles that mention the entity only in the article body. The accuracy
+  // hit is acceptable here because the chips are a discovery affordance, not
+  // a precise query interface.
+  //
+  // If no entity chips are active, the filter is a no-op and we display
+  // every article returned by the backend query.
+  useEffect(() => {
+    if (selectedEntities.length === 0) {
+      setFilteredArticles(articles);
+      return;
+    }
+    const needles = selectedEntities.map((e) => e.toLowerCase());
+    const next = articles.filter((article: any) => {
+      const haystack = [
+        article.title,
+        article.summaryShort,
+        article.summaryMedium,
+        article.content,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      // OR-match across entities — clicking two chips broadens the filter.
+      return needles.some((n) => haystack.includes(n));
+    });
+    setFilteredArticles(next);
+  }, [articles, selectedEntities]);
+
   // -------------------------------------------------------------------------
   // Render — sidebar + main pane inside a controlled Radix Tabs root.
   // -------------------------------------------------------------------------
@@ -413,22 +454,23 @@ function AppShell() {
                 </div>
               </div>
 
-              {/* Mission 3 / M3.M3 — Trending Now rail. Click a chip to
-                  toggle the matching category as a filter. The rail is
-                  presentational and self-hides when there are no
-                  categories yet. */}
+              {/* Polish iter 3 / Part D — Trending Now rail. Now driven by
+                  the knowledge-graph trending-entities endpoint (top entities
+                  this week). Clicking a chip toggles the entity in
+                  ``selectedEntities``, which then drives a client-side
+                  substring filter over the loaded article list. */}
               <TrendingRail
-                selectedCategories={selectedCategories}
-                onSelectCategory={(cat) => {
-                  setSelectedCategories((prev) =>
-                    prev.includes(cat)
-                      ? prev.filter((c) => c !== cat)
-                      : [...prev, cat]
+                selectedCategories={selectedEntities}
+                onSelectCategory={(entity) => {
+                  setSelectedEntities((prev) =>
+                    prev.includes(entity)
+                      ? prev.filter((c) => c !== entity)
+                      : [...prev, entity]
                   );
                 }}
               />
 
-              {selectedCategories.length > 0 && (
+              {(selectedCategories.length > 0 || selectedEntities.length > 0) && (
                 <div
                   data-testid="news-feed-active-filters"
                   className="flex flex-wrap gap-1.5 items-center bg-card p-2 rounded-md border border-border"
@@ -438,17 +480,29 @@ function AppShell() {
                   </span>
                   {selectedCategories.map((cat) => (
                     <Badge
-                      key={cat}
+                      key={`cat-${cat}`}
                       variant="secondary"
                       className="h-5 px-1.5 text-[10px] font-normal"
                     >
                       {cat}
                     </Badge>
                   ))}
+                  {selectedEntities.map((ent) => (
+                    <Badge
+                      key={`ent-${ent}`}
+                      variant="default"
+                      className="h-5 px-1.5 text-[10px] font-normal"
+                    >
+                      {ent}
+                    </Badge>
+                  ))}
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setSelectedCategories([])}
+                    onClick={() => {
+                      setSelectedCategories([]);
+                      setSelectedEntities([]);
+                    }}
                     className="ml-auto h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
                   >
                     Clear Filters
@@ -472,6 +526,7 @@ function AppShell() {
                       setSearchQuery("");
                       setShowTrendingOnly(false);
                       setSelectedCategories([]);
+                      setSelectedEntities([]);
                     }}
                   >
                     Reset Filters

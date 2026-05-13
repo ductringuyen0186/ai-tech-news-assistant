@@ -5,40 +5,53 @@ import { Skeleton } from "./ui/skeleton";
 import { API_ENDPOINTS, apiFetch } from "../config/api";
 
 /**
- * TrendingRail — horizontal chip row of the top categories by article count.
+ * TrendingRail — horizontal chip row of the top ENTITIES by mention count
+ * this week.
  *
- * Mission 3 / Milestone 3 — sits above the news-feed filter chips and gives
- * the user a one-click jump into the largest categories. Categories are
- * pulled from `/api/news/categories`, then counts come from `/api/news?
- * category=X&page_size=1` (we only need the total_items from pagination —
- * cheap because page_size=1 fetches almost nothing).
+ * Polish iter 3 / Part D — previously this rendered top categories using
+ * the per-category article-count rollup. We swapped to the knowledge-graph
+ * trending-entities endpoint (added in Part B) so the chips show what's
+ * actually being talked about across the corpus, not just which bucket
+ * has the most articles.
  *
- * Click behaviour: calls `onSelectCategory(name)` with the chip's category.
- * The parent owns the actual filter state — this component is presentational
- * past the count-aggregation effect.
+ * Click behaviour: calls ``onSelectCategory(entityName)`` — the parent owns
+ * the actual filter state. The prop name is kept as ``onSelectCategory``
+ * even though we now pass entity names, because the parent's filter pipeline
+ * (App.tsx ``selectedCategories``) is reused as-is. Filtering is approximate
+ * (see note in App.tsx) — when an entity name is in the selected list we
+ * do a case-insensitive substring match on each article's title and summary.
+ *
+ * The ``data-testid="news-feed-trending-rail"`` and
+ * ``data-testid="news-feed-trending-chip"`` selectors are PRESERVED so the
+ * existing Playwright assertions still pass (the semantics are now "entity"
+ * but the testid stays).
  */
 
 interface TrendingRailProps {
-  /** Currently-selected categories from the parent. The chip whose name
-   *  matches an entry in this list renders in its "selected" variant. */
+  /** Currently-selected entity names. A chip whose name matches an entry
+   *  in this list renders in its "selected" variant. */
   selectedCategories: string[];
-  /** Fired when a chip is clicked. The chip name is the only argument. */
-  onSelectCategory: (category: string) => void;
-  /** Maximum number of chips to render (default 5). */
+  /** Fired when a chip is clicked. The entity name is the only argument. */
+  onSelectCategory: (entityName: string) => void;
+  /** Maximum number of chips to render (default 8 — bumped from 5 for the
+   *  news-feed surface so the rail feels populated). */
   limit?: number;
 }
 
-interface TrendingCategory {
+interface TrendingEntity {
+  id: number;
   name: string;
-  count: number;
+  type: string;
+  mention_count: number;
+  score: number;
 }
 
 export function TrendingRail({
   selectedCategories,
   onSelectCategory,
-  limit = 5,
+  limit = 8,
 }: TrendingRailProps) {
-  const [trending, setTrending] = useState<TrendingCategory[]>([]);
+  const [trending, setTrending] = useState<TrendingEntity[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -47,54 +60,30 @@ export function TrendingRail({
     const loadTrending = async () => {
       try {
         setLoading(true);
-
-        // 1. Pull the live category vocabulary from the backend. This matches
-        //    what `/api/news` will actually filter against.
-        const envelope = await apiFetch<any>(API_ENDPOINTS.newsCategories);
-        if (cancelled) return;
-        const data = envelope?.data ?? envelope;
-        const categories: string[] = Array.isArray(data?.categories)
-          ? data.categories
-          : [];
-
-        if (categories.length === 0) {
-          setTrending([]);
-          return;
-        }
-
-        // 2. Fetch a one-article page per category in parallel; we only need
-        //    pagination.total_items. This avoids an extra backend route.
-        const results = await Promise.all(
-          categories.map(async (cat) => {
-            try {
-              const params = new URLSearchParams({
-                page: "1",
-                page_size: "1",
-                category: cat,
-              });
-              const res = await apiFetch<any>(
-                `${API_ENDPOINTS.news}?${params}`
-              );
-              const total = Number(res?.pagination?.total_items ?? 0);
-              return { name: cat, count: total };
-            } catch {
-              return { name: cat, count: 0 };
-            }
-          })
+        // Polish iter 3 / Part D — reuse the Part B knowledge-graph trending
+        // endpoint instead of building a parallel "trending categories"
+        // pipeline. ``days=7&limit=N`` matches the rail's "this week" framing.
+        const params = new URLSearchParams({
+          days: "7",
+          limit: String(limit),
+        });
+        const data = await apiFetch<any>(
+          `${API_ENDPOINTS.knowledgeGraphTrending}?${params}`
         );
-
         if (cancelled) return;
-
-        // 3. Sort by count descending, take the top `limit`, drop empties.
-        const top = results
-          .filter((r) => r.count > 0)
-          .sort((a, b) => b.count - a.count)
-          .slice(0, limit);
-
-        setTrending(top);
+        const entities: TrendingEntity[] = Array.isArray(data?.entities)
+          ? data.entities
+          : [];
+        // Defensive sort by mention_count desc — backend already returns
+        // them in score order, but the chip badge shows mention_count so we
+        // make sure the displayed number monotonically descends.
+        const sorted = [...entities].sort(
+          (a, b) => (b.mention_count || 0) - (a.mention_count || 0)
+        );
+        setTrending(sorted);
       } catch (err) {
         if (!cancelled) {
-          console.error("TrendingRail: failed to load trending categories", err);
+          console.error("TrendingRail: failed to load trending entities", err);
           setTrending([]);
         }
       } finally {
@@ -146,15 +135,19 @@ export function TrendingRail({
         const isActive = selectedCategories.includes(t.name);
         return (
           <button
-            key={t.name}
+            key={`${t.id}-${t.name}`}
             type="button"
             data-testid="news-feed-trending-chip"
+            // ``data-category`` is preserved (and now carries the entity
+            // name) so the existing Playwright assertion that reads this
+            // attribute keeps working.
             data-category={t.name}
+            data-entity-type={t.type}
             onClick={() => onSelectCategory(t.name)}
             className={[
               "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
               isActive
-                ? "border-primary bg-primary/10 text-primary"
+                ? "border-primary bg-primary text-primary-foreground"
                 : "border-border bg-card text-foreground hover:bg-accent/40 hover:text-accent-foreground",
             ].join(" ")}
           >
@@ -163,7 +156,7 @@ export function TrendingRail({
               variant="secondary"
               className="h-4 px-1.5 text-[10px] font-normal leading-none"
             >
-              {t.count}
+              {t.mention_count}
             </Badge>
           </button>
         );
