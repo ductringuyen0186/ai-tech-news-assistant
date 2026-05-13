@@ -73,8 +73,8 @@ export function Sidebar({ activeTab, badges }: SidebarProps) {
         <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center shadow-sm">
           <Newspaper className="w-5 h-5 text-primary-foreground" />
         </div>
-        <div className="flex flex-col leading-tight">
-          <span className="text-base font-semibold tracking-tight">TechPulse AI</span>
+        <div className="flex flex-col leading-tight gap-0.5">
+          <span className="text-base font-semibold tracking-tight text-foreground">TechPulse AI</span>
           <span className="text-xs text-muted-foreground">tech-news research</span>
         </div>
       </div>

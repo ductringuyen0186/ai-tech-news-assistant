@@ -153,17 +153,17 @@ export function DigestView({
   );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Header */}
       <Card className="bg-card border-border">
-        <CardHeader className="py-4">
+        <CardHeader className="py-5">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-md bg-primary/10 flex items-center justify-center">
               <Mail className="w-5 h-5 text-primary" />
             </div>
-            <div>
-              <CardTitle className="text-lg">Daily Tech Digest</CardTitle>
-              <CardDescription className="flex items-center gap-1.5 mt-0.5 text-xs">
+            <div className="space-y-1">
+              <CardTitle className="text-xl font-semibold text-foreground">Daily Tech Digest</CardTitle>
+              <CardDescription className="flex items-center gap-1.5 text-xs">
                 <Calendar className="w-3.5 h-3.5" />
                 {formatDate(digest.date)}
               </CardDescription>
@@ -188,16 +188,16 @@ export function DigestView({
           data-testid="digest-daily-summary-card"
           className="border-2 border-accent/60 bg-accent/10"
         >
-          <CardHeader className="py-3">
+          <CardHeader className="py-4">
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-primary" />
-              <CardTitle className="text-base">Today's Tech Pulse</CardTitle>
+              <CardTitle className="text-base font-semibold text-foreground">Today's Tech Pulse</CardTitle>
             </div>
             <CardDescription className="text-xs">
               AI-generated overview of the day's most important stories
             </CardDescription>
           </CardHeader>
-          <CardContent className="pb-4">
+          <CardContent className="pb-5">
             {dailySummaryLoading ? (
               <div className="space-y-2">
                 <Skeleton className="h-3 w-full" />
@@ -216,7 +216,7 @@ export function DigestView({
                 >
                   {dailySummary.summary}
                 </p>
-                <div className="mt-3 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+                <div className="mt-3 flex items-center justify-between gap-2 text-xs text-muted-foreground">
                   <span>
                     Generated {relativeTime(dailySummary.generated_at) || "today"}
                     {" • "}
@@ -235,20 +235,20 @@ export function DigestView({
           Single column on narrow screens; 2 across at md; 3 across at lg. */}
       {curatedHeadlines && curatedHeadlines.length > 0 && (
         <Card>
-          <CardHeader className="py-3">
+          <CardHeader className="py-4">
             <div className="flex items-center gap-2">
               <Newspaper className="w-4 h-4 text-primary" />
-              <CardTitle className="text-base">Today's Headlines</CardTitle>
+              <CardTitle className="text-base font-semibold text-foreground">Today's Headlines</CardTitle>
             </div>
             <CardDescription className="text-xs">
               The day's most important stories, ranked by recency, source
               weight, and how often they're mentioned across the corpus
             </CardDescription>
           </CardHeader>
-          <CardContent className="pb-4">
+          <CardContent className="pb-5">
             <div
               data-testid="digest-curated-headlines"
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
             >
               {curatedHeadlines.map((story) => (
                 <a
@@ -273,7 +273,7 @@ export function DigestView({
                       />
                     </div>
                   ) : null}
-                  <div className="p-3 flex flex-col gap-2 flex-1">
+                  <div className="p-4 flex flex-col gap-2 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <Badge
                         variant="outline"
@@ -295,7 +295,7 @@ export function DigestView({
                         ))}
                     </div>
                     <h3
-                      className="text-sm font-medium text-foreground leading-snug line-clamp-3"
+                      className="text-[15px] font-semibold text-foreground leading-snug line-clamp-3"
                       style={{
                         overflowWrap: "anywhere",
                         wordBreak: "break-word",
@@ -305,7 +305,7 @@ export function DigestView({
                     </h3>
                     {story.summary ? (
                       <p
-                        className="text-xs text-muted-foreground line-clamp-2"
+                        className="text-sm text-muted-foreground leading-relaxed line-clamp-2"
                         style={{
                           overflowWrap: "anywhere",
                           wordBreak: "break-word",
@@ -314,9 +314,9 @@ export function DigestView({
                         {story.summary}
                       </p>
                     ) : null}
-                    <div className="mt-auto flex items-center justify-between gap-2 pt-1 text-[10px] text-muted-foreground">
+                    <div className="mt-auto flex items-center justify-between gap-2 pt-2 text-xs text-muted-foreground">
                       <span>{relativeTime(story.published_at)}</span>
-                      <span className="inline-flex items-center gap-1 text-primary group-hover:underline">
+                      <span className="inline-flex items-center gap-1 text-primary font-medium group-hover:underline">
                         Read more
                         <ExternalLink className="w-3 h-3" />
                       </span>
@@ -334,16 +334,16 @@ export function DigestView({
           count badge, 2-3 article previews, and a "See all" link. */}
       {topicClusters && topicClusters.length > 0 && (
         <Card>
-          <CardHeader className="py-3">
+          <CardHeader className="py-4">
             <div className="flex items-center gap-2">
               <Layers className="w-4 h-4 text-primary" />
-              <CardTitle className="text-base">Today by Topic</CardTitle>
+              <CardTitle className="text-base font-semibold text-foreground">Today by Topic</CardTitle>
             </div>
             <CardDescription className="text-xs">
               Articles grouped by category
             </CardDescription>
           </CardHeader>
-          <CardContent className="pb-4">
+          <CardContent className="pb-5">
             <div
               data-testid="digest-topic-clusters"
               className="flex flex-col gap-3"
@@ -352,11 +352,11 @@ export function DigestView({
                 <div
                   key={cluster.slug}
                   data-testid={`digest-topic-cluster-${cluster.slug}`}
-                  className="rounded-md border border-border bg-card p-3"
+                  className="rounded-md border border-border bg-card p-4"
                 >
-                  <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center justify-between gap-2 mb-3">
                     <div className="flex items-center gap-2 min-w-0">
-                      <h3 className="text-sm font-medium text-foreground truncate">
+                      <h3 className="text-base font-semibold text-foreground truncate">
                         {cluster.name}
                       </h3>
                       <Badge
@@ -367,12 +367,12 @@ export function DigestView({
                       </Badge>
                     </div>
                     {cluster.count > cluster.preview.length ? (
-                      <span className="text-[10px] text-muted-foreground shrink-0">
+                      <span className="text-xs text-muted-foreground shrink-0">
                         +{cluster.count - cluster.preview.length} more
                       </span>
                     ) : null}
                   </div>
-                  <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-col gap-2">
                     {cluster.preview.map((article) => (
                       <a
                         key={article.id}
@@ -380,11 +380,11 @@ export function DigestView({
                         href={article.url || "#"}
                         target={article.url ? "_blank" : undefined}
                         rel={article.url ? "noopener noreferrer" : undefined}
-                        className="flex items-start gap-2 rounded px-2 py-1.5 hover:bg-accent/10 transition-colors"
+                        className="flex items-start gap-2 rounded px-2 py-2 hover:bg-accent/10 transition-colors"
                       >
-                        <div className="flex-1 min-w-0">
+                        <div className="flex-1 min-w-0 space-y-1">
                           <p
-                            className="text-xs font-medium text-foreground leading-snug line-clamp-2"
+                            className="text-sm font-medium text-foreground leading-snug line-clamp-2"
                             style={{
                               overflowWrap: "anywhere",
                               wordBreak: "break-word",
@@ -392,19 +392,19 @@ export function DigestView({
                           >
                             {article.title}
                           </p>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className="text-[10px] text-muted-foreground">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-muted-foreground">
                               {article.source}
                             </span>
-                            <span className="text-[10px] text-muted-foreground">
+                            <span className="text-xs text-muted-foreground">
                               ·
                             </span>
-                            <span className="text-[10px] text-muted-foreground">
+                            <span className="text-xs text-muted-foreground">
                               {relativeTime(article.published_at)}
                             </span>
                           </div>
                         </div>
-                        <ExternalLink className="w-3 h-3 text-muted-foreground mt-0.5 shrink-0" />
+                        <ExternalLink className="w-3 h-3 text-muted-foreground mt-1 shrink-0" />
                       </a>
                     ))}
                   </div>
@@ -417,19 +417,19 @@ export function DigestView({
 
       {/* Top Stories — dense one-row-per-story layout. */}
       <Card>
-        <CardHeader className="py-3">
+        <CardHeader className="py-4">
           <div className="flex items-center gap-2">
             <Newspaper className="w-4 h-4 text-primary" />
-            <CardTitle className="text-base">Top Stories Today</CardTitle>
+            <CardTitle className="text-base font-semibold text-foreground">Top Stories Today</CardTitle>
           </div>
           <CardDescription className="text-xs">
             The most important tech news you shouldn't miss
           </CardDescription>
         </CardHeader>
-        <CardContent className="pb-4">
+        <CardContent className="pb-5">
           <div
             data-testid="digest-top-stories"
-            className="flex flex-col gap-1.5"
+            className="flex flex-col gap-2"
           >
             {digest.topStories.map((story, idx) => (
               <div
@@ -438,12 +438,12 @@ export function DigestView({
                 className="border-l-4 border-primary pl-3 py-2 rounded-r-md hover:bg-accent/5 transition-colors"
               >
                 <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-medium">
+                  <div className="flex-shrink-0 w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-semibold">
                     {idx + 1}
                   </div>
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 space-y-1.5">
                     <h3
-                      className="text-sm font-medium mb-1 text-foreground leading-snug"
+                      className="text-[15px] font-semibold text-foreground leading-snug"
                       style={{
                         overflowWrap: "anywhere",
                         wordBreak: "break-word",
@@ -452,7 +452,7 @@ export function DigestView({
                       {story.title}
                     </h3>
                     <p
-                      className="text-xs text-muted-foreground mb-2 line-clamp-2"
+                      className="text-sm text-muted-foreground leading-relaxed line-clamp-2"
                       style={{
                         overflowWrap: "anywhere",
                         wordBreak: "break-word",
@@ -491,16 +491,16 @@ export function DigestView({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Trending Topics — horizontal chip row (dense). */}
         <Card>
-          <CardHeader className="py-3">
+          <CardHeader className="py-4">
             <div className="flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-primary" />
-              <CardTitle className="text-base">Trending Now</CardTitle>
+              <CardTitle className="text-base font-semibold text-foreground">Trending Now</CardTitle>
             </div>
             <CardDescription className="text-xs">
               Most discussed topics today
             </CardDescription>
           </CardHeader>
-          <CardContent className="pb-4">
+          <CardContent className="pb-5">
             <div
               data-testid="digest-trending-row"
               className="flex flex-wrap gap-1.5"
@@ -548,19 +548,19 @@ export function DigestView({
         {/* Source / coverage distribution — single accent color, no
             per-source palette (visual coherence). */}
         <Card>
-          <CardHeader className="py-3">
+          <CardHeader className="py-4">
             <div className="flex items-center gap-2">
               <BarChart3 className="w-4 h-4 text-primary" />
-              <CardTitle className="text-base">Coverage by Topic</CardTitle>
+              <CardTitle className="text-base font-semibold text-foreground">Coverage by Topic</CardTitle>
             </div>
             <CardDescription className="text-xs">
               News distribution across categories
             </CardDescription>
           </CardHeader>
-          <CardContent className="pb-4">
+          <CardContent className="pb-5">
             <div
               data-testid="digest-source-distribution"
-              className="space-y-2"
+              className="space-y-3"
             >
               {Object.entries(digest.categoryBreakdown)
                 .sort(([, a], [, b]) => b - a)
@@ -571,9 +571,9 @@ export function DigestView({
                     data-testid="digest-source-row"
                     className="flex items-center gap-3"
                   >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-medium text-foreground truncate">
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-foreground truncate">
                           {category}
                         </span>
                         <span className="text-xs text-muted-foreground tabular-nums">
@@ -598,15 +598,15 @@ export function DigestView({
 
       {/* Email Subscribe CTA */}
       <Card className="bg-card border-border">
-        <CardContent className="py-5">
-          <div className="text-center">
-            <div className="w-10 h-10 rounded-md bg-primary/10 flex items-center justify-center mx-auto mb-2">
+        <CardContent className="py-6">
+          <div className="text-center space-y-3">
+            <div className="w-10 h-10 rounded-md bg-primary/10 flex items-center justify-center mx-auto">
               <Mail className="w-5 h-5 text-primary" />
             </div>
-            <h3 className="text-sm font-medium mb-1">
+            <h3 className="text-base font-semibold text-foreground">
               Get Your Daily Digest via Email
             </h3>
-            <p className="text-xs text-muted-foreground mb-3">
+            <p className="text-sm text-muted-foreground leading-relaxed max-w-sm mx-auto">
               Never miss important tech news. Receive a personalized digest
               every morning.
             </p>

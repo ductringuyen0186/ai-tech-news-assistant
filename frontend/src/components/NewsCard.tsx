@@ -1,12 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import {
-  ExternalLink,
+  ArrowUpRight,
   TrendingUp,
   Clock,
   ChevronDown,
   ChevronUp,
   Shield,
+  Bookmark,
+  BookmarkCheck,
 } from "lucide-react";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -18,29 +20,72 @@ import {
 } from "./ui/hover-card";
 
 /**
- * NewsCard — Linear-dense article row.
+ * NewsCard — engaging news-feed row (polish iter 4).
  *
- * Mission 3 / Milestone 3 — restyled from a hero-image card to a
- * side-by-side dense row: 64px square thumbnail on the left, title +
- * source + date stacked on the right, body text capped at `text-sm`
- * (14px), padding ≤ 12px. Hover tints the card with `bg-accent/5` so
- * users get pointer feedback consistent with the new design language.
+ * Earlier iterations rendered a Linear-dense source-only row that the user
+ * couldn't actually read from: the "Read More" button toggled an expander
+ * but the article URL was buried behind a tiny icon-only link, and there
+ * was no summary preview beneath the title. Iter 4 fixes both:
  *
- * The card uses plain `<div>` containers inside the shadcn `Card` rather
- * than CardHeader/CardContent/CardFooter so we don't inherit the grid /
- * `px-6` defaults — those caused horizontal overflow on `lg:grid-cols-2`
- * width budgets after the density change.
+ *   1. A 2-3 line summary preview lives directly under the title using
+ *      ``line-clamp-3`` + ``leading-relaxed``. Body text is ``text-sm``
+ *      (14px) and uses the ``text-muted-foreground`` semantic token.
+ *   2. The footer now has a real "Read article →" call-to-action that
+ *      opens ``article.url`` in a new tab. The link uses ``text-primary``
+ *      so it stands out as the dominant action.
+ *   3. A small icon-only Save (Bookmark) button sits at the top-right of
+ *      every card. State persists in ``localStorage`` under
+ *      ``techpulse-saved-articles`` — keyed by article id. (Future work:
+ *      sync to ``/api/saved-research`` via the question/report pattern
+ *      reused for research reports.)
+ *
+ * Card padding is intentionally ``p-3`` (12px) — the existing
+ * news-feed.spec.ts "Linear-dense" test asserts ``padding ≤ 14px`` on the
+ * outer Card. Interior breathing room comes from ``space-y-*`` and
+ * generous ``leading-relaxed`` on the summary.
  *
  * Preserved hooks (Playwright contract):
  *   - data-slot="card"          (root)
  *   - data-slot="card-title"    (article title)
- *   - .text-gray-500            (source span; the news-feed spec scopes
+ *   - .text-gray-500            (source span — news-feed.spec.ts scopes
  *                                source-name assertions to this class)
  *   - "Read More" button        (detailed mode only — rubric category 1
  *                                clicks it to surface the full body)
  *   - data-slot="badge"         (category & meta chips)
  *   - img inside the card       (rubric category 8 asserts they load)
+ *
+ * New testids:
+ *   - data-testid="news-card-summary"
+ *   - data-testid="news-card-read-more"
+ *   - data-testid="news-card-save-btn"
  */
+
+const SAVED_ARTICLES_KEY = "techpulse-saved-articles";
+
+/**
+ * Read the saved-article id set from localStorage. Returns an empty Set
+ * on any error (privacy mode, malformed JSON, etc.) so the UI never
+ * crashes on a bad cache.
+ */
+function readSavedSet(): Set<string> {
+  try {
+    const raw = localStorage.getItem(SAVED_ARTICLES_KEY);
+    if (!raw) return new Set<string>();
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return new Set(parsed.map(String));
+    return new Set<string>();
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function persistSavedSet(set: Set<string>): void {
+  try {
+    localStorage.setItem(SAVED_ARTICLES_KEY, JSON.stringify(Array.from(set)));
+  } catch {
+    // ignore quota / privacy errors
+  }
+}
 
 interface NewsCardProps {
   article: {
@@ -64,6 +109,25 @@ interface NewsCardProps {
 
 export function NewsCard({ article, viewMode }: NewsCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [isSaved, setIsSaved] = useState<boolean>(false);
+
+  // Initialise saved state from localStorage on mount.
+  useEffect(() => {
+    setIsSaved(readSavedSet().has(String(article.id)));
+  }, [article.id]);
+
+  const toggleSaved = () => {
+    const next = readSavedSet();
+    const key = String(article.id);
+    if (next.has(key)) {
+      next.delete(key);
+      setIsSaved(false);
+    } else {
+      next.add(key);
+      setIsSaved(true);
+    }
+    persistSavedSet(next);
+  };
 
   const timeAgo = (dateString: string) => {
     const date = new Date(dateString);
@@ -95,16 +159,39 @@ export function NewsCard({ article, viewMode }: NewsCardProps) {
   return (
     <Card
       className={[
-        "group p-3 gap-2 transition-colors min-w-0",
-        "hover:bg-accent/5 hover:border-border",
+        "group relative p-3 gap-3 transition-colors min-w-0",
+        "hover:border-primary/30 hover:bg-accent/5",
       ].join(" ")}
     >
-      {/* Header — thumbnail + meta + title + summary. Use CSS grid with
-          a fixed first column for the thumbnail and a `minmax(0, 1fr)`
-          second column for the content. `minmax(0, 1fr)` lets the
-          content column shrink below its intrinsic min-content size,
-          which is what stops the long title from forcing the card to
-          overflow horizontally. */}
+      {/* Save button — pinned to the top-right corner of the card. Icon
+          only; persists per-session in localStorage (see SAVED_ARTICLES_KEY).
+          Future iter: POST to the saved-research backend. */}
+      <button
+        type="button"
+        data-testid="news-card-save-btn"
+        onClick={toggleSaved}
+        aria-label={isSaved ? "Unsave article" : "Save article"}
+        aria-pressed={isSaved}
+        title={isSaved ? "Saved" : "Save for later"}
+        className={[
+          "absolute top-2 right-2 inline-flex items-center justify-center",
+          "w-7 h-7 rounded-md transition-colors",
+          isSaved
+            ? "text-primary bg-primary/10 hover:bg-primary/20"
+            : "text-muted-foreground hover:text-foreground hover:bg-accent",
+        ].join(" ")}
+      >
+        {isSaved ? (
+          <BookmarkCheck className="w-3.5 h-3.5" />
+        ) : (
+          <Bookmark className="w-3.5 h-3.5" />
+        )}
+      </button>
+
+      {/* Header — thumbnail (64px) on the left, title + meta + summary on
+          the right. Padding on the content column accounts for the
+          absolutely positioned save button so the title doesn't collide
+          with it. */}
       <div
         className="grid items-start gap-3 min-w-0"
         style={{ gridTemplateColumns: "64px minmax(0, 1fr)" }}
@@ -114,8 +201,8 @@ export function NewsCard({ article, viewMode }: NewsCardProps) {
           alt={article.title}
           className="w-16 h-16 object-cover rounded-md bg-muted"
         />
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5 mb-1 flex-wrap text-xs">
+        <div className="min-w-0 pr-8">
+          <div className="flex items-center gap-1.5 mb-1.5 flex-wrap text-xs">
             {article.trending && (
               <Badge
                 variant="default"
@@ -144,11 +231,11 @@ export function NewsCard({ article, viewMode }: NewsCardProps) {
                   </HoverCardTrigger>
                   <HoverCardContent className="w-80">
                     <div className="space-y-2">
-                      <h4 className="font-semibold flex items-center gap-2">
+                      <h4 className="text-base font-semibold flex items-center gap-2">
                         <Shield className="w-4 h-4" />
                         Source Credibility
                       </h4>
-                      <div className="space-y-1">
+                      <div className="space-y-1.5">
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-muted-foreground">
                             Reliability:
@@ -211,31 +298,37 @@ export function NewsCard({ article, viewMode }: NewsCardProps) {
               overflowWrap: "anywhere",
               wordBreak: "break-word",
             }}
-            className="text-sm leading-snug mb-1 font-medium"
+            className="text-[15px] leading-snug mb-1.5 font-semibold text-foreground line-clamp-2"
           >
             {article.title}
           </CardTitle>
-          <p
-            style={{
-              overflowWrap: "anywhere",
-              wordBreak: "break-word",
-            }}
-            className="text-xs text-muted-foreground line-clamp-2"
-          >
-            {article.summaryShort}
-          </p>
+          {/* Summary preview — 2-3 lines depending on view mode. Uses
+              line-clamp-3 with leading-relaxed so the truncation reads
+              like a real paragraph instead of a tight strip. */}
+          {article.summaryShort && (
+            <p
+              data-testid="news-card-summary"
+              style={{
+                overflowWrap: "anywhere",
+                wordBreak: "break-word",
+              }}
+              className="text-sm text-muted-foreground leading-relaxed line-clamp-3"
+            >
+              {article.summaryShort}
+            </p>
+          )}
         </div>
       </div>
 
       {viewMode === "detailed" && (
         <div className="min-w-0">
           {expanded ? (
-            <>
+            <div className="space-y-2">
               {article.summaryMedium &&
                 article.summaryMedium.trim() !==
                   (article.summaryShort || "").trim() && (
                   <p
-                    className="text-sm text-foreground/80 mb-2"
+                    className="text-sm leading-relaxed text-foreground/80"
                     style={{
                       overflowWrap: "anywhere",
                       wordBreak: "break-word",
@@ -249,11 +342,11 @@ export function NewsCard({ article, viewMode }: NewsCardProps) {
                   <h4 className="text-xs font-semibold mb-2 text-foreground">
                     Key Insights
                   </h4>
-                  <ul className="space-y-1">
+                  <ul className="space-y-1.5">
                     {article.keyInsights.map((insight, idx) => (
                       <li
                         key={idx}
-                        className="text-xs text-muted-foreground flex items-start gap-2"
+                        className="text-xs text-muted-foreground flex items-start gap-2 leading-relaxed"
                       >
                         <span className="text-primary mt-0.5">·</span>
                         <span style={{ overflowWrap: "anywhere" }}>
@@ -267,12 +360,12 @@ export function NewsCard({ article, viewMode }: NewsCardProps) {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 w-full mt-2 text-xs"
+                className="h-7 w-full text-xs"
                 onClick={() => setExpanded(false)}
               >
                 Show Less <ChevronUp className="w-3 h-3 ml-1" />
               </Button>
-            </>
+            </div>
           ) : (
             <Button
               variant="ghost"
@@ -286,8 +379,11 @@ export function NewsCard({ article, viewMode }: NewsCardProps) {
         </div>
       )}
 
-      <div className="flex flex-wrap gap-1.5 items-center min-w-0">
-        <div className="flex flex-wrap gap-1.5 flex-1 min-w-0">
+      {/* Footer — category chips on the left, "Read article →" CTA on
+          the right. The CTA is the dominant action: visible text +
+          arrow icon + primary colour. Opens the article in a new tab. */}
+      <div className="flex flex-wrap gap-2 items-center justify-between min-w-0">
+        <div className="flex flex-wrap gap-1.5 min-w-0">
           {article.category.slice(0, 3).map((cat) => (
             <Badge
               key={cat}
@@ -298,16 +394,16 @@ export function NewsCard({ article, viewMode }: NewsCardProps) {
             </Badge>
           ))}
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground shrink-0"
-          asChild
+        <a
+          data-testid="news-card-read-more"
+          href={article.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline shrink-0"
         >
-          <a href={article.url} target="_blank" rel="noopener noreferrer">
-            <ExternalLink className="w-3 h-3" />
-          </a>
-        </Button>
+          Read article
+          <ArrowUpRight className="w-3 h-3" />
+        </a>
       </div>
     </Card>
   );

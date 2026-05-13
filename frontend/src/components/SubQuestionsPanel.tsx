@@ -91,12 +91,12 @@ export function SubQuestionsPanel({
       <div
         data-testid="research-sub-questions-panel"
         data-state="decomposing"
-        className="border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden bg-white dark:bg-gray-900"
+        className="border border-border rounded-lg overflow-hidden bg-card"
       >
         <div className="px-3 py-2 bg-muted text-sm font-medium text-foreground border-b border-border">
           Sub-questions
         </div>
-        <ol className="divide-y divide-gray-100 dark:divide-gray-800">
+        <ol className="divide-y divide-border">
           <li
             data-testid="research-sub-questions-skeleton"
             className="px-3 py-2 text-sm text-muted-foreground"
@@ -123,12 +123,12 @@ export function SubQuestionsPanel({
     <div
       data-testid="research-sub-questions-panel"
       data-state="ready"
-      className="border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden bg-white dark:bg-gray-900"
+      className="border border-border rounded-lg overflow-hidden bg-card"
     >
       <div className="px-3 py-2 bg-muted text-sm font-medium text-foreground border-b border-border">
         Sub-questions ({subQuestions.length})
       </div>
-      <ol className="divide-y divide-gray-100 dark:divide-gray-800">
+      <ol className="divide-y divide-border">
         <AnimatePresence initial={false}>
         {subQuestions.map((q, idx) => {
           const status = statusByIndex[idx] ?? "pending";
@@ -172,7 +172,7 @@ export function SubQuestionsPanel({
               {articles.length > 0 && (
                 <ul
                   data-testid="research-sub-question-articles"
-                  className="mt-1 ml-7 space-y-1"
+                  className="mt-2 ml-7 space-y-1.5"
                 >
                   {articles.map((a) => (
                     <li
@@ -184,7 +184,7 @@ export function SubQuestionsPanel({
                           reads on the warm-taupe card background.
                           M3 polish iter 2 contrast fix. */}
                       <span
-                        className="truncate text-foreground"
+                        className="truncate text-foreground font-medium"
                         style={{ overflowWrap: "anywhere" }}
                       >
                         {a.title}

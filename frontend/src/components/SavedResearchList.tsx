@@ -199,7 +199,7 @@ export function SavedResearchList({ refreshKey = 0 }: SavedResearchListProps) {
 
   if (detailId !== null) {
     return (
-      <div className="max-w-4xl mx-auto space-y-4" data-testid="saved-research-detail">
+      <div className="max-w-4xl mx-auto space-y-6" data-testid="saved-research-detail">
         <Button
           variant="outline"
           size="sm"
@@ -250,10 +250,10 @@ export function SavedResearchList({ refreshKey = 0 }: SavedResearchListProps) {
         {detail && !detailLoading && !detailError && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg break-words">
+              <CardTitle className="text-xl font-semibold break-words text-foreground">
                 {detail.question}
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-sm">
                 Saved {formatRelativeTime(detail.created_at)}
               </CardDescription>
             </CardHeader>
@@ -277,16 +277,16 @@ export function SavedResearchList({ refreshKey = 0 }: SavedResearchListProps) {
 
   return (
     <div
-      className="max-w-3xl mx-auto space-y-4"
+      className="max-w-3xl mx-auto space-y-6"
       data-testid="saved-research-list"
     >
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 text-xl font-semibold">
             <Bookmark className="w-5 h-5 text-primary" />
             Saved research
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-sm">
             Research reports you've saved. Click a row to re-open it; the
             trash icon removes it permanently.
           </CardDescription>
@@ -338,7 +338,7 @@ export function SavedResearchList({ refreshKey = 0 }: SavedResearchListProps) {
                     <button
                       type="button"
                       onClick={() => setDetailId(row.id)}
-                      className="flex-1 px-4 py-3 min-w-0 flex flex-col items-start text-left"
+                      className="flex-1 px-4 py-4 min-w-0 flex flex-col items-start text-left space-y-1"
                     >
                       <p
                         className="text-sm text-foreground font-medium truncate text-left w-full"
@@ -346,7 +346,7 @@ export function SavedResearchList({ refreshKey = 0 }: SavedResearchListProps) {
                       >
                         {row.question}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-0.5 text-left w-full">
+                      <p className="text-xs text-muted-foreground text-left w-full">
                         {formatRelativeTime(row.created_at)}
                       </p>
                     </button>

@@ -106,12 +106,12 @@ export function TrendingRail({
         data-testid="news-feed-trending-rail"
         className="flex items-center gap-2 flex-wrap"
       >
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground pr-2">
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground pr-2 font-medium">
           <TrendingUp className="w-3.5 h-3.5" />
           <span>Trending Now</span>
         </div>
         {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="h-6 w-24 rounded-full" />
+          <Skeleton key={i} className="h-7 w-24 rounded-full" />
         ))}
       </div>
     );
@@ -127,7 +127,7 @@ export function TrendingRail({
       data-testid="news-feed-trending-rail"
       className="flex items-center gap-2 flex-wrap max-w-3xl"
     >
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground pr-2 shrink-0">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground pr-2 shrink-0 font-medium">
         <TrendingUp className="w-3.5 h-3.5" />
         <span>Trending Now</span>
       </div>
@@ -145,7 +145,7 @@ export function TrendingRail({
             data-entity-type={t.type}
             onClick={() => onSelectCategory(t.name)}
             className={[
-              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
+              "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors",
               isActive
                 ? "border-primary bg-primary text-primary-foreground"
                 : "border-border bg-card text-foreground hover:bg-accent/40 hover:text-accent-foreground",

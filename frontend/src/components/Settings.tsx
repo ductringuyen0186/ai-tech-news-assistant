@@ -75,18 +75,18 @@ export function Settings({
   };
 
   return (
-    <div className="space-y-3" data-testid="settings-root">
+    <div className="space-y-6" data-testid="settings-root">
       {/* Page header — dense, matches NewsFeed/Digest cadence. */}
       <div className="flex items-center gap-2">
-        <SettingsIcon className="w-4 h-4 text-muted-foreground" />
-        <h2 className="text-[15px] font-semibold tracking-tight">Settings</h2>
+        <SettingsIcon className="w-5 h-5 text-muted-foreground" />
+        <h2 className="text-xl font-semibold tracking-tight text-foreground">Settings</h2>
       </div>
 
       {/* Appearance card — theme + density radio groups. */}
       <Card className="bg-card border border-border">
-        <CardHeader className="pb-3 px-4 pt-4">
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <Palette className="w-3.5 h-3.5 text-muted-foreground" />
+        <CardHeader className="pb-4 px-5 pt-5">
+          <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
+            <Palette className="w-4 h-4 text-muted-foreground" />
             Appearance
           </CardTitle>
           <CardDescription className="text-xs">
@@ -94,7 +94,7 @@ export function Settings({
             saved but does not yet change layout.
           </CardDescription>
         </CardHeader>
-        <CardContent className="px-4 pb-4 space-y-4">
+        <CardContent className="px-5 pb-5 space-y-5">
           {/* Theme — radio group bound to useTheme(). */}
           <div className="space-y-2" data-testid="settings-theme">
             <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -103,12 +103,12 @@ export function Settings({
             <RadioGroup
               value={theme}
               onValueChange={handleThemeChange}
-              className="grid grid-cols-2 gap-2"
+              className="grid grid-cols-2 gap-3"
             >
               <Label
                 htmlFor="theme-dark"
                 data-active={theme === "dark"}
-                className={`flex items-center gap-2 rounded-md border p-2.5 cursor-pointer transition-colors text-[13px] ${
+                className={`flex items-center gap-2 rounded-md border p-3 cursor-pointer transition-colors text-sm ${
                   theme === "dark"
                     ? "border-primary bg-primary/10 text-foreground"
                     : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -124,7 +124,7 @@ export function Settings({
               <Label
                 htmlFor="theme-light"
                 data-active={theme === "light"}
-                className={`flex items-center gap-2 rounded-md border p-2.5 cursor-pointer transition-colors text-[13px] ${
+                className={`flex items-center gap-2 rounded-md border p-3 cursor-pointer transition-colors text-sm ${
                   theme === "light"
                     ? "border-primary bg-primary/10 text-foreground"
                     : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -149,12 +149,12 @@ export function Settings({
             <RadioGroup
               value={density}
               onValueChange={handleDensityChange}
-              className="grid grid-cols-2 gap-2"
+              className="grid grid-cols-2 gap-3"
             >
               <Label
                 htmlFor="density-compact"
                 data-active={density === "compact"}
-                className={`flex items-center gap-2 rounded-md border p-2.5 cursor-pointer transition-colors text-[13px] ${
+                className={`flex items-center gap-2 rounded-md border p-3 cursor-pointer transition-colors text-sm ${
                   density === "compact"
                     ? "border-primary bg-primary/10 text-foreground"
                     : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -170,7 +170,7 @@ export function Settings({
               <Label
                 htmlFor="density-comfortable"
                 data-active={density === "comfortable"}
-                className={`flex items-center gap-2 rounded-md border p-2.5 cursor-pointer transition-colors text-[13px] ${
+                className={`flex items-center gap-2 rounded-md border p-3 cursor-pointer transition-colors text-sm ${
                   density === "comfortable"
                     ? "border-primary bg-primary/10 text-foreground"
                     : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -184,7 +184,7 @@ export function Settings({
                 <span>Comfortable</span>
               </Label>
             </RadioGroup>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground leading-relaxed">
               Density behavior coming in a future release. Your preference
               is saved.
             </p>

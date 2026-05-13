@@ -840,7 +840,7 @@ export function ResearchMode({}: ResearchModeProps) {
       : "text-muted-foreground";
 
   return (
-    <div className="max-w-3xl mx-auto space-y-4">
+    <div className="max-w-3xl mx-auto space-y-6">
       {/* =============================================================
        * Header card -- title + input + (when empty) suggested queries.
        * The input lives at the top so the user always knows where to
@@ -849,11 +849,11 @@ export function ResearchMode({}: ResearchModeProps) {
        * ============================================================= */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 text-xl font-semibold text-foreground">
             <Lightbulb className="w-5 h-5 text-primary" />
             Research
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-sm">
             Ask a research question -- the agent will decompose, search, and
             synthesize a report with citations.
           </CardDescription>
@@ -1065,7 +1065,7 @@ export function ResearchMode({}: ResearchModeProps) {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-4">
               {/* -----------------------------------------------------
                * Tool-use block #1 -- "Decomposed into N sub-questions"
                * Collapsed by default; expand to see the numbered list

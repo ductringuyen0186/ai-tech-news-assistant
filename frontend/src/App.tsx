@@ -377,9 +377,9 @@ function AppShell() {
               Playwright suite asserts `getByRole("heading", { name: /TechPulse AI/i })`
               on every test. Brand mark itself lives in the sidebar. */}
           <header className="border-b border-border bg-background/80 backdrop-blur-sm sticky top-0 z-10">
-            <div className="px-6 py-3 flex items-center justify-between">
-              <div className="flex items-baseline gap-2">
-                <h1 className="text-lg font-semibold tracking-tight">
+            <div className="px-6 py-4 flex items-center justify-between">
+              <div className="flex items-baseline gap-3">
+                <h1 className="text-xl font-semibold tracking-tight text-foreground">
                   TechPulse AI
                 </h1>
                 <span className="text-xs text-muted-foreground">
@@ -404,7 +404,7 @@ function AppShell() {
             </div>
           </header>
 
-          <div className="px-6 py-5 flex-1">
+          <div className="px-6 py-6 flex-1">
             {/* Page-tab cross-fade — every TabsContent's children are
                 wrapped in a motion.div that fades in on mount. Radix
                 unmounts the inactive tab's children, so switching tabs
@@ -413,11 +413,12 @@ function AppShell() {
                 animate out (Radix removes the old children
                 instantly). Reduced-motion resolves to instant. */}
             {/* News Feed Tab */}
-            <TabsContent value="feed" className="space-y-4 mt-0">
+            <TabsContent value="feed" className="space-y-5 mt-0">
               <motion.div
                 initial={panelInitial}
                 animate={panelAnimate}
                 transition={panelTransition}
+                className="space-y-5"
               >
               <div className="flex flex-col md:flex-row gap-3 items-start md:items-center justify-between">
                 <div className="flex-1 w-full md:max-w-md">
@@ -473,7 +474,7 @@ function AppShell() {
               {(selectedCategories.length > 0 || selectedEntities.length > 0) && (
                 <div
                   data-testid="news-feed-active-filters"
-                  className="flex flex-wrap gap-1.5 items-center bg-card p-2 rounded-md border border-border"
+                  className="flex flex-wrap gap-2 items-center bg-card p-3 rounded-md border border-border"
                 >
                   <span className="text-xs text-muted-foreground pr-1">
                     Filtered by:
@@ -515,10 +516,10 @@ function AppShell() {
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
                 </div>
               ) : filteredArticles.length === 0 ? (
-                <div className="text-center py-12 bg-card rounded-xl border border-border">
-                  <Newspaper className="w-12 h-12 text-primary mx-auto mb-3" />
-                  <h3 className="text-lg mb-2">No articles found</h3>
-                  <p className="text-muted-foreground mb-4">
+                <div className="text-center py-12 bg-card rounded-xl border border-border space-y-3">
+                  <Newspaper className="w-12 h-12 text-primary mx-auto" />
+                  <h3 className="text-base font-semibold text-foreground">No articles found</h3>
+                  <p className="text-sm text-muted-foreground">
                     Try adjusting your filters or search query
                   </p>
                   <Button
@@ -535,7 +536,7 @@ function AppShell() {
               ) : (
                 <div
                   data-testid="news-feed-list"
-                  className={`grid gap-2 ${
+                  className={`grid gap-4 ${
                     viewMode === "detailed"
                       ? "grid-cols-1 lg:grid-cols-2"
                       : "grid-cols-1"

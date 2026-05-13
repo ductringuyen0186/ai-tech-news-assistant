@@ -84,9 +84,9 @@ export function SuggestedQueries({
   } as const;
 
   return (
-    <div data-testid={testid}>
+    <div data-testid={testid} className="space-y-2">
       {label && (
-        <p className="text-sm text-muted-foreground mb-2">
+        <p className="text-sm text-muted-foreground font-medium">
           {label}
         </p>
       )}
@@ -103,7 +103,7 @@ export function SuggestedQueries({
             data-testid={chipTestId}
             onClick={() => onSelect(q)}
             variants={chipVariants}
-            className="inline-flex items-center rounded-md border border-border bg-transparent px-2.5 py-0.5 text-xs font-semibold text-foreground cursor-pointer hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
+            className="inline-flex items-center rounded-md border border-border bg-transparent px-3 py-1.5 text-xs font-medium text-foreground cursor-pointer hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
           >
             {q}
           </motion.button>

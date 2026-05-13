@@ -687,20 +687,20 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-3">
-      {/* Stat row — Linear-dense. ≤14px body, 12px padding. */}
+    <div className="max-w-6xl mx-auto space-y-6">
+      {/* Stat row — consistent p-4 padding + text-2xl semi-bold numbers. */}
       {graphData && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Card
             data-testid="kg-stat-companies"
             className="bg-card border border-border"
           >
-            <CardContent className="p-3">
-              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            <CardContent className="p-4 space-y-1.5">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground font-medium">
                 Companies
               </div>
               <div
-                className="text-xl font-semibold mt-1"
+                className="text-2xl font-semibold"
                 style={{ color: "#3b82f6" }}
               >
                 {companyCount}
@@ -711,12 +711,12 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
             data-testid="kg-stat-people"
             className="bg-card border border-border"
           >
-            <CardContent className="p-3">
-              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            <CardContent className="p-4 space-y-1.5">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground font-medium">
                 People
               </div>
               <div
-                className="text-xl font-semibold mt-1"
+                className="text-2xl font-semibold"
                 style={{ color: "#10b981" }}
               >
                 {personCount}
@@ -727,12 +727,12 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
             data-testid="kg-stat-technologies"
             className="bg-card border border-border"
           >
-            <CardContent className="p-3">
-              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            <CardContent className="p-4 space-y-1.5">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground font-medium">
                 Technologies
               </div>
               <div
-                className="text-xl font-semibold mt-1"
+                className="text-2xl font-semibold"
                 style={{ color: "#f59e0b" }}
               >
                 {techCount}
@@ -743,12 +743,12 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
             data-testid="kg-stat-products"
             className="bg-card border border-border"
           >
-            <CardContent className="p-3">
-              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            <CardContent className="p-4 space-y-1.5">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground font-medium">
                 Products
               </div>
               <div
-                className="text-xl font-semibold mt-1"
+                className="text-2xl font-semibold"
                 style={{ color: "#a855f7" }}
               >
                 {productCount}
@@ -758,10 +758,10 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
         <Card className="bg-card border border-border lg:col-span-3">
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-[15px]">
+            <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
               <Network className="w-4 h-4 text-primary" />
               Knowledge Graph
             </CardTitle>
@@ -774,8 +774,8 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
           <CardContent className="pt-0">
             <div className="space-y-3">
               {/* B1: type filter chips ------------------------------------ */}
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[11px] text-muted-foreground pr-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground pr-1 font-medium">
                   Filter:
                 </span>
                 {FILTERABLE_TYPES.map(({ key, label }) => {
@@ -787,7 +787,7 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
                       data-testid={`kg-type-filter-${label.toLowerCase()}`}
                       onClick={() => toggleType(key)}
                       className={[
-                        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] transition-colors",
+                        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors",
                         isOn
                           ? "border-primary bg-primary/10 text-primary"
                           : "border-border bg-card text-foreground hover:bg-accent/40",
@@ -805,7 +805,7 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
                   <button
                     type="button"
                     onClick={() => setActiveTypes(new Set())}
-                    className="text-[11px] text-muted-foreground hover:text-foreground underline pl-1"
+                    className="text-xs text-muted-foreground hover:text-foreground underline pl-1"
                   >
                     Clear
                   </button>
@@ -849,7 +849,7 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
               </div>
 
               {/* Legend — compact, 12px text. */}
-              <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                 <div className="flex items-center gap-1.5">
                   <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#3b82f6" }} />
                   <span>Companies</span>
@@ -881,13 +881,13 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
               {isEmpty && !errorMsg && (
                 <div
                   data-testid="kg-empty-state"
-                  className="rounded-md border border-border bg-muted/30 p-6 text-center"
+                  className="rounded-md border border-border bg-muted/30 p-8 text-center space-y-2"
                 >
-                  <Network className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
-                  <p className="text-sm font-medium text-foreground">
+                  <Network className="w-10 h-10 text-muted-foreground mx-auto" />
+                  <p className="text-base font-semibold text-foreground">
                     No entities indexed yet
                   </p>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="text-sm text-muted-foreground leading-relaxed">
                     No entities extracted yet. Run an ingest + summarize cycle
                     to populate the graph.
                   </p>
@@ -948,8 +948,8 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
           data-testid="kg-trending-widget"
           className="bg-card border border-border h-fit"
         >
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-primary" />
               Trending this week
             </CardTitle>
@@ -957,22 +957,22 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
               Top mentions, recency-weighted
             </CardDescription>
           </CardHeader>
-          <CardContent className="pt-0 pb-3">
+          <CardContent className="pt-0 pb-4">
             {trending.length === 0 ? (
-              <p className="text-xs text-muted-foreground py-2">
+              <p className="text-sm text-muted-foreground py-2">
                 No trends in window yet.
               </p>
             ) : (
-              <ol className="space-y-1.5">
+              <ol className="space-y-2">
                 {trending.map((t, idx) => (
                   <li key={t.id}>
                     <button
                       type="button"
                       data-testid={`kg-trending-entity-${t.id}`}
                       onClick={() => openDetail(t.id)}
-                      className="w-full flex items-center gap-2 p-1.5 rounded-md border border-transparent hover:border-border hover:bg-accent/40 transition-colors text-left"
+                      className="w-full flex items-center gap-2 p-2 rounded-md border border-transparent hover:border-border hover:bg-accent/40 transition-colors text-left"
                     >
-                      <span className="text-[10px] font-medium text-muted-foreground tabular-nums w-4">
+                      <span className="text-xs font-medium text-muted-foreground tabular-nums w-4">
                         {idx + 1}
                       </span>
                       <span
@@ -982,12 +982,12 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
                             typeColor[t.type.toLowerCase()] || palette.muted,
                         }}
                       />
-                      <span className="flex-1 text-xs truncate text-foreground">
+                      <span className="flex-1 text-sm truncate text-foreground font-medium">
                         {t.name}
                       </span>
                       <Badge
                         variant="secondary"
-                        className="h-4 px-1 text-[10px] font-normal"
+                        className="h-4 px-1.5 text-[10px] font-normal"
                       >
                         {t.mention_count}
                       </Badge>
@@ -1026,20 +1026,20 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
               role="dialog"
               aria-label="Entity detail"
             >
-              <div className="flex items-start justify-between gap-3 px-4 py-3 border-b border-border">
-                <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-3 px-4 py-4 border-b border-border">
+                <div className="flex-1 min-w-0 space-y-1.5">
                   {detailLoading ? (
                     <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
                   ) : detail ? (
                     <>
-                      <h2 className="text-base font-semibold text-foreground flex items-center gap-2 truncate">
+                      <h2 className="text-xl font-semibold text-foreground flex items-center gap-2 truncate">
                         {getNodeIcon(detail.type)}
                         <span className="truncate">{detail.name}</span>
                       </h2>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex items-center gap-2">
                         <Badge
                           variant="outline"
-                          className="h-4 px-1.5 text-[10px] capitalize"
+                          className="h-5 px-1.5 text-[10px] capitalize"
                           style={{
                             color:
                               typeColor[detail.type.toLowerCase()] || undefined,
@@ -1049,7 +1049,7 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
                         >
                           {detail.type}
                         </Badge>
-                        <span className="text-[11px] text-muted-foreground">
+                        <span className="text-xs text-muted-foreground">
                           {detail.mention_count} mention
                           {detail.mention_count === 1 ? "" : "s"}
                         </span>
@@ -1072,7 +1072,7 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4 text-sm">
+              <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5 text-sm">
                 {detailLoading && (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-6 h-6 animate-spin text-primary" />
@@ -1081,33 +1081,33 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
                 {!detailLoading && detail && (
                   <>
                     {/* Meta */}
-                    <div className="space-y-1">
-                      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    <div className="space-y-1.5">
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground font-medium">
                         First mention
                       </div>
-                      <div className="text-xs text-foreground">
+                      <div className="text-sm text-foreground">
                         {formatDate(detail.first_mention_at)}
                       </div>
                     </div>
 
                     {/* Co-mentions */}
-                    <div>
-                      <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1.5">
+                    <div className="space-y-2">
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground font-medium">
                         Top co-mentions
                       </div>
                       {detail.co_mentions.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-sm text-muted-foreground">
                           No other entities co-mentioned in the same articles.
                         </p>
                       ) : (
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex flex-wrap gap-1.5">
                           {detail.co_mentions.map((c) => (
                             <button
                               key={c.id}
                               type="button"
                               data-testid={`kg-entity-co-mention-${c.id}`}
                               onClick={() => openDetail(c.id)}
-                              className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-2 py-0.5 text-[11px] hover:bg-accent/40 transition-colors"
+                              className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-2 py-1 text-xs hover:bg-accent/40 transition-colors"
                             >
                               <span
                                 className="w-1.5 h-1.5 rounded-full"
@@ -1127,33 +1127,33 @@ export function KnowledgeGraph({}: KnowledgeGraphProps) {
                     </div>
 
                     {/* Articles */}
-                    <div>
-                      <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1.5">
+                    <div className="space-y-2">
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground font-medium">
                         Mentioned in
                       </div>
                       {detail.articles.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-sm text-muted-foreground">
                           No articles found.
                         </p>
                       ) : (
-                        <ul className="space-y-2">
+                        <ul className="space-y-3">
                           {detail.articles.map((a) => (
                             <li
                               key={a.id}
-                              className="border-l-2 border-border pl-2"
+                              className="border-l-2 border-border pl-3"
                             >
                               <a
                                 data-testid={`kg-entity-article-${a.id}`}
                                 href={a.url || "#"}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="block group"
+                                className="block group space-y-1"
                               >
-                                <div className="text-xs font-medium text-foreground group-hover:text-primary leading-snug flex items-start gap-1">
+                                <div className="text-sm font-medium text-foreground group-hover:text-primary leading-snug flex items-start gap-1">
                                   <span className="flex-1">{a.title}</span>
                                   <ExternalLink className="w-3 h-3 text-muted-foreground group-hover:text-primary shrink-0 mt-0.5" />
                                 </div>
-                                <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground">
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                   <span>{a.source}</span>
                                   <span>·</span>
                                   <span>{formatDate(a.published_at)}</span>

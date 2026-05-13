@@ -145,12 +145,12 @@ export function MarkdownReport({
   // inherit the same cream tone the rest of the report uses.
   const headingClass = (level: number) => {
     if (level === 1)
-      return "text-xl font-semibold mt-4 mb-3 text-foreground";
+      return "text-2xl font-bold mt-5 mb-3 text-foreground";
     if (level === 2)
-      return "text-lg font-semibold mt-4 mb-2 text-foreground";
+      return "text-xl font-semibold mt-5 mb-2 text-foreground";
     if (level === 3)
-      return "text-base font-medium mt-3 mb-1.5 text-foreground";
-    return "text-sm font-medium mt-2 mb-1 text-foreground";
+      return "text-base font-semibold mt-4 mb-2 text-foreground";
+    return "text-sm font-semibold mt-3 mb-1.5 text-foreground";
   };
 
   return (
@@ -207,7 +207,7 @@ export function MarkdownReport({
           ),
           p: ({ children, ...rest }) => (
             <p
-              className="my-2 leading-relaxed text-foreground text-sm"
+              className="my-3 leading-relaxed text-foreground text-sm"
               style={{
                 overflowWrap: "anywhere",
                 wordBreak: "break-word",
@@ -221,7 +221,7 @@ export function MarkdownReport({
           ),
           ul: ({ children, ...rest }) => (
             <ul
-              className="my-2 space-y-1 text-foreground text-sm list-disc ml-6"
+              className="my-3 space-y-1.5 text-foreground text-sm list-disc ml-6 leading-relaxed"
               {...rest}
             >
               {children}
@@ -229,7 +229,7 @@ export function MarkdownReport({
           ),
           ol: ({ children, ...rest }) => (
             <ol
-              className="my-2 space-y-1 text-foreground text-sm list-decimal ml-6"
+              className="my-3 space-y-1.5 text-foreground text-sm list-decimal ml-6 leading-relaxed"
               {...rest}
             >
               {children}
