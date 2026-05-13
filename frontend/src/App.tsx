@@ -10,7 +10,6 @@ import { Settings } from "./components/Settings";
 import { SearchBar } from "./components/SearchBar";
 import { DigestView } from "./components/DigestView";
 import { TrendingRail } from "./components/TrendingRail";
-import { ChatInterface } from "./components/ChatInterface";
 import { ResearchMode } from "./components/ResearchMode";
 import { KnowledgeGraph } from "./components/KnowledgeGraph";
 import { SavedResearchList } from "./components/SavedResearchList";
@@ -199,48 +198,6 @@ function AppShell() {
       });
     } finally {
       setIsSavingPreferences(false);
-    }
-  };
-
-  const handleAskQuestion = async (question: string) => {
-    try {
-      const envelope = await apiFetch<any>("/api/rag/query", {
-        method: "POST",
-        body: JSON.stringify({ question, top_k: 5, min_score: 0.3 }),
-      });
-      const data = envelope?.data ?? envelope;
-      const rawSources = (data.sources || []).map((s: any) => ({
-        id: String(s.id ?? ""),
-        url: typeof s.url === "string" ? s.url : "",
-        title: s.title ?? "Untitled",
-        summaryShort: s.source ?? "",
-      }));
-      const seenUrls = new Set<string>();
-      const seenIds = new Set<string>();
-      const seenTitles = new Set<string>();
-      const sources = rawSources.filter((s: any) => {
-        const urlKey = (s.url || "").trim().toLowerCase();
-        const idKey = (s.id || "").trim();
-        const titleKey = (s.title || "").trim().toLowerCase().replace(/\s+/g, " ");
-        if (urlKey && seenUrls.has(urlKey)) return false;
-        if (idKey && seenIds.has(idKey)) return false;
-        if (titleKey && seenTitles.has(titleKey)) return false;
-        if (urlKey) seenUrls.add(urlKey);
-        if (idKey) seenIds.add(idKey);
-        if (titleKey) seenTitles.add(titleKey);
-        return true;
-      });
-      return {
-        answer: data.answer ?? "(no answer returned)",
-        relevantArticles: sources,
-        success: true,
-      };
-    } catch (error) {
-      console.error("Error processing question:", error);
-      return {
-        answer: "Sorry - the chat backend is unreachable right now.",
-        success: false,
-      };
     }
   };
 
@@ -528,18 +485,6 @@ function AppShell() {
                     <Loader2 className="w-8 h-8 animate-spin text-primary" />
                   </div>
                 )}
-              </motion.div>
-            </TabsContent>
-
-            {/* Chat Tab */}
-            <TabsContent value="chat" className="mt-0">
-              <motion.div
-                initial={panelInitial}
-                animate={panelAnimate}
-                transition={panelTransition}
-                className="max-w-4xl mx-auto"
-              >
-                <ChatInterface onAskQuestion={handleAskQuestion} />
               </motion.div>
             </TabsContent>
 

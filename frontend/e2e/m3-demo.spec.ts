@@ -271,12 +271,6 @@ test.describe("M3.M6 demo — complete mission flow under slowMo", () => {
         await beat(page, 3);
       });
 
-      await test.step("9d. Navigate to Ask AI", async () => {
-        await page.getByRole("tab", { name: /Ask AI/i }).click();
-        await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
-        await beat(page, 3);
-      });
-
       await test.step("10. Toggle theme to light in Settings, reload, restore dark", async () => {
         await page.getByRole("tab", { name: /Settings/i }).click();
         await expect(page.getByText(/Topic Preferences/i)).toBeVisible({

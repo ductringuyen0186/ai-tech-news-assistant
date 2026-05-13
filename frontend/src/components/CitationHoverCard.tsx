@@ -19,8 +19,8 @@
  *    underlying citation anchor through it (which scrolls to the source
  *    list in the report).
  *
- * Reused by: ChatInterface (Ask AI tab) and — when M5 ships — Research
- * tab. Built so other tabs can drop it in without behavior changes.
+ * Reused by: Research tab (citation hover on report markdown). Built so
+ * other tabs can drop it in without behavior changes.
  */
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";

@@ -19,7 +19,6 @@ import {
   Lightbulb,
   Network,
   Mail,
-  MessageCircle,
   Settings,
   Bookmark,
   Sun,
@@ -43,7 +42,6 @@ export const SIDEBAR_NAV_ITEMS: SidebarNavItem[] = [
   { value: "research", label: "Research", icon: Lightbulb },
   { value: "knowledge", label: "Knowledge", icon: Network },
   { value: "digest", label: "Digest", icon: Mail },
-  { value: "chat", label: "Ask AI", icon: MessageCircle },
   { value: "saved", label: "Saved", icon: Bookmark },
   { value: "preferences", label: "Settings", icon: Settings },
 ];

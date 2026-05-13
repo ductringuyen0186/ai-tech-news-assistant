@@ -16,8 +16,8 @@ import { test, expect, type Page, type Route } from "@playwright/test";
  * differences from flaking. Anti-aliasing is disabled at the
  * playwright level via the screenshot options.
  *
- * Tabs covered: News Feed, Research, Knowledge, Digest, Ask AI, Saved,
- * Settings. Research + Ask AI use mocks so the baseline doesn't depend
+ * Tabs covered: News Feed, Research, Knowledge, Digest, Saved,
+ * Settings. Research uses a mock so the baseline doesn't depend
  * on a live LLM run.
  */
 
@@ -90,29 +90,6 @@ async function installResearchMock(page: Page) {
       status: 200,
       headers: { "Content-Type": "text/event-stream" },
       body: frames.join(""),
-    });
-  });
-}
-
-async function installRagMock(page: Page) {
-  await page.route("**/api/rag/query", async (route: Route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        data: {
-          answer:
-            "Based on recent reporting [1], AI chip vendors are converging on a new architecture for edge inference. Prices remain under pressure across tier-1 SKUs.",
-          sources: [
-            {
-              id: "1",
-              title: "AI Chip Leader Profile",
-              source: "TechCrunch",
-              url: "https://example.com/ai-chip",
-            },
-          ],
-        },
-      }),
     });
   });
 }
@@ -192,29 +169,6 @@ test.describe("M3.M6 — per-tab visual baselines", () => {
     await page.locator(".animate-spin").first().waitFor({ state: "hidden", timeout: 15_000 }).catch(() => {});
     await page.waitForTimeout(500);
     await expect(page).toHaveScreenshot("digest-final.png", SCREENSHOT_OPTS);
-  });
-
-  test("ask-ai-final visual", async ({ page }) => {
-    test.setTimeout(60_000);
-    await installRagMock(page);
-    try {
-      await page.goto("/");
-      await expect(page.getByRole("heading", { name: /TechPulse AI/i })).toBeVisible();
-      await page.getByRole("tab", { name: /Ask AI/i }).click();
-      // ChatInterface uses a shadcn Input with this placeholder.
-      const input = page.getByPlaceholder(/Ask me anything about tech news/i);
-      await input.waitFor({ state: "visible", timeout: 10_000 });
-      await input.fill("What's the latest in AI chips?");
-      await input.press("Enter");
-      // Wait for the mocked answer to appear in the chat history.
-      await expect(page.getByText(/converging on a new architecture/i)).toBeVisible({
-        timeout: 15_000,
-      });
-      await page.waitForTimeout(500);
-      await expect(page).toHaveScreenshot("ask-ai-final.png", SCREENSHOT_OPTS);
-    } finally {
-      await page.unroute("**/api/rag/query");
-    }
   });
 
   test("saved-final visual", async ({ page }) => {

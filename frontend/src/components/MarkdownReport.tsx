@@ -26,7 +26,7 @@ import remarkGfm from "remark-gfm";
  * M3.M4 addition — `renderCitation`:
  * Optional callback invoked for each `[N]` anchor. Receives the citation
  * number plus the rendered anchor element and returns the React node to
- * insert in its place. Used by ChatInterface to wrap each citation in a
+ * insert in its place. Used by ResearchMode to wrap each citation in a
  * `<CitationHoverCard>` that fetches `/api/news/{id}` and shows a
  * preview card on hover.
  */

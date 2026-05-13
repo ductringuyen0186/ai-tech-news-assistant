@@ -19,13 +19,16 @@ import { test, expect } from "@playwright/test";
  *   4. Inside the open palette, arrow keys + Enter navigate to a tab.
  */
 
-const NAV_LABELS = [
-  /News Feed/i,
-  /Research/i,
-  /Knowledge/i,
-  /Digest/i,
-  /Ask AI/i,
-  /Settings/i,
+// Test tuple: (regex, exact-match value). For tab names that are substrings
+// of another tab (e.g. "Saved" appears inside the Settings "Unsaved changes"
+// badge), we use an exact-match string instead of the regex.
+const NAV_LABELS: Array<{ matcher: RegExp | string; exact?: boolean }> = [
+  { matcher: /News Feed/i },
+  { matcher: /Research/i },
+  { matcher: /Knowledge/i },
+  { matcher: /Digest/i },
+  { matcher: "Saved", exact: true },
+  { matcher: /Settings/i },
 ];
 
 test.describe("Mission 3 / M1 — Sidebar + theme + Cmd+K palette", () => {
@@ -43,14 +46,14 @@ test.describe("Mission 3 / M1 — Sidebar + theme + Cmd+K palette", () => {
     // Each named nav item is reachable by its accessible name. Every
     // existing test in the suite uses the same lookup, so if any of
     // these fail the rest of the suite would break too.
-    for (const name of NAV_LABELS) {
-      const tab = page.getByRole("tab", { name });
-      await expect(tab, `Tab "${name}" should be visible`).toBeVisible();
+    for (const { matcher, exact } of NAV_LABELS) {
+      const tab = page.getByRole("tab", { name: matcher as any, exact });
+      await expect(tab, `Tab "${matcher}" should be visible`).toBeVisible();
     }
 
-    // At least 6 entries — News Feed, Research, Knowledge, Digest, Ask AI,
-    // Settings. (The Saved placeholder pushes the count to 7, which is
-    // allowed — the contract is "6 or more".)
+    // At least 6 entries — News Feed, Research, Knowledge, Digest, Saved,
+    // Settings. (Polish iter 3 removed the Ask AI tab, leaving 6 — still
+    // satisfying the "6 or more" contract.)
     const tabCount = await page.getByRole("tab").count();
     expect(tabCount).toBeGreaterThanOrEqual(6);
   });
