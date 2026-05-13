@@ -1,55 +1,33 @@
 /**
- * WelcomeScreen — Polish iter 5.
+ * WelcomeScreen -- M4 single-screen broadsheet cover.
  *
- * First-load landing pane shown to new visitors. Explains what TechPulse
- * AI does, highlights the marquee features, and offers two prominent
- * call-to-action buttons:
+ * Replaces the centered hero + 2x2 feature grid with a single-screen
+ * broadsheet cover (per user decision: SINGLE SCREEN, not scroll
+ * narrative). Two-column composition:
  *
- *   - "Try Research Mode" (primary) — switches to the Research tab and
- *     dismisses the welcome screen. This is the hero CTA because the
- *     agentic research loop is the most differentiating feature of the
- *     product.
- *   - "Browse News Feed" (secondary) — switches to the News Feed tab and
- *     dismisses the welcome screen.
+ *   LEFT (cols 1-7):  vol. iii eyebrow, 96px Fraunces "TechPulse"
+ *                     wordmark, 24px italic subhead, editorial-drop
+ *                     body paragraph, compact I/II/III/IV feature
+ *                     list, two CTAs, quiet "skip intro >" link.
+ *   RIGHT (cols 8-12): LIVE WIRE pane. Fetches /api/news/?page_size=12
+ *                     on mount, pipes 12 headlines in with an
+ *                     80ms-per-row stagger. While loading shows
+ *                     BOOTING WIRE + live-cursor; on error shows
+ *                     WIRE OFFLINE with a pointer to start-dev.ps1.
  *
- * Dismissal persists in `localStorage` under `techpulse-welcome-seen`.
- * Once set, the welcome screen never appears again unless the user
- * manually clears the key.
+ * Per docs/designs/frontend-overhaul.md M4 (with section 11 user
+ * override: single screen, live API feed).
  *
  * Test hooks:
  *   - data-testid="welcome-screen"
  *   - data-testid="welcome-cta-research"
  *   - data-testid="welcome-cta-feed"
- *   - data-testid="welcome-dismiss"  (small "Skip intro" link)
+ *   - data-testid="welcome-dismiss"
  */
-import { Button } from "./ui/button";
-import {
-  Sparkles,
-  Newspaper,
-  Lightbulb,
-  Network,
-  Mail,
-  ArrowRight,
-  Search,
-} from "lucide-react";
-
-export const WELCOME_SEEN_KEY = "techpulse-welcome-seen";
-
-export function hasSeenWelcome(): boolean {
-  try {
-    return localStorage.getItem(WELCOME_SEEN_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-export function markWelcomeSeen(): void {
-  try {
-    localStorage.setItem(WELCOME_SEEN_KEY, "1");
-  } catch {
-    // ignore quota / privacy errors
-  }
-}
+import { useEffect, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { ArrowRight } from "lucide-react";
+import { API_ENDPOINTS, apiFetch } from "../config/api";
 
 interface WelcomeScreenProps {
   onTryResearch: () => void;
@@ -57,36 +35,40 @@ interface WelcomeScreenProps {
   onSkip: () => void;
 }
 
-interface FeatureHighlight {
-  icon: React.ComponentType<{ className?: string }>;
+interface WireEntry {
+  id: string;
   title: string;
-  description: string;
+  source: string;
+  publishedAt: string;
+  url?: string;
 }
 
-const FEATURES: FeatureHighlight[] = [
+interface FeatureRow {
+  num: string;
+  name: string;
+  blurb: string;
+}
+
+const FEATURES: FeatureRow[] = [
   {
-    icon: Lightbulb,
-    title: "Agentic Research",
-    description:
-      "Ask a question; watch the agent decompose it, dispatch subagents in parallel, and synthesize a cited answer in real time.",
+    num: "I.",
+    name: "RESEARCH",
+    blurb: "Ask the agent. It decomposes, dispatches, cites.",
   },
   {
-    icon: Newspaper,
-    title: "Curated News Feed",
-    description:
-      "Hand-picked tech headlines from TechCrunch, The Verge, Wired, and Ars Technica with AI-generated summaries.",
+    num: "II.",
+    name: "NEWS FEED",
+    blurb: "Front-page broadsheet. AI-summarised, source-cited.",
   },
   {
-    icon: Network,
-    title: "Knowledge Graph",
-    description:
-      "Explore the entities behind the news: companies, products, people, and how they connect across stories.",
+    num: "III.",
+    name: "KNOWLEDGE",
+    blurb: "Entity graph. Companies, products, people, mentions.",
   },
   {
-    icon: Mail,
-    title: "Daily Digest",
-    description:
-      "A morning briefing with the day's top stories, trending topics, and a one-paragraph AI summary.",
+    num: "IV.",
+    name: "DIGEST",
+    blurb: "Daily brief. Curated headlines, trending topics.",
   },
 ];
 
@@ -95,105 +77,251 @@ export function WelcomeScreen({
   onBrowseFeed,
   onSkip,
 }: WelcomeScreenProps) {
+  const reduceMotion = useReducedMotion();
+  const [wire, setWire] = useState<WireEntry[] | null>(null);
+  const [wireError, setWireError] = useState<string | null>(null);
+  const [booted, setBooted] = useState(false);
+
+  // Fetch the live wire once on mount. Slight delay so the BOOTING
+  // animation reads as intentional even on fast networks.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        await new Promise((r) => setTimeout(r, reduceMotion ? 0 : 400));
+        if (cancelled) return;
+        const data: any = await apiFetch<any>(
+          `${API_ENDPOINTS.news}?page_size=12`
+        );
+        const raw: any[] = (data?.data || data?.items || []) as any[];
+        const items: WireEntry[] = raw.slice(0, 12).map((a: any) => ({
+          id: String(a.id ?? a._id ?? a.url ?? Math.random()),
+          title: String(a.title ?? "(untitled)"),
+          source: String(a.source ?? ""),
+          publishedAt: String(a.published_at ?? a.publishedAt ?? ""),
+          url: a.url,
+        }));
+        if (!cancelled) {
+          setWire(items);
+          setBooted(true);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setWireError(err?.message || "wire offline");
+          setBooted(true);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [reduceMotion]);
+
+  const today = new Date()
+    .toLocaleDateString("en-US", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    })
+    .toUpperCase()
+    .replace(/,/g, "");
+
+  const wireStatus = !booted
+    ? "WIRE BOOTING"
+    : wireError
+      ? "WIRE OFFLINE"
+      : "WIRE OPEN";
+
   return (
     <div
       data-testid="welcome-screen"
-      className="min-h-[70vh] flex flex-col items-center justify-center py-16 px-4"
+      className="min-h-[calc(100vh-72px)] flex flex-col px-6 py-6"
     >
-      <div className="max-w-3xl w-full">
-        {/* Hero block — logo + headline + tagline */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary shadow-lg mb-6">
-            <Newspaper className="w-9 h-9 text-primary-foreground" />
+      {/* Dateline header -- thin mono band across the top, mirrors
+          the masthead language from M1. */}
+      <div className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft flex items-center gap-3 border-y border-[var(--rule)] py-2 mb-8">
+        <span>{"━━━ TECHPULSE"}</span>
+        <span>{"━━━ WELCOME / VOL III"}</span>
+        <span>{"━━━ "}{today}</span>
+        <span className="flex-1 border-t border-[var(--rule)]" />
+        <span className={booted && !wireError ? "text-signal" : ""}>
+          {wireStatus}
+        </span>
+      </div>
+
+      {/* Two-column body. */}
+      <div className="grid grid-cols-12 gap-8 flex-1">
+        {/* LEFT COL ----------------------------------------------- */}
+        <motion.div
+          initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: reduceMotion ? 0 : 0.32 }}
+          className="col-span-12 lg:col-span-7 flex flex-col"
+        >
+          <div className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft mb-2">
+            vol. iii &middot; special issue
           </div>
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground mb-3">
-            Welcome to TechPulse AI
+          <h1 className="font-display font-medium text-[96px] leading-[0.92] tracking-tight text-foreground mb-3">
+            TechPulse
           </h1>
-          <p className="text-base text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            Your AI-powered tech-news research assistant. Aggregate the day's
-            stories, ask deep questions to an agentic research mode, and
-            explore the entities behind the headlines.
+          <p className="font-display italic text-[24px] leading-[1.3] text-foreground-soft mb-6 max-w-xl">
+            A reader&apos;s terminal for the agentic era.
           </p>
-        </div>
+          <p className="editorial-drop font-display text-[16px] leading-[1.65] text-foreground mb-6 max-w-xl">
+            Reading the news is now a research problem. TechPulse aggregates
+            the day&apos;s stories from TechCrunch, The Verge, Wired, Ars
+            Technica and more &mdash; then hands you an agentic research
+            desk that decomposes any question, dispatches subagents across
+            the corpus, and synthesises a cited answer in real time.
+          </p>
 
-        {/* Primary CTAs — Try Research is the hero action. Both buttons
-            are inline (md: is in the prebuilt bundle; sm: is not).
-            Auto width with px-7 keeps them as proper buttons. */}
-        <div className="flex md:flex-row flex-col items-center justify-center gap-4 mb-6">
-          <Button
-            data-testid="welcome-cta-research"
-            size="lg"
-            onClick={onTryResearch}
-            className="gap-2 h-11 px-7 text-sm font-medium shadow-sm"
-          >
-            <Sparkles className="w-4 h-4" />
-            Try Research Mode
-            <ArrowRight className="w-4 h-4" />
-          </Button>
-          <Button
-            data-testid="welcome-cta-feed"
-            variant="outline"
-            size="lg"
-            onClick={onBrowseFeed}
-            className="gap-2 h-11 px-7 text-sm font-medium"
-          >
-            <Newspaper className="w-4 h-4" />
-            Browse News Feed
-          </Button>
-        </div>
-
-        {/* Keyboard tip — sits close to the CTAs (mb-6 above) as a
-            footnote, then mb-14 pushes the feature grid clearly into
-            its own section. */}
-        <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground mb-14">
-          <Search className="w-3 h-3" />
-          <span>Tip: press</span>
-          <kbd className="text-[10px] px-1.5 py-[1px] border border-border rounded bg-muted font-mono">
-            ⌘K
-          </kbd>
-          <span>anytime to jump anywhere.</span>
-        </div>
-
-        {/* Feature grid — 2x2 at md+, single column below. p-6 padding
-            and bumped typography (text-base title, text-sm body) so
-            cards read as substantial info blocks. */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-12">
-          {FEATURES.map((feature) => {
-            const Icon = feature.icon;
-            return (
-              <div
-                key={feature.title}
-                className="p-6 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors"
+          {/* Feature list -- compact numbered four-row, NOT a 2x2
+              card grid. Single-screen means no fluff. */}
+          <ul className="border-t border-[var(--rule)] mb-6">
+            {FEATURES.map((f) => (
+              <li
+                key={f.num}
+                className="border-b border-[var(--rule)] py-2 flex items-baseline gap-3"
               >
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
-                    <Icon className="w-4 h-4 text-primary" />
-                  </div>
-                  <h3 className="text-base font-semibold text-foreground">
-                    {feature.title}
-                  </h3>
-                </div>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  {feature.description}
-                </p>
-              </div>
-            );
-          })}
-        </div>
+                <span className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft w-8 shrink-0">
+                  {f.num}
+                </span>
+                <span className="font-display font-medium text-[16px] text-foreground w-32 shrink-0">
+                  {f.name}
+                </span>
+                <span className="font-display italic text-[14px] text-foreground-soft flex-1">
+                  {f.blurb}
+                </span>
+              </li>
+            ))}
+          </ul>
 
-        {/* Skip link — quiet text button, generous padding so it
-            doesn't crowd the feature grid above. */}
-        <div className="text-center">
+          {/* CTAs ------------------------------------------------- */}
+          <div className="flex items-center gap-3 mb-4">
+            <button
+              data-testid="welcome-cta-research"
+              type="button"
+              onClick={onTryResearch}
+              className="font-mono-tx text-[12px] uppercase-eyebrow px-4 py-2 bg-[var(--accent-signal)] text-background hover:bg-foreground transition-colors inline-flex items-center gap-2"
+            >
+              [ start a research dispatch
+              <ArrowRight className="w-3 h-3" />
+              ]
+            </button>
+            <button
+              data-testid="welcome-cta-feed"
+              type="button"
+              onClick={onBrowseFeed}
+              className="font-mono-tx text-[12px] uppercase-eyebrow px-4 py-2 border border-[var(--rule)] text-foreground hover:bg-[var(--background-tint)] hover:text-signal hover:border-[var(--accent-signal)] transition-colors"
+            >
+              [ read today&apos;s feed ]
+            </button>
+          </div>
           <button
             data-testid="welcome-dismiss"
             type="button"
             onClick={onSkip}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors px-3 py-2"
+            className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft hover:text-signal self-start transition-colors"
           >
-            Skip intro
+            skip intro &gt;
           </button>
-        </div>
+        </motion.div>
+
+        {/* RIGHT COL -- LIVE WIRE --------------------------------- */}
+        <motion.div
+          initial={reduceMotion ? false : { opacity: 0, x: 12 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{
+            duration: reduceMotion ? 0 : 0.4,
+            delay: reduceMotion ? 0 : 0.18,
+          }}
+          className="col-span-12 lg:col-span-5 flex flex-col border-l border-[var(--rule)] pl-8"
+        >
+          <div className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft mb-3 flex items-center gap-3">
+            <span>{"━ LIVE WIRE"}</span>
+            <span className="flex-1 border-t border-[var(--rule)]" />
+            {wire && <span>{wire.length} dispatches</span>}
+          </div>
+          {!booted && (
+            <div className="font-mono-tx text-[12px] text-foreground-soft">
+              <p>
+                BOOTING WIRE
+                <span className="live-cursor"></span>
+              </p>
+            </div>
+          )}
+          {booted && wireError && (
+            <div className="font-mono-tx text-[12px] text-foreground-soft">
+              <p>WIRE OFFLINE &mdash; {wireError}</p>
+              <p className="mt-2 text-foreground-soft">
+                No backend? Run{" "}
+                <code className="bg-[var(--background-tint)] px-1">
+                  .\start-dev.ps1
+                </code>{" "}
+                to spin up the API.
+              </p>
+            </div>
+          )}
+          {booted && !wireError && wire && (
+            <ol className="font-mono-tx text-[12px] space-y-1.5 overflow-y-auto max-h-[60vh]">
+              {wire.map((item, i) => (
+                <WireRow
+                  key={item.id}
+                  item={item}
+                  idx={i}
+                  reduceMotion={Boolean(reduceMotion)}
+                />
+              ))}
+            </ol>
+          )}
+        </motion.div>
       </div>
     </div>
   );
+}
+
+function WireRow({
+  item,
+  idx,
+  reduceMotion,
+}: {
+  item: WireEntry;
+  idx: number;
+  reduceMotion: boolean;
+}) {
+  // Stagger headlines piping in by 80ms each on mount.
+  return (
+    <motion.li
+      initial={reduceMotion ? false : { opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        duration: reduceMotion ? 0 : 0.18,
+        delay: reduceMotion ? 0 : idx * 0.08,
+      }}
+      className="flex gap-3 items-start"
+    >
+      <span className="text-foreground-soft shrink-0">
+        {formatTime(item.publishedAt)}
+      </span>
+      <span className="text-foreground leading-[1.4]">
+        <span className="text-signal mr-1">{"▸"}</span>
+        {item.title}
+      </span>
+    </motion.li>
+  );
+}
+
+function formatTime(iso: string): string {
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "--:--";
+    return d.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  } catch {
+    return "--:--";
+  }
 }

@@ -3338,3 +3338,47 @@ body {
   .leading-\[1\.5\] { line-height: 1.5; }
   .leading-\[1\.6\] { line-height: 1.6; }
 }
+
+/* ============================================================
+ * M4 utility additions -- WelcomeScreen single-screen broadsheet
+ * cover. Tailwind v4 prebuilt does not regenerate utilities on
+ * the fly, so each new selector is hand-authored here.
+ *
+ * See docs/designs/frontend-overhaul.md M4 (with section 11 user
+ * override: single screen, live API feed).
+ * ============================================================ */
+@layer utilities {
+  /* Page-height shell -- viewport minus the masthead band. */
+  .min-h-\[calc\(100vh-72px\)\] { min-height: calc(100vh - 72px); }
+
+  /* Display wordmark sizing for the cover headline. */
+  .text-\[96px\] { font-size: 96px; line-height: 1; }
+  .leading-\[0\.92\] { line-height: 0.92; }
+  .leading-\[1\.4\] { line-height: 1.4; }
+
+  /* Width primitives for the feature list rows and CTAs. */
+  .max-w-xl { max-width: 36rem; }
+  .max-h-\[60vh\] { max-height: 60vh; }
+  .w-32 { width: calc(var(--spacing) * 32); }
+  .pl-8 { padding-left: calc(var(--spacing) * 8); }
+
+  /* 12-col grid spans used by the cover. .col-span-5 already
+     exists from M2; .col-span-7 was missing. */
+  .col-span-7 { grid-column: span 7 / span 7; }
+
+  /* Large-viewport variants for the two-column layout. */
+  @media (min-width: 1024px) {
+    .lg\:col-span-7 { grid-column: span 7 / span 7; }
+    .lg\:col-span-5 { grid-column: span 5 / span 5; }
+  }
+
+  /* Solid foreground/background fills for the primary CTA. The
+     /90 alpha variant already exists; the solid versions are
+     new. */
+  .bg-foreground { background-color: var(--foreground); }
+  .text-background { color: var(--background); }
+
+  /* CTA hover states. */
+  .hover\:bg-foreground:hover { background-color: var(--foreground); }
+  .hover\:bg-\[var\(--accent-signal\)\]:hover { background-color: var(--accent-signal); }
+}
