@@ -1,40 +1,41 @@
 import { useEffect, useState } from "react";
-import { Bookmark, Trash2, ChevronLeft, Loader2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "./ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "./ui/card";
 import { MarkdownReport } from "./MarkdownReport";
 import { API_ENDPOINTS, apiFetch, API_BASE_URL } from "../config/api";
+import { Loader2, AlertCircle } from "lucide-react";
 
 /**
- * SavedResearchList — M3.M5 Saved sidebar tab.
+ * SavedResearchList -- M5 broadsheet-row restyle.
  *
- * Renders persisted research reports as a list of (question + relative
- * time + delete). Clicking a row drills into a detail view that uses
- * `MarkdownReport` to render the saved markdown with citations linkified
- * (same as a fresh research run on `phase === "done"`). The delete icon
- * optimistically removes the row on a successful DELETE.
+ * Each saved report now renders as a single broadsheet line:
  *
- * Empty state: when the list is empty after the initial fetch we show
- * the "No saved research yet" message anchored on the Bookmark icon.
+ *   ▸ FILED — TUE 12 MAY 14:08
+ *   [ Fraunces 22px question title ]
+ *   283 lines · 9 sources · saved 2h ago        [ × delete ]
  *
- * Failure state: when the GET fails we render an inline retry button —
- * the same UX as the research error panel, so users know the failure
- * isn't permanent.
+ * The Card chrome is dropped; rows are <li> elements separated
+ * by hairline `border-t border-[var(--rule)]`. Click the title
+ * to open the detail view; the right-side `[ × ]` deletes.
  *
- * Test hooks:
- *   - data-testid="saved-research-list"          (the root list panel)
- *   - data-testid="saved-research-item"           (each row)
- *   - data-testid="saved-research-delete-btn"     (each row's delete icon)
- *   - data-testid="saved-research-empty"          (empty state)
- *   - data-testid="saved-research-detail"         (drill-in detail panel)
- *   - data-testid="saved-research-back-btn"       (back-to-list button)
+ * The detail view header reuses the same FILED-eyebrow + Fraunces
+ * title language; the body is unchanged (still <MarkdownReport>,
+ * already typography-passed in M3b).
+ *
+ * Test contracts preserved (verified via
+ * `grep -nE "data-testid=|getByText" frontend/e2e/saved-research.spec.ts`):
+ *   - data-testid="saved-research-list"
+ *   - data-testid="saved-research-item"
+ *   - data-testid="saved-research-delete-btn"
+ *   - data-testid="saved-research-empty"
+ *   - data-testid="saved-research-detail"
+ *   - data-testid="saved-research-back-btn"
+ *   - visible text "No saved research yet"
+ *   - each saved-research-item still has a <button> as its first
+ *     child (saved-research.spec.ts:222 clicks
+ *     `items.first().locator("button").first()` to open detail).
+ *   - detail view renders <MarkdownReport>, which produces the
+ *     "Executive Summary" and "Sources Used" headings the spec
+ *     asserts on (saved-research.spec.ts:226-227).
  */
 
 interface SavedListRow {
@@ -55,17 +56,16 @@ interface SavedFull {
 //  Helpers
 // ---------------------------------------------------------------------- //
 
+function normalizeIso(iso: string): string {
+  return /Z|[+-]\d{2}:?\d{2}$/.test(iso)
+    ? iso
+    : iso.includes("T")
+      ? `${iso}Z`
+      : `${iso.replace(" ", "T")}Z`;
+}
+
 function formatRelativeTime(iso: string): string {
-  // SQLite default ``CURRENT_TIMESTAMP`` returns a naive UTC timestamp
-  // without timezone marker, e.g. "2026-05-12 20:55:27". Append a Z so
-  // ``Date.parse`` treats it as UTC rather than local-time-on-this-box.
-  const normalized =
-    /Z|[+-]\d{2}:?\d{2}$/.test(iso)
-      ? iso
-      : iso.includes("T")
-        ? `${iso}Z`
-        : `${iso.replace(" ", "T")}Z`;
-  const then = Date.parse(normalized);
+  const then = Date.parse(normalizeIso(iso));
   if (Number.isNaN(then)) return iso;
   const now = Date.now();
   const delta = Math.max(0, now - then);
@@ -83,12 +83,37 @@ function formatRelativeTime(iso: string): string {
   return `${yr}y ago`;
 }
 
+/** Format a saved-at timestamp as a mono dateline:
+ *  `TUE 12 MAY 14:08`. Falls back to the raw string if the
+ *  date can't be parsed. */
+function formatDateline(iso: string): string {
+  const then = Date.parse(normalizeIso(iso));
+  if (Number.isNaN(then)) return iso;
+  const d = new Date(then);
+  const wd = d.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase();
+  const day = d.toLocaleDateString("en-US", { day: "2-digit" });
+  const mon = d.toLocaleDateString("en-US", { month: "short" }).toUpperCase();
+  const time = d.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  return `${wd} ${day} ${mon} ${time}`;
+}
+
+/** Best-effort line count for the saved markdown -- used in the
+ *  row meta strip. */
+function lineCountOf(md: string): number {
+  if (!md) return 0;
+  return md.split(/\r?\n/).filter((l) => l.trim().length > 0).length;
+}
+
 // ---------------------------------------------------------------------- //
 //  Component
 // ---------------------------------------------------------------------- //
 
 interface SavedResearchListProps {
-  /** Refresh nonce — bump to force a re-fetch (e.g. after a save). */
+  /** Refresh nonce — bump to force a re-fetch (e.g. after save). */
   refreshKey?: number;
 }
 
@@ -96,9 +121,6 @@ export function SavedResearchList({ refreshKey = 0 }: SavedResearchListProps) {
   const [rows, setRows] = useState<SavedListRow[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Detail view state — when set, we render the full report instead of
-  // the list. Keeping this as a number id (rather than the full record)
-  // lets the back-button always refetch a fresh copy.
   const [detailId, setDetailId] = useState<number | null>(null);
   const [detail, setDetail] = useState<SavedFull | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -171,10 +193,8 @@ export function SavedResearchList({ refreshKey = 0 }: SavedResearchListProps) {
   // -------------------------------------------------------------------- //
 
   async function handleDelete(id: number) {
-    // Optimistic remove — drop the row first, restore if the DELETE fails.
     const prev = rows ?? [];
     setRows(prev.filter((r) => r.id !== id));
-    // If the detail view is open on this id, snap back to the list.
     if (detailId === id) setDetailId(null);
 
     try {
@@ -188,7 +208,6 @@ export function SavedResearchList({ refreshKey = 0 }: SavedResearchListProps) {
       // eslint-disable-next-line no-console
       console.warn("SavedResearchList: delete failed", err);
       toast.error("Failed to delete saved research");
-      // Restore the row.
       setRows(prev);
     }
   }
@@ -199,73 +218,71 @@ export function SavedResearchList({ refreshKey = 0 }: SavedResearchListProps) {
 
   if (detailId !== null) {
     return (
-      <div className="max-w-4xl mx-auto space-y-6" data-testid="saved-research-detail">
-        <Button
-          variant="outline"
-          size="sm"
+      <div
+        className="max-w-4xl mx-auto space-y-6"
+        data-testid="saved-research-detail"
+      >
+        <button
+          type="button"
           onClick={() => setDetailId(null)}
           data-testid="saved-research-back-btn"
+          className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft hover:text-signal transition-colors"
         >
-          <ChevronLeft className="w-4 h-4 mr-1" />
-          Back to saved
-        </Button>
+          [ ← back to dispatches ]
+        </button>
 
         {detailLoading && (
-          <Card>
-            <CardContent className="flex items-center gap-2 py-12 justify-center text-muted-foreground">
-              <Loader2 className="w-5 h-5 animate-spin" />
-              <span>Loading saved report...</span>
-            </CardContent>
-          </Card>
+          <div className="flex items-center gap-2 py-12 justify-center font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>loading saved report...</span>
+          </div>
         )}
 
         {detailError && !detailLoading && (
-          <Card>
-            <CardContent className="flex items-start gap-3 py-6">
-              <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm text-foreground font-medium">
-                  Failed to load saved report
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {detailError}
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  // Force a refetch by toggling detailId.
-                  const id = detailId;
-                  setDetailId(null);
-                  setTimeout(() => setDetailId(id), 0);
-                }}
-              >
-                Retry
-              </Button>
-            </CardContent>
-          </Card>
+          <div className="flex items-start gap-3 py-6 border-t-2 border-[var(--accent-signal)] px-4 bg-[var(--background-tint)]">
+            <AlertCircle className="w-5 h-5 text-signal flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-display text-[18px] font-medium text-foreground">
+                Failed to load saved report
+              </p>
+              <p className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft mt-1">
+                {detailError}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const id = detailId;
+                setDetailId(null);
+                setTimeout(() => setDetailId(id), 0);
+              }}
+              className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft hover:text-signal"
+            >
+              [ retry ]
+            </button>
+          </div>
         )}
 
         {detail && !detailLoading && !detailError && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-xl font-semibold break-words text-foreground">
-                {detail.question}
-              </CardTitle>
-              <CardDescription className="text-sm">
-                Saved {formatRelativeTime(detail.created_at)}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div
-                className="min-w-0 overflow-hidden"
+          <article className="space-y-4">
+            <header className="space-y-2 border-b-2 border-[var(--foreground)] pb-4">
+              <div className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft">
+                ━ FILED — {formatDateline(detail.created_at)} · saved {formatRelativeTime(detail.created_at)}
+              </div>
+              <h2
+                className="font-display text-[28px] font-medium tracking-tight text-foreground leading-[1.1] break-words"
                 style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
               >
-                <MarkdownReport text={detail.report_md} linkifyCitations />
-              </div>
-            </CardContent>
-          </Card>
+                {detail.question}
+              </h2>
+            </header>
+            <div
+              className="min-w-0 overflow-hidden"
+              style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+            >
+              <MarkdownReport text={detail.report_md} linkifyCitations />
+            </div>
+          </article>
         )}
       </div>
     );
@@ -277,98 +294,107 @@ export function SavedResearchList({ refreshKey = 0 }: SavedResearchListProps) {
 
   return (
     <div
-      className="max-w-3xl mx-auto space-y-6"
+      className="max-w-3xl mx-auto space-y-4"
       data-testid="saved-research-list"
     >
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-xl font-semibold">
-            <Bookmark className="w-5 h-5 text-primary" />
-            Saved research
-          </CardTitle>
-          <CardDescription className="text-sm">
-            Research reports you've saved. Click a row to re-open it; the
-            trash icon removes it permanently.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loading && (
-            <div className="flex items-center justify-center py-12 text-muted-foreground gap-2">
-              <Loader2 className="w-5 h-5 animate-spin" />
-              <span>Loading saved research...</span>
-            </div>
-          )}
+      {/* === MASTHEAD ============================== */}
+      <header className="space-y-1 border-b-2 border-[var(--foreground)] pb-3">
+        <div className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft">
+          ━ THE FILE ROOM
+        </div>
+        <h2 className="font-display text-[28px] font-medium tracking-tight text-foreground leading-[1.1]">
+          Saved Dispatches
+        </h2>
+        <p className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft">
+          research reports you've filed away · click a row to re-open · [ × ] removes
+        </p>
+      </header>
 
-          {!loading && error && (
-            <div className="flex items-start gap-3 py-6 border border-destructive/40 rounded-md px-4 bg-destructive/5">
-              <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm text-foreground font-medium">
-                  Failed to load saved research
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">{error}</p>
-              </div>
-              <Button variant="outline" size="sm" onClick={() => void fetchList()}>
-                Retry
-              </Button>
-            </div>
-          )}
+      {loading && (
+        <div className="flex items-center justify-center py-12 font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft gap-2">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span>loading saved research...</span>
+        </div>
+      )}
 
-          {!loading && !error && rows && rows.length === 0 && (
-            <div
-              className="text-center py-12"
-              data-testid="saved-research-empty"
+      {!loading && error && (
+        <div className="flex items-start gap-3 py-4 border-t-2 border-[var(--accent-signal)] px-4 bg-[var(--background-tint)]">
+          <AlertCircle className="w-5 h-5 text-signal flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-display text-[18px] font-medium text-foreground">
+              Failed to load saved research
+            </p>
+            <p className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft mt-1">
+              {error}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void fetchList()}
+            className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft hover:text-signal"
+          >
+            [ retry ]
+          </button>
+        </div>
+      )}
+
+      {!loading && !error && rows && rows.length === 0 && (
+        <div
+          className="text-center py-12 space-y-2"
+          data-testid="saved-research-empty"
+        >
+          <p className="font-mono-tx text-[24px] text-foreground-soft">▌</p>
+          <p className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft">
+            No saved research yet. Run a research query and click Save.
+          </p>
+        </div>
+      )}
+
+      {!loading && !error && rows && rows.length > 0 && (
+        <ul>
+          {rows.map((row) => (
+            <li
+              key={row.id}
+              data-testid="saved-research-item"
+              className="border-t border-[var(--rule)] last:border-b last:border-b-[var(--rule)]"
             >
-              <Bookmark className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">
-                No saved research yet. Run a research query and click Save.
-              </p>
-            </div>
-          )}
-
-          {!loading && !error && rows && rows.length > 0 && (
-            <ul className="divide-y divide-border border border-border rounded-md overflow-hidden">
-              {rows.map((row) => (
-                <li
-                  key={row.id}
-                  data-testid="saved-research-item"
-                  className="bg-card hover:bg-accent/40 transition-colors"
+              <div className="flex items-stretch gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDetailId(row.id)}
+                  className="flex-1 py-4 min-w-0 flex flex-col items-start text-left space-y-1 hover:bg-[var(--background-tint)] transition-colors px-2 -mx-2"
                 >
-                  <div className="flex items-stretch">
-                    <button
-                      type="button"
-                      onClick={() => setDetailId(row.id)}
-                      className="flex-1 px-4 py-4 min-w-0 flex flex-col items-start text-left space-y-1"
-                    >
-                      <p
-                        className="text-sm text-foreground font-medium truncate text-left w-full"
-                        title={row.question}
-                      >
-                        {row.question}
-                      </p>
-                      <p className="text-xs text-muted-foreground text-left w-full">
-                        {formatRelativeTime(row.created_at)}
-                      </p>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void handleDelete(row.id);
-                      }}
-                      data-testid="saved-research-delete-btn"
-                      aria-label={`Delete saved research: ${row.question}`}
-                      className="px-3 flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+                  <span className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft">
+                    ▸ FILED — {formatDateline(row.created_at)}
+                  </span>
+                  <span
+                    className="font-display text-[22px] font-medium text-foreground leading-[1.2] group-hover:text-signal w-full break-words"
+                    title={row.question}
+                    style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+                  >
+                    {row.question}
+                  </span>
+                  <span className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft tabular-nums">
+                    saved {formatRelativeTime(row.created_at)}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void handleDelete(row.id);
+                  }}
+                  data-testid="saved-research-delete-btn"
+                  aria-label={`Delete saved research: ${row.question}`}
+                  className="self-stretch w-16 flex items-center justify-center font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft hover:text-signal hover:bg-[var(--background-tint)] transition-colors"
+                >
+                  [ × ]
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

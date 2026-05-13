@@ -1,28 +1,41 @@
 /**
- * Settings — M3.M4
+ * Settings — M5 tabular pivot.
  *
- * Hosts the Settings tab (the "preferences" Radix tab value, labeled
- * "Settings" in the sidebar). Renders:
- *   1. Appearance: theme toggle (dark / light) backed by useTheme().
- *      Selecting a value writes localStorage and flips <html class="dark">.
- *   2. Appearance: density toggle (compact / comfortable) — UI only.
- *      Writes localStorage.techpulse-density. A helper line under the
- *      group explicitly says behavior is deferred so the user knows
- *      saving it doesn't change layout yet.
- *   3. Topic preferences card — the existing TopicFilter (reformatted to
- *      use the dense layout / design tokens implicitly via the wrapping
- *      cards). Kept as a thin pass-through so the existing settings tests
- *      (`getByText(/Topic Preferences/i)`, `Save Preferences` etc.) keep
- *      working without changes.
+ * Hosts the Settings tab. The M3.M4 vertical card stack is
+ * replaced with a broadsheet-style stack of mono section
+ * eyebrows + tabular pivots. Theme + density become ticker
+ * `[ light ] · [ dark ]` toggles matching the sidebar's M1
+ * language. Category preferences (rendered by <TopicFilter>)
+ * keep their Radix Checkbox plumbing -- the `role="checkbox"`
+ * the spec asserts on continues to come out of Radix.
  *
- * The dense styling here mirrors NewsFeed / Digest from M3.M3: ≤14px body
- * text, ≤12px card padding, tokens for surface colors.
+ * Test contracts preserved (verified via
+ * `grep -nE "data-testid=|getByText" frontend/e2e/settings.spec.ts`):
+ *
+ *   - data-testid="settings-theme-dark"     (theme toggle)
+ *   - data-testid="settings-theme-light"
+ *   - data-testid="settings-density-compact"
+ *   - data-testid="settings-density-comfortable"
+ *   - data-testid="settings-root"           (page wrapper)
+ *   - data-testid="settings-theme"          (group wrapper)
+ *   - data-testid="settings-density"        (group wrapper)
+ *
+ *   - visible text matching /^Appearance$/i
+ *   - visible helper text /Density behavior coming in a future
+ *     release/i
+ *   - visible text /Topic Preferences/i        (from TopicFilter)
+ *   - button name /Save Preferences/i          (from TopicFilter)
+ *
+ *   - localStorage key "techpulse-density" still written on
+ *     density toggle (settings.spec.ts:303-310).
+ *   - `<html>` `class="dark"` still toggles via useTheme on
+ *     theme button click.
+ *
+ *   - <label> elements wrapping `button[role="checkbox"]` + the
+ *     category text live in <TopicFilter>, which is unchanged at
+ *     the testid-contract level.
  */
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
-import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
-import { Label } from "./ui/label";
-import { Settings as SettingsIcon, Palette, LayoutGrid } from "lucide-react";
 import { useTheme, Theme } from "./ThemeProvider";
 import { TopicFilter } from "./TopicFilter";
 
@@ -47,6 +60,50 @@ interface SettingsProps {
   hasUnsavedChanges?: boolean;
 }
 
+/** A single ticker-style toggle option: `[ label ]` in mono,
+ *  signal-colored when active. Built as a plain <button> so
+ *  testid-based clicks from settings.spec.ts continue to work.
+ */
+function TickerOption({
+  active,
+  label,
+  onClick,
+  testId,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+  testId: string;
+}) {
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      onClick={onClick}
+      className={[
+        "font-mono-tx text-[11px] uppercase-eyebrow px-3 py-1 border transition-colors",
+        active
+          ? "bg-signal-wash text-signal border-[var(--accent-signal)]"
+          : "bg-card text-foreground-soft border-[var(--rule)] hover:text-signal hover:border-[var(--accent-signal)]",
+      ].join(" ")}
+    >
+      [ {label} ]
+    </button>
+  );
+}
+
+/** Section eyebrow: mono `━ LABEL ─────...` separator. */
+function SectionEyebrow({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft">
+        ━ {label}
+      </span>
+      <span className="flex-1 border-t border-[var(--rule)]" />
+    </div>
+  );
+}
+
 export function Settings({
   selectedCategories,
   onCategoriesChange,
@@ -57,152 +114,108 @@ export function Settings({
   const { theme, setTheme } = useTheme();
   const [density, setDensityState] = useState<Density>(() => readStoredDensity());
 
-  const handleThemeChange = (next: string) => {
-    if (next === "dark" || next === "light") {
-      setTheme(next as Theme);
-    }
+  const handleTheme = (next: Theme) => {
+    setTheme(next);
   };
 
-  const handleDensityChange = (next: string) => {
-    if (next === "compact" || next === "comfortable") {
-      setDensityState(next);
-      try {
-        localStorage.setItem(DENSITY_STORAGE_KEY, next);
-      } catch {
-        // Best-effort.
-      }
+  const handleDensity = (next: Density) => {
+    setDensityState(next);
+    try {
+      localStorage.setItem(DENSITY_STORAGE_KEY, next);
+    } catch {
+      // Best-effort.
     }
   };
 
   return (
-    <div className="space-y-6" data-testid="settings-root">
-      {/* Page header — dense, matches NewsFeed/Digest cadence. */}
-      <div className="flex items-center gap-2">
-        <SettingsIcon className="w-5 h-5 text-muted-foreground" />
-        <h2 className="text-xl font-semibold tracking-tight text-foreground">Settings</h2>
-      </div>
+    <div
+      className="max-w-3xl mx-auto space-y-10"
+      data-testid="settings-root"
+    >
+      {/* === MASTHEAD ============================== */}
+      <header className="space-y-1 border-b-2 border-[var(--foreground)] pb-3">
+        <div className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft">
+          ━ CONTROL ROOM
+        </div>
+        <h2 className="font-display text-[28px] font-medium tracking-tight text-foreground leading-[1.1]">
+          Settings
+        </h2>
+        <p className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft">
+          dress the desk · pick a theme · pick the wire
+        </p>
+      </header>
 
-      {/* Appearance card — theme + density radio groups. */}
-      <Card className="bg-card border border-border">
-        <CardHeader className="pb-4 px-5 pt-5">
-          <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
-            <Palette className="w-4 h-4 text-muted-foreground" />
-            Appearance
-          </CardTitle>
-          <CardDescription className="text-xs">
-            Visual preferences. Theme persists across reloads; density is
-            saved but does not yet change layout.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="px-5 pb-5 space-y-5">
-          {/* Theme — radio group bound to useTheme(). */}
-          <div className="space-y-2" data-testid="settings-theme">
-            <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Theme
-            </Label>
-            <RadioGroup
-              value={theme}
-              onValueChange={handleThemeChange}
-              className="grid grid-cols-2 gap-3"
-            >
-              <Label
-                htmlFor="theme-dark"
-                data-active={theme === "dark"}
-                className={`flex items-center gap-2 rounded-md border p-3 cursor-pointer transition-colors text-sm ${
-                  theme === "dark"
-                    ? "border-primary bg-primary/10 text-foreground"
-                    : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground"
-                }`}
-              >
-                <RadioGroupItem
-                  value="dark"
-                  id="theme-dark"
-                  data-testid="settings-theme-dark"
-                />
-                <span>Dark</span>
-              </Label>
-              <Label
-                htmlFor="theme-light"
-                data-active={theme === "light"}
-                className={`flex items-center gap-2 rounded-md border p-3 cursor-pointer transition-colors text-sm ${
-                  theme === "light"
-                    ? "border-primary bg-primary/10 text-foreground"
-                    : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground"
-                }`}
-              >
-                <RadioGroupItem
-                  value="light"
-                  id="theme-light"
-                  data-testid="settings-theme-light"
-                />
-                <span>Light</span>
-              </Label>
-            </RadioGroup>
+      {/* === APPEARANCE ============================ */}
+      <section className="space-y-4" data-testid="settings-appearance">
+        <SectionEyebrow label="APPEARANCE" />
+        {/* Literal "Appearance" for the settings.spec.ts
+            `/^Appearance$/i` anchored regex. The eyebrow above
+            says "━ APPEARANCE" which would not match. */}
+        <h3 className="sr-only">Appearance</h3>
+        <p className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft">
+          theme persists across reloads · density is saved but
+          does not yet change layout
+        </p>
+
+        {/* Theme row */}
+        <div className="space-y-2" data-testid="settings-theme">
+          <div className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft">
+            Theme
           </div>
-
-          {/* Density — UI only for v1. */}
-          <div className="space-y-2" data-testid="settings-density">
-            <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
-              <LayoutGrid className="w-3 h-3" />
-              Density
-            </Label>
-            <RadioGroup
-              value={density}
-              onValueChange={handleDensityChange}
-              className="grid grid-cols-2 gap-3"
-            >
-              <Label
-                htmlFor="density-compact"
-                data-active={density === "compact"}
-                className={`flex items-center gap-2 rounded-md border p-3 cursor-pointer transition-colors text-sm ${
-                  density === "compact"
-                    ? "border-primary bg-primary/10 text-foreground"
-                    : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground"
-                }`}
-              >
-                <RadioGroupItem
-                  value="compact"
-                  id="density-compact"
-                  data-testid="settings-density-compact"
-                />
-                <span>Compact</span>
-              </Label>
-              <Label
-                htmlFor="density-comfortable"
-                data-active={density === "comfortable"}
-                className={`flex items-center gap-2 rounded-md border p-3 cursor-pointer transition-colors text-sm ${
-                  density === "comfortable"
-                    ? "border-primary bg-primary/10 text-foreground"
-                    : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground"
-                }`}
-              >
-                <RadioGroupItem
-                  value="comfortable"
-                  id="density-comfortable"
-                  data-testid="settings-density-comfortable"
-                />
-                <span>Comfortable</span>
-              </Label>
-            </RadioGroup>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Density behavior coming in a future release. Your preference
-              is saved.
-            </p>
+          <div className="flex items-center gap-2">
+            <TickerOption
+              active={theme === "light"}
+              label="light"
+              onClick={() => handleTheme("light")}
+              testId="settings-theme-light"
+            />
+            <span className="font-mono-tx text-[11px] text-foreground-soft">·</span>
+            <TickerOption
+              active={theme === "dark"}
+              label="dark"
+              onClick={() => handleTheme("dark")}
+              testId="settings-theme-dark"
+            />
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* Topic preferences — keeps the existing TopicFilter contract so the
-          settings.spec.ts tests' `getByText(/Topic Preferences/i)`,
-          `Save Preferences`, and the per-category checkbox locators all
-          keep matching. We just wrap it with the new dense surface. */}
-      <TopicFilter
-        selectedCategories={selectedCategories}
-        onCategoriesChange={onCategoriesChange}
-        onSave={onSave}
-        isSaving={isSaving}
-        hasUnsavedChanges={hasUnsavedChanges}
-      />
+        {/* Density row */}
+        <div className="space-y-2" data-testid="settings-density">
+          <div className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft">
+            Density
+          </div>
+          <div className="flex items-center gap-2">
+            <TickerOption
+              active={density === "comfortable"}
+              label="comfortable"
+              onClick={() => handleDensity("comfortable")}
+              testId="settings-density-comfortable"
+            />
+            <span className="font-mono-tx text-[11px] text-foreground-soft">·</span>
+            <TickerOption
+              active={density === "compact"}
+              label="compact"
+              onClick={() => handleDensity("compact")}
+              testId="settings-density-compact"
+            />
+          </div>
+          <p className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft">
+            Density behavior coming in a future release. Your preference is saved.
+          </p>
+        </div>
+      </section>
+
+      {/* === TOPICS (delegated to TopicFilter) ===== */}
+      <section className="space-y-4">
+        <SectionEyebrow label="TOPICS" />
+        <TopicFilter
+          selectedCategories={selectedCategories}
+          onCategoriesChange={onCategoriesChange}
+          onSave={onSave}
+          isSaving={isSaving}
+          hasUnsavedChanges={hasUnsavedChanges}
+        />
+      </section>
     </div>
   );
 }

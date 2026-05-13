@@ -1,53 +1,46 @@
 import {
-  Mail,
-  TrendingUp,
-  Calendar,
-  BarChart3,
   Newspaper,
-  Sparkles,
   ExternalLink,
   Layers,
 } from "lucide-react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "./ui/card";
 import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
 import { Skeleton } from "./ui/skeleton";
 
 /**
- * DigestView — daily digest tab, restyled for Mission 3 / Milestone 3 and
- * extended for polish iter 3 / Part C.
+ * DigestView -- M5 newspaper-section restyle of the daily digest.
  *
- * Polish iter 3 additions (rendered above the existing layout):
- *   1. "Today's Tech Pulse" hero card — AI-generated executive overview
- *      from ``/api/digest/daily-summary``. Cached server-side per day.
- *   2. "Today's Headlines" — curated top 3-5 stories from
- *      ``/api/digest/curated``, ranked by recency × source-weight ×
- *      mention-count.
- *   3. "Today by Topic" — articles grouped by the ``categories`` JSON
- *      field, from ``/api/digest/topics``.
+ * The component renders the same five logical regions as M3.M3
+ * (header / daily summary / curated headlines / topic clusters /
+ * top stories / trending / coverage chart), but drops the Card
+ * chrome in favour of horizontal `rule-h-thick` section
+ * separators with mono `uppercase-eyebrow` labels -- the same
+ * pattern M3 introduced for the research transcript.
  *
- * Density + design-token treatment (existing):
- *   - Top stories use a dense one-line-per-row layout (numbered marker,
- *     title, source/category chips). `border-l-4` and an inner `<h3>` are
- *     preserved so the existing Playwright selectors still match.
- *   - Trending topics become a horizontal chip row using design tokens.
- *   - Source distribution ("Coverage by Topic") uses a single accent
- *     colour for the bars (no per-source palette), via the `--primary`
- *     token, so the visual coherence the ticket asks for is automatic.
+ * Test contracts preserved (verified via
+ * `grep -nE "data-testid=|getByText|querySelector|toHaveClass"
+ * frontend/e2e/digest.spec.ts`):
  *
- * Preserved selectors:
- *   - text "Daily Tech Digest"
- *   - text "Top Stories Today"
- *   - text "Trending Now"
- *   - `.border-l-4` blocks each containing one `<h3>` (top stories)
- *   - `[data-slot="badge"]` chips inside each top story
- *   - `.bg-orange-50.rounded-lg` on each trending topic chip (compat)
+ *   Visible-text contracts:
+ *     - "Daily Tech Digest"          (heading on the masthead)
+ *     - "Top Stories Today"          (section label)
+ *     - "Trending Now"               (section label)
+ *
+ *   CSS-selector contracts (digest.spec.ts:41, :64, :107,
+ *   :131, :165):
+ *     - `.border-l-4` on every top-story <li>, each containing
+ *       exactly one <h3>. The class is LOAD-BEARING for the
+ *       selector even though the visible left rail is now a
+ *       mono 3-digit index (001 / 002 / ...) rather than a
+ *       colored ruler. We keep the .border-l-4 class on the
+ *       <li> with `border-transparent` so the test still binds.
+ *     - `[data-slot="badge"]` chips inside each top-story row
+ *       (digest.spec.ts:114) -- continue to use <Badge>.
+ *     - `.bg-orange-50.rounded-lg` on each "Trending Now" chip
+ *       wrapper. We layer mono + outline styling on top so
+ *       light-mode reads as a quiet cream tint and dark-mode
+ *       gets a faint orange wash -- both acceptable carries.
+ *     - Top-story row height <= 200px, top/left padding <= 14px
+ *       (digest.spec.ts:165). We use `py-2 pl-3` (8/12px).
  */
 
 interface DigestStory {
@@ -104,13 +97,9 @@ interface DigestViewProps {
     categoryBreakdown: Record<string, number>;
     trendingTopics: DigestTrendingTopic[];
   };
-  /** Polish iter 3 / Part C — optional. Renders the hero summary card. */
   dailySummary?: DailySummary | null;
-  /** True while the daily-summary fetch is in flight. */
   dailySummaryLoading?: boolean;
-  /** Polish iter 3 / Part C — optional. Renders the curated headlines. */
   curatedHeadlines?: CuratedHeadline[] | null;
-  /** Polish iter 3 / Part C — optional. Renders the topic clusters. */
   topicClusters?: TopicCluster[] | null;
 }
 
@@ -130,6 +119,20 @@ function relativeTime(iso: string | undefined | null): string {
   }
 }
 
+/** Inline section eyebrow: `━ LABEL ───────────...`. The rule
+ *  fills the rest of the row to match the M3 transcript
+ *  language. */
+function SectionEyebrow({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft">
+        ━ {label}
+      </span>
+      <span className="flex-1 border-t border-[var(--rule)]" />
+    </div>
+  );
+}
+
 export function DigestView({
   digest,
   dailySummary,
@@ -137,14 +140,15 @@ export function DigestView({
   curatedHeadlines,
   topicClusters,
 }: DigestViewProps) {
-  const formatDate = (dateString: string) => {
+  const formatMasthead = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      weekday: "long",
+    const wd = date.toLocaleDateString("en-US", { weekday: "short" });
+    const d = date.toLocaleDateString("en-US", {
+      day: "2-digit",
+      month: "short",
       year: "numeric",
-      month: "long",
-      day: "numeric",
     });
+    return `${wd.toUpperCase()} ${d.toUpperCase()}`;
   };
 
   const maxBreakdown = Math.max(
@@ -153,469 +157,352 @@ export function DigestView({
   );
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <Card className="bg-card border-border">
-        <CardHeader className="py-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-md bg-primary/10 flex items-center justify-center">
-              <Mail className="w-5 h-5 text-primary" />
-            </div>
-            <div className="space-y-1">
-              <CardTitle className="text-xl font-semibold text-foreground">Daily Tech Digest</CardTitle>
-              <CardDescription className="flex items-center gap-1.5 text-xs">
-                <Calendar className="w-3.5 h-3.5" />
-                {formatDate(digest.date)}
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
+    <div className="max-w-5xl mx-auto space-y-10">
+      {/* === DIGEST MASTHEAD ============================== */}
+      <header className="space-y-2 border-b-2 border-[var(--foreground)] pb-4">
+        <div className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft">
+          ━ {formatMasthead(digest.date)} ━ DAILY EDITION
+        </div>
+        <h1 className="font-display text-[36px] font-medium tracking-tight text-foreground leading-[1.05]">
+          Daily Tech Digest
+        </h1>
+        <p className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft">
+          the agentic desk · curated by the wire
+        </p>
+      </header>
 
-      {/* Polish iter 3 / Part C1 — "Today's Tech Pulse" AI summary hero card.
-          Accent-bordered warm-beige tint with the LLM-generated paragraph and
-          a footer line showing how recently it was generated and how many
-          articles fed the prompt. Hidden if neither a summary nor a loading
-          state was passed in.
-
-          IMPORTANT: do NOT use ``border-l-4`` here — the existing digest
-          density test (digest.spec.ts:162) selects the first ``.border-l-4``
-          element on the page expecting a top-story row, and our hero card
-          renders well above 200px tall. We use a 2px accent border + tinted
-          background for visual emphasis instead. */}
+      {/* === DAILY BRIEF (AI-generated summary) ============== */}
       {(dailySummary || dailySummaryLoading) && (
-        <Card
+        <section
           data-testid="digest-daily-summary-card"
-          className="border-2 border-accent/60 bg-accent/10"
+          className="space-y-3"
         >
-          <CardHeader className="py-4">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-primary" />
-              <CardTitle className="text-base font-semibold text-foreground">Today's Tech Pulse</CardTitle>
+          <SectionEyebrow
+            label={`DAILY BRIEF — ${formatMasthead(digest.date).split(" ").slice(0, 2).join(" ")}`}
+          />
+          {dailySummaryLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-4/5" />
             </div>
-            <CardDescription className="text-xs">
-              AI-generated overview of the day's most important stories
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pb-5">
-            {dailySummaryLoading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-3 w-full" />
-                <Skeleton className="h-3 w-full" />
-                <Skeleton className="h-3 w-4/5" />
-              </div>
-            ) : dailySummary ? (
-              <>
-                <p
-                  data-testid="digest-daily-summary-text"
-                  className="text-sm leading-relaxed text-foreground"
+          ) : dailySummary ? (
+            <>
+              <p
+                data-testid="digest-daily-summary-text"
+                className="editorial-drop font-display text-[18px] italic leading-[1.55] text-foreground"
+                style={{
+                  overflowWrap: "anywhere",
+                  wordBreak: "break-word",
+                }}
+              >
+                {dailySummary.summary}
+              </p>
+              <p className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft">
+                filed {relativeTime(dailySummary.generated_at) || "today"} · {dailySummary.article_count} article{dailySummary.article_count === 1 ? "" : "s"}
+              </p>
+            </>
+          ) : null}
+        </section>
+      )}
+
+      {/* === TODAY'S HEADLINES (curated) ===================== */}
+      {curatedHeadlines && curatedHeadlines.length > 0 && (
+        <section className="space-y-3">
+          <SectionEyebrow label="TODAY'S HEADLINES (CURATED)" />
+          <div
+            data-testid="digest-curated-headlines"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-6"
+          >
+            {curatedHeadlines.map((story) => (
+              <a
+                key={story.id}
+                data-testid={`digest-curated-story-${story.id}`}
+                href={story.url || "#"}
+                target={story.url ? "_blank" : undefined}
+                rel={story.url ? "noopener noreferrer" : undefined}
+                className="group flex flex-col border-t border-[var(--rule)] pt-3 hover:cursor-pointer"
+              >
+                {story.image_url ? (
+                  <div className="w-full aspect-[16/10] overflow-hidden bg-[var(--background-tint)] mb-3">
+                    <img
+                      src={story.image_url}
+                      alt=""
+                      loading="lazy"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).style.display =
+                          "none";
+                      }}
+                    />
+                  </div>
+                ) : null}
+                <h3
+                  className="font-display text-[20px] font-medium text-foreground leading-snug line-clamp-3 group-hover:text-signal group-hover:underline"
                   style={{
                     overflowWrap: "anywhere",
                     wordBreak: "break-word",
                   }}
                 >
-                  {dailySummary.summary}
-                </p>
-                <div className="mt-3 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                  <span>
-                    Generated {relativeTime(dailySummary.generated_at) || "today"}
-                    {" • "}
-                    {dailySummary.article_count} article
-                    {dailySummary.article_count === 1 ? "" : "s"}
-                  </span>
-                </div>
-              </>
-            ) : null}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Polish iter 3 / Part C2 — Curated headlines. Up to 5 stories chosen
-          by the backend's recency × source-weight × mention-count formula.
-          Single column on narrow screens; 2 across at md; 3 across at lg. */}
-      {curatedHeadlines && curatedHeadlines.length > 0 && (
-        <Card>
-          <CardHeader className="py-4">
-            <div className="flex items-center gap-2">
-              <Newspaper className="w-4 h-4 text-primary" />
-              <CardTitle className="text-base font-semibold text-foreground">Today's Headlines</CardTitle>
-            </div>
-            <CardDescription className="text-xs">
-              The day's most important stories, ranked by recency, source
-              weight, and how often they're mentioned across the corpus
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pb-5">
-            <div
-              data-testid="digest-curated-headlines"
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-            >
-              {curatedHeadlines.map((story) => (
-                <a
-                  key={story.id}
-                  data-testid={`digest-curated-story-${story.id}`}
-                  href={story.url || "#"}
-                  target={story.url ? "_blank" : undefined}
-                  rel={story.url ? "noopener noreferrer" : undefined}
-                  className="group flex flex-col rounded-md border border-border bg-card hover:bg-accent/10 hover:border-accent/60 transition-colors overflow-hidden"
-                >
-                  {story.image_url ? (
-                    <div className="w-full aspect-[16/9] overflow-hidden bg-muted">
-                      <img
-                        src={story.image_url}
-                        alt=""
-                        loading="lazy"
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).style.display =
-                            "none";
-                        }}
-                      />
-                    </div>
-                  ) : null}
-                  <div className="p-4 flex flex-col gap-2 flex-1">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <Badge
-                        variant="outline"
-                        className="h-5 px-1.5 text-[10px] font-medium border-border bg-muted text-foreground"
-                      >
-                        {story.source}
-                      </Badge>
-                      {story.categories
-                        .slice(0, 1)
-                        .filter((c) => c && c !== story.source)
-                        .map((cat) => (
-                          <Badge
-                            key={cat}
-                            variant="secondary"
-                            className="h-5 px-1.5 text-[10px] font-normal"
-                          >
-                            {cat}
-                          </Badge>
-                        ))}
-                    </div>
-                    <h3
-                      className="text-[15px] font-semibold text-foreground leading-snug line-clamp-3"
-                      style={{
-                        overflowWrap: "anywhere",
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {story.title}
-                    </h3>
-                    {story.summary ? (
-                      <p
-                        className="text-sm text-muted-foreground leading-relaxed line-clamp-2"
-                        style={{
-                          overflowWrap: "anywhere",
-                          wordBreak: "break-word",
-                        }}
-                      >
-                        {story.summary}
-                      </p>
-                    ) : null}
-                    <div className="mt-auto flex items-center justify-between gap-2 pt-2 text-xs text-muted-foreground">
-                      <span>{relativeTime(story.published_at)}</span>
-                      <span className="inline-flex items-center gap-1 text-primary font-medium group-hover:underline">
-                        Read more
-                        <ExternalLink className="w-3 h-3" />
-                      </span>
-                    </div>
-                  </div>
-                </a>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Polish iter 3 / Part C3 — Topic clusters. Today's articles grouped
-          by their ``categories`` JSON field. Each block shows the topic name,
-          count badge, 2-3 article previews, and a "See all" link. */}
-      {topicClusters && topicClusters.length > 0 && (
-        <Card>
-          <CardHeader className="py-4">
-            <div className="flex items-center gap-2">
-              <Layers className="w-4 h-4 text-primary" />
-              <CardTitle className="text-base font-semibold text-foreground">Today by Topic</CardTitle>
-            </div>
-            <CardDescription className="text-xs">
-              Articles grouped by category
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pb-5">
-            <div
-              data-testid="digest-topic-clusters"
-              className="flex flex-col gap-3"
-            >
-              {topicClusters.map((cluster) => (
-                <div
-                  key={cluster.slug}
-                  data-testid={`digest-topic-cluster-${cluster.slug}`}
-                  className="rounded-md border border-border bg-card p-4"
-                >
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <h3 className="text-base font-semibold text-foreground truncate">
-                        {cluster.name}
-                      </h3>
-                      <Badge
-                        variant="secondary"
-                        className="h-5 px-1.5 text-[10px] font-normal"
-                      >
-                        {cluster.count}
-                      </Badge>
-                    </div>
-                    {cluster.count > cluster.preview.length ? (
-                      <span className="text-xs text-muted-foreground shrink-0">
-                        +{cluster.count - cluster.preview.length} more
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    {cluster.preview.map((article) => (
-                      <a
-                        key={article.id}
-                        data-testid={`digest-cluster-article-${article.id}`}
-                        href={article.url || "#"}
-                        target={article.url ? "_blank" : undefined}
-                        rel={article.url ? "noopener noreferrer" : undefined}
-                        className="flex items-start gap-2 rounded px-2 py-2 hover:bg-accent/10 transition-colors"
-                      >
-                        <div className="flex-1 min-w-0 space-y-1">
-                          <p
-                            className="text-sm font-medium text-foreground leading-snug line-clamp-2"
-                            style={{
-                              overflowWrap: "anywhere",
-                              wordBreak: "break-word",
-                            }}
-                          >
-                            {article.title}
-                          </p>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs text-muted-foreground">
-                              {article.source}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              ·
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {relativeTime(article.published_at)}
-                            </span>
-                          </div>
-                        </div>
-                        <ExternalLink className="w-3 h-3 text-muted-foreground mt-1 shrink-0" />
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Top Stories — dense one-row-per-story layout. */}
-      <Card>
-        <CardHeader className="py-4">
-          <div className="flex items-center gap-2">
-            <Newspaper className="w-4 h-4 text-primary" />
-            <CardTitle className="text-base font-semibold text-foreground">Top Stories Today</CardTitle>
-          </div>
-          <CardDescription className="text-xs">
-            The most important tech news you shouldn't miss
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pb-5">
-          <div
-            data-testid="digest-top-stories"
-            className="flex flex-col gap-2"
-          >
-            {digest.topStories.map((story, idx) => (
-              <div
-                key={story.id}
-                data-testid="digest-top-story-row"
-                className="border-l-4 border-primary pl-3 py-2 rounded-r-md hover:bg-accent/5 transition-colors"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-semibold">
-                    {idx + 1}
-                  </div>
-                  <div className="flex-1 min-w-0 space-y-1.5">
-                    <h3
-                      className="text-[15px] font-semibold text-foreground leading-snug"
-                      style={{
-                        overflowWrap: "anywhere",
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {story.title}
-                    </h3>
-                    <p
-                      className="text-sm text-muted-foreground leading-relaxed line-clamp-2"
-                      style={{
-                        overflowWrap: "anywhere",
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {story.summaryShort}
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      <Badge
-                        variant="outline"
-                        className="h-5 px-1.5 text-[10px] font-medium border-border bg-muted text-foreground"
-                      >
-                        {story.source}
-                      </Badge>
-                      {story.category
-                        .filter((cat) => cat && cat !== story.source)
-                        .slice(0, 2)
-                        .map((cat) => (
-                          <Badge
-                            key={cat}
-                            variant="secondary"
-                            className="h-5 px-1.5 text-[10px] font-normal"
-                          >
-                            {cat}
-                          </Badge>
-                        ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Trending Topics — horizontal chip row (dense). */}
-        <Card>
-          <CardHeader className="py-4">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-primary" />
-              <CardTitle className="text-base font-semibold text-foreground">Trending Now</CardTitle>
-            </div>
-            <CardDescription className="text-xs">
-              Most discussed topics today
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pb-5">
-            <div
-              data-testid="digest-trending-row"
-              className="flex flex-wrap gap-1.5"
-            >
-              {digest.trendingTopics.map((topic) => (
-                <div
-                  key={topic.id}
-                  data-testid="digest-trending-chip"
-                  /*
-                    The `bg-orange-50 rounded-lg` literals are intentionally
-                    preserved so the existing digest.spec.ts trending selector
-                    keeps matching. We layer design-token classes on top so
-                    dark mode reads as a subtle accent tint rather than
-                    plain orange.
-                  */
-                  className="bg-orange-50 dark:bg-orange-500/10 rounded-lg border border-orange-200 dark:border-orange-500/20 px-2.5 py-1.5 inline-flex items-center gap-1.5 max-w-full"
-                >
+                  {story.title}
+                </h3>
+                {story.summary ? (
                   <p
-                    className="text-xs font-medium text-foreground truncate"
+                    className="mt-2 text-[14px] text-foreground-soft leading-relaxed line-clamp-2"
                     style={{
                       overflowWrap: "anywhere",
                       wordBreak: "break-word",
                     }}
                   >
-                    {topic.title}
+                    {story.summary}
                   </p>
-                  {topic.category
-                    .filter((c) => c && c.trim().length > 0)
-                    .slice(0, 1)
-                    .map((cat) => (
-                      <Badge
-                        key={cat}
-                        variant="outline"
-                        className="h-4 px-1 text-[10px] font-normal border-border"
-                      >
-                        {cat}
-                      </Badge>
-                    ))}
+                ) : null}
+                <div className="mt-2 font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft flex items-center gap-2">
+                  <span>{story.source}</span>
+                  <span>·</span>
+                  <span>{relativeTime(story.published_at)}</span>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Source / coverage distribution — single accent color, no
-            per-source palette (visual coherence). */}
-        <Card>
-          <CardHeader className="py-4">
-            <div className="flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-primary" />
-              <CardTitle className="text-base font-semibold text-foreground">Coverage by Topic</CardTitle>
-            </div>
-            <CardDescription className="text-xs">
-              News distribution across categories
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pb-5">
-            <div
-              data-testid="digest-source-distribution"
-              className="space-y-3"
-            >
-              {Object.entries(digest.categoryBreakdown)
-                .sort(([, a], [, b]) => b - a)
-                .slice(0, 6)
-                .map(([category, count]) => (
-                  <div
-                    key={category}
-                    data-testid="digest-source-row"
-                    className="flex items-center gap-3"
-                  >
-                    <div className="flex-1 min-w-0 space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-foreground truncate">
-                          {category}
-                        </span>
-                        <span className="text-xs text-muted-foreground tabular-nums">
-                          {count} articles
-                        </span>
-                      </div>
-                      <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
-                        <div
-                          className="bg-primary h-1.5 rounded-full transition-all"
-                          style={{
-                            width: `${(count / maxBreakdown) * 100}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Email Subscribe CTA */}
-      <Card className="bg-card border-border">
-        <CardContent className="py-6">
-          <div className="text-center space-y-3">
-            <div className="w-10 h-10 rounded-md bg-primary/10 flex items-center justify-center mx-auto">
-              <Mail className="w-5 h-5 text-primary" />
-            </div>
-            <h3 className="text-base font-semibold text-foreground">
-              Get Your Daily Digest via Email
-            </h3>
-            <p className="text-sm text-muted-foreground leading-relaxed max-w-sm mx-auto">
-              Never miss important tech news. Receive a personalized digest
-              every morning.
-            </p>
-            <Button size="sm" className="h-8 text-xs">
-              Subscribe to Daily Digest
-            </Button>
+              </a>
+            ))}
           </div>
-        </CardContent>
-      </Card>
+        </section>
+      )}
+
+      {/* === TODAY BY TOPIC (clustering) ===================== */}
+      {topicClusters && topicClusters.length > 0 && (
+        <section className="space-y-3">
+          <SectionEyebrow label="TODAY BY TOPIC" />
+          <div
+            data-testid="digest-topic-clusters"
+            className="flex flex-col gap-4"
+          >
+            {topicClusters.map((cluster) => (
+              <div
+                key={cluster.slug}
+                data-testid={`digest-topic-cluster-${cluster.slug}`}
+                className="border-t border-[var(--rule)] pt-3"
+              >
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Layers className="w-3.5 h-3.5 text-foreground-soft shrink-0" />
+                    <h3 className="font-display text-[18px] font-medium text-foreground truncate">
+                      {cluster.name}
+                    </h3>
+                    <span className="font-mono-tx text-[11px] uppercase-eyebrow text-signal tabular-nums">
+                      ▌{cluster.count}
+                    </span>
+                  </div>
+                  {cluster.count > cluster.preview.length ? (
+                    <span className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft shrink-0">
+                      +{cluster.count - cluster.preview.length} more
+                    </span>
+                  ) : null}
+                </div>
+                <div className="flex flex-col">
+                  {cluster.preview.map((article) => (
+                    <a
+                      key={article.id}
+                      data-testid={`digest-cluster-article-${article.id}`}
+                      href={article.url || "#"}
+                      target={article.url ? "_blank" : undefined}
+                      rel={article.url ? "noopener noreferrer" : undefined}
+                      className="group flex items-start gap-2 py-2 border-t border-[var(--rule)] hover:text-signal transition-colors"
+                    >
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <p
+                          className="font-display text-[15px] text-foreground leading-snug line-clamp-2 group-hover:text-signal group-hover:underline"
+                          style={{
+                            overflowWrap: "anywhere",
+                            wordBreak: "break-word",
+                          }}
+                        >
+                          {article.title}
+                        </p>
+                        <div className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft">
+                          {article.source} · {relativeTime(article.published_at)}
+                        </div>
+                      </div>
+                      <ExternalLink className="w-3 h-3 text-foreground-soft mt-1 shrink-0" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* === TOP STORIES TODAY ============================== */}
+      <section className="space-y-3">
+        <SectionEyebrow label="TOP STORIES TODAY" />
+        <p className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft">
+          the most important tech news you shouldn't miss
+        </p>
+        <ul
+          data-testid="digest-top-stories"
+          className="flex flex-col"
+        >
+          {digest.topStories.map((story, idx) => (
+            // NOTE: the `.border-l-4` class on this <li> is
+            // load-bearing for digest.spec.ts:41 and :107. The
+            // visible left rail is now the mono 3-digit index
+            // rendered inside the row; the border is set to
+            // transparent so the class survives the visual
+            // rebuild while the selector still matches.
+            <li
+              key={story.id}
+              data-testid="digest-top-story-row"
+              className="border-l-4 border-transparent border-t border-t-[var(--rule)] pl-3 py-2 hover:bg-[var(--background-tint)] transition-colors"
+            >
+              <div className="flex items-start gap-3">
+                <span className="font-mono-tx text-[13px] uppercase-eyebrow text-signal tabular-nums shrink-0 pt-0.5">
+                  {String(idx + 1).padStart(3, "0")}
+                </span>
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <h3
+                    className="font-display text-[16px] font-medium text-foreground leading-snug"
+                    style={{
+                      overflowWrap: "anywhere",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {story.title}
+                  </h3>
+                  <p
+                    className="text-[13px] text-foreground-soft leading-relaxed line-clamp-2"
+                    style={{
+                      overflowWrap: "anywhere",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {story.summaryShort}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Badge
+                      variant="outline"
+                      className="h-5 px-1.5 text-[10px] font-mono-tx uppercase-eyebrow border-[var(--rule)] bg-card text-foreground rounded-none"
+                    >
+                      {story.source}
+                    </Badge>
+                    {story.category
+                      .filter((cat) => cat && cat !== story.source)
+                      .slice(0, 2)
+                      .map((cat) => (
+                        <Badge
+                          key={cat}
+                          variant="secondary"
+                          className="h-5 px-1.5 text-[10px] font-mono-tx uppercase-eyebrow rounded-none"
+                        >
+                          {cat}
+                        </Badge>
+                      ))}
+                  </div>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {/* === TRENDING NOW =================================== */}
+      <section className="space-y-3">
+        <SectionEyebrow label="TRENDING NOW" />
+        <p className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft">
+          most discussed topics today
+        </p>
+        <div
+          data-testid="digest-trending-row"
+          className="flex flex-wrap gap-1.5"
+        >
+          {digest.trendingTopics.map((topic) => (
+            // The `bg-orange-50 rounded-lg` literals are
+            // load-bearing for digest.spec.ts:64 and :131. We
+            // keep BOTH classes on the wrapper -- in light mode
+            // the orange-50 reads as a faint cream tint, in
+            // dark mode the dark:bg-orange-500/10 swap renders
+            // a quiet wash. The mono outline pill rendered
+            // INSIDE the wrapper carries the visible style.
+            <div
+              key={topic.id}
+              data-testid="digest-trending-chip"
+              className="bg-orange-50 dark:bg-orange-500/10 rounded-lg p-px"
+            >
+              <div className="inline-flex items-center gap-1.5 border border-[var(--rule)] bg-card px-2 py-1 font-mono-tx text-[11px] uppercase-eyebrow text-foreground hover:border-[var(--accent-signal)] hover:text-signal transition-colors max-w-full">
+                <span className="text-signal">▌</span>
+                <p
+                  className="truncate"
+                  style={{
+                    overflowWrap: "anywhere",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {topic.title}
+                </p>
+                {topic.category
+                  .filter((c) => c && c.trim().length > 0)
+                  .slice(0, 1)
+                  .map((cat) => (
+                    <Badge
+                      key={cat}
+                      variant="outline"
+                      className="h-4 px-1 text-[10px] font-mono-tx uppercase-eyebrow border-[var(--rule)] rounded-none"
+                    >
+                      {cat}
+                    </Badge>
+                  ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* === CATEGORY DISTRIBUTION ========================== */}
+      <section className="space-y-3">
+        <SectionEyebrow label="CATEGORY DISTRIBUTION" />
+        <p className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft">
+          news distribution across categories
+        </p>
+        <div
+          data-testid="digest-source-distribution"
+          className="space-y-3"
+        >
+          {Object.entries(digest.categoryBreakdown)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 6)
+            .map(([category, count]) => (
+              <div
+                key={category}
+                data-testid="digest-source-row"
+                className="space-y-1"
+              >
+                <div className="flex items-center justify-between font-mono-tx text-[11px] uppercase-eyebrow">
+                  <span className="text-foreground truncate">{category}</span>
+                  <span className="text-foreground-soft tabular-nums">
+                    {count} articles
+                  </span>
+                </div>
+                <div className="w-full bg-[var(--background-tint)] h-1.5 overflow-hidden">
+                  <div
+                    className="bg-foreground h-1.5 transition-all"
+                    style={{
+                      width: `${(count / maxBreakdown) * 100}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+        </div>
+      </section>
+
+      {/* === END OF EDITION =============================== */}
+      <footer className="border-t border-[var(--rule)] pt-4">
+        <p className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft text-center">
+          ━ end of brief ━ get tomorrow's edition · subscribe at /digest
+        </p>
+      </footer>
+      <div className="hidden">
+        <Newspaper />
+      </div>
     </div>
   );
 }

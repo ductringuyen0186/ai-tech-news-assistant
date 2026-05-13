@@ -3382,3 +3382,56 @@ body {
   .hover\:bg-foreground:hover { background-color: var(--foreground); }
   .hover\:bg-\[var\(--accent-signal\)\]:hover { background-color: var(--accent-signal); }
 }
+
+/* ============================================================
+ * M5 utility additions -- Knowledge / Digest / Saved / Settings
+ * polish. Tailwind v4 prebuilt does not regenerate on the fly,
+ * so each selector is hand-authored. See
+ * docs/designs/frontend-overhaul.md M5 + section 11 user
+ * decisions (KG monochrome shape encoding, wider drop-cap).
+ * ============================================================ */
+@layer utilities {
+  /* Active-state border on the KG type-filter chips + Settings
+     pills. The hover-prefixed variant already exists in the M2
+     block; the non-hover version is new. */
+  .border-\[var\(--accent-signal\)\] { border-color: var(--accent-signal); }
+  .border-\[var\(--foreground\)\] { border-color: var(--foreground); }
+
+  /* Soft tinted background used by the SavedResearch row hover
+     state when the eyebrow row needs a quiet slab. */
+  .hover\:bg-\[var\(--background\)\]:hover { background-color: var(--background); }
+
+  /* 16-wide column used by the SavedResearch row's right-side
+     action button to keep the [ x ] delete glyph aligned. */
+  .w-16 { width: calc(var(--spacing) * 16); }
+
+  /* Tabular figures for the KG stat-card counts and the
+     SavedResearch meta line so digits don't dance. */
+  .tabular-nums { font-variant-numeric: tabular-nums; }
+
+  /* Truncate single-line text with an ellipsis. Used on the
+     SavedResearch row title before it wraps. */
+  .truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Plain uppercase (not the eyebrow variant which also forces
+     mono + letter-spacing). Used inside the Settings tabular
+     pivot's row labels. */
+  .uppercase { text-transform: uppercase; }
+
+  /* Display masthead size for the Digest. */
+  .text-\[36px\] { font-size: 36px; line-height: 1.05; }
+
+  /* Tighter Fraunces line-heights used in saved-research /
+     settings mastheads + saved-research row titles. */
+  .leading-\[1\.1\] { line-height: 1.1; }
+  .leading-\[1\.2\] { line-height: 1.2; }
+
+  /* Last-child border on the SavedResearch row list -- closes
+     the hairline ruler at the bottom of the list. */
+  .last\:border-b:last-child { border-bottom-width: 1px; border-bottom-style: solid; }
+  .last\:border-b-\[var\(--rule\)\]:last-child { border-bottom-color: var(--rule); }
+}
