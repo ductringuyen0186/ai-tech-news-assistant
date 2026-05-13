@@ -2925,3 +2925,64 @@ body {
     color: var(--accent-signal);
   }
 }
+
+/* ============================================================
+ * Broadsheet Terminal -- M1 utilities
+ * ------------------------------------------------------------
+ * Hand-authored because the prebuilt Tailwind v4 bundle does
+ * NOT regenerate. Every class below is consumed in App.tsx and
+ * Sidebar.tsx as of M1.
+ * ============================================================ */
+@layer utilities {
+  /* sr-only -- standard a11y visually-hidden pattern. The masthead
+     <h1> uses this so getByRole("heading", { name: /TechPulse AI/i })
+     keeps binding even though the visible headline reads
+     "Tech intelligence, from the agentic desk." */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  /* Type tokens */
+  .text-foreground-soft { color: var(--foreground-soft); }
+  .text-\[32px\] { font-size: 32px; line-height: 1.05; }
+  .leading-\[1\.05\] { line-height: 1.05; }
+  .tracking-wider { letter-spacing: 0.05em; }
+  .italic { font-style: italic; }
+  .rounded-none { border-radius: 0; }
+
+  /* Sizing helpers used by the nav row block + dots */
+  .w-1\.5 { width: calc(var(--spacing) * 1.5); }
+  .w-7 { width: calc(var(--spacing) * 7); }
+  .w-\[3px\] { width: 3px; }
+  .h-\[3px\] { height: 3px; }
+  .ml-\[-16px\] { margin-left: -16px; }
+  .mr-\[13px\] { margin-right: 13px; }
+
+  /* Layout primitives the existing bundle missed but M1 needs */
+  .flex-row { flex-direction: row; }
+  .items-baseline { align-items: baseline; }
+  .items-stretch { align-items: stretch; }
+
+  /* Color/border bracket utilities -- the prebuilt bundle has
+     no JIT, so each var()-driven arbitrary value lives here. */
+  .border-\[var\(--rule\)\] { border-color: var(--rule); }
+  .border-t-\[var\(--rule\)\] { border-top-color: var(--rule); }
+  .border-b-\[var\(--rule\)\] { border-bottom-color: var(--rule); }
+  .border-r-\[var\(--rule\)\] { border-right-color: var(--rule); }
+  .border-l-\[3px\] {
+    border-left-style: solid;
+    border-left-width: 3px;
+  }
+  .border-l-\[var\(--accent-signal\)\] { border-left-color: var(--accent-signal); }
+  .bg-\[var\(--background-tint\)\] { background-color: var(--background-tint); }
+  .bg-\[var\(--accent-signal\)\] { background-color: var(--accent-signal); }
+  .hover\:bg-\[var\(--background-tint\)\]:hover { background-color: var(--background-tint); }
+}

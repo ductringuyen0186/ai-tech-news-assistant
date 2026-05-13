@@ -171,6 +171,32 @@ function AppShell() {
   const panelTransition = { duration: reduceMotion ? 0 : 0.2, ease: "easeOut" as const };
 
   // -------------------------------------------------------------------------
+  // M1 — research-streaming signal for the masthead dateline.
+  //
+  // ResearchMode dispatches a window-scoped "techpulse:research-stream"
+  // CustomEvent whenever its phase changes; the masthead listens for it
+  // and toggles between LIVE (signal color + blinking cursor) and FILED
+  // (muted). Loose pub/sub keeps the masthead and ResearchMode fully
+  // decoupled — no context provider or prop drilling required.
+  // -------------------------------------------------------------------------
+  const [isResearchStreaming, setIsResearchStreaming] = useState(false);
+  useEffect(() => {
+    const onStreamChange = (e: Event) => {
+      const ev = e as CustomEvent<{ active: boolean }>;
+      setIsResearchStreaming(Boolean(ev.detail?.active));
+    };
+    window.addEventListener(
+      "techpulse:research-stream",
+      onStreamChange as EventListener
+    );
+    return () =>
+      window.removeEventListener(
+        "techpulse:research-stream",
+        onStreamChange as EventListener
+      );
+  }, []);
+
+  // -------------------------------------------------------------------------
   // Data fetchers (unchanged from M2 — behavior is out of scope for M3.M1).
   // -------------------------------------------------------------------------
   const fetchArticles = async () => {
@@ -478,33 +504,70 @@ function AppShell() {
           data-slot="main-content"
           className="flex-1 min-w-0 flex flex-col overflow-x-hidden"
         >
-          {/* Top bar keeps the TechPulse heading visible — the existing
-              Playwright suite asserts `getByRole("heading", { name: /TechPulse AI/i })`
-              on every test. Brand mark itself lives in the sidebar. */}
-          <header className="border-b border-border bg-background/80 backdrop-blur-sm sticky top-0 z-10">
-            <div className="px-6 py-4 flex items-center justify-between">
-              <div className="flex items-baseline gap-3">
-                <h1 className="text-xl font-semibold tracking-tight text-foreground">
-                  TechPulse AI
-                </h1>
-                <span className="text-xs text-muted-foreground">
-                  AI-powered tech news aggregation
+          {/* M1 masthead — broadsheet two-row composition.
+              Row 1: mono dateline (TECHPULSE / VOL III / NO. <day> / DATE / LIVE-FILED)
+              Row 2: Fraunces 32px display headline + terminal-pill stats.
+
+              The <h1>'s accessible name MUST remain "TechPulse AI" so
+              `getByRole("heading", { name: /TechPulse AI/i })` keeps
+              binding across 35+ Playwright tests. We solve that with an
+              aria-label on the h1 PLUS a visually-hidden <span>, while
+              the visible glyphs render the editorial line that's marked
+              aria-hidden so the screen reader doesn't double-up. */}
+          <header className="border-b border-[var(--rule)] bg-background sticky top-0 z-10">
+            {/* Row 1 — dateline. Mono uppercase eyebrow band. */}
+            <div className="border-b border-[var(--rule)] px-6 py-2 flex items-center justify-between font-mono-tx text-[11px] uppercase-eyebrow">
+              <span>TECHPULSE</span>
+              <span className="flex items-center gap-3">
+                {(() => {
+                  const now = new Date();
+                  const startOfYear = new Date(now.getFullYear(), 0, 0);
+                  const dayOfYear = Math.floor(
+                    (now.getTime() - startOfYear.getTime()) / 86400000
+                  );
+                  const dateline = now
+                    .toLocaleDateString("en-US", {
+                      weekday: "short",
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })
+                    .toUpperCase()
+                    .replace(/,/g, "");
+                  return (
+                    <>
+                      <span>VOL III · NO. {dayOfYear}</span>
+                      <span>{dateline}</span>
+                    </>
+                  );
+                })()}
+                {isResearchStreaming ? (
+                  <span className="text-signal live-cursor">LIVE</span>
+                ) : (
+                  <span className="text-foreground-soft">FILED</span>
+                )}
+              </span>
+            </div>
+            {/* Row 2 — headline + stat pills. */}
+            <div className="px-6 py-4 flex items-end justify-between gap-6">
+              <h1
+                className="font-display text-[32px] tracking-tight leading-[1.05] text-foreground"
+                aria-label="TechPulse AI"
+              >
+                <span className="sr-only">TechPulse AI</span>
+                <span aria-hidden>Tech intelligence,</span>
+                <br />
+                <em aria-hidden className="text-foreground-soft font-display italic">
+                  from the agentic desk.
+                </em>
+              </h1>
+              <div className="flex items-center gap-2 pb-1">
+                <span className="border border-[var(--rule)] px-2 py-0.5 font-mono-tx text-[11px] text-foreground-soft">
+                  [ 🔥 {articles.filter((a) => a.trending).length} trending ]
                 </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge
-                  variant="outline"
-                  className="gap-1 text-xs border-border bg-muted/40 text-foreground"
-                >
-                  <span>🔥</span>
-                  {articles.filter((a) => a.trending).length} Trending
-                </Badge>
-                <Badge
-                  variant="outline"
-                  className="gap-1 text-xs border-border bg-muted/40 text-foreground"
-                >
-                  {totalArticleCount || articles.length} Articles Today
-                </Badge>
+                <span className="border border-[var(--rule)] px-2 py-0.5 font-mono-tx text-[11px] text-foreground-soft">
+                  [ {totalArticleCount || articles.length} today ]
+                </span>
               </div>
             </div>
           </header>
@@ -761,16 +824,11 @@ function AppShell() {
           {/* Toast Notifications */}
           <Toaster position="bottom-right" />
 
-          {/* Footer */}
-          <footer className="border-t border-border mt-8">
-            <div className="px-6 py-4">
-              <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
-                <span>TechPulse AI — your personalised tech-news hub</span>
-                <span>
-                  Aggregating from TechCrunch, The Verge, Wired, Ars Technica
-                  &amp; more
-                </span>
-              </div>
+          {/* M1 footer — single hairline + mono colophon. */}
+          <footer className="border-t border-[var(--rule)] mt-8">
+            <div className="px-6 py-3 font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft flex justify-between">
+              <span>— end of issue — set in fraunces &amp; ibm plex</span>
+              <span>© techpulse 2026 · agentic desk</span>
             </div>
           </footer>
         </main>

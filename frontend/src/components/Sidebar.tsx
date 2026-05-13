@@ -1,12 +1,20 @@
 /**
- * Sidebar — Mission 3 / Milestone 1.
+ * Sidebar -- Mission 3 / Milestone 1 (Broadsheet Terminal rebuild).
  *
- * Left vertical nav with 6 tab entries + Saved Research placeholder + a
- * theme toggle at the bottom. Built on Radix's TabsList/TabsTrigger so
- * the existing 35 Playwright tests' `getByRole("tab", {name: /<Name>/i})`
- * selectors keep working — `TabsList` renders `role="tablist"` and each
- * `TabsTrigger` renders `role="tab"` with the visible text as the
- * accessible name.
+ * Left vertical nav. Now a typographic stack: no rounded card slabs,
+ * a Fraunces italic wordmark with a mono "vol. iii" superscript, a
+ * hairline-underlined "> jump anywhere" search affordance, a numbered
+ * list of nav items with a 3px signal-color active block, and a
+ * [ light ] / [ dark ] ticker theme toggle pinned to the bottom.
+ *
+ * Test-contract preservation (53-test Playwright suite):
+ *   - `data-slot="sidebar"` on the <aside> root.
+ *   - Radix `TabsList` + `TabsTrigger` keep emitting role="tablist" /
+ *     role="tab" with the visible label as the accessible name; the
+ *     "01." numeric prefix is rendered in an aria-hidden span AND
+ *     each trigger carries an explicit aria-label so screen readers
+ *     and getByRole("tab", { name: <Label> }) keep working.
+ *   - `data-testid="theme-toggle"` on the bottom toggle.
  *
  * IMPORTANT: this component MUST be rendered inside a Radix `<Tabs>`
  * root. App.tsx wraps the whole layout in <Tabs value=... onValueChange=...>.
@@ -21,15 +29,12 @@ import {
   Mail,
   Settings,
   Bookmark,
-  Sun,
-  Moon,
-  Search,
 } from "lucide-react";
 
 export interface SidebarNavItem {
   /** Tab id (matches the Radix Tabs `value`). */
   value: string;
-  /** Visible text — also the accessible name for `getByRole("tab", { name })`. */
+  /** Visible text -- also the accessible name for `getByRole("tab", { name })`. */
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   /** When true, the tab content is a placeholder; click is allowed but
@@ -69,94 +74,99 @@ export function Sidebar({ activeTab, badges, onGoHome }: SidebarProps) {
     <aside
       data-slot="sidebar"
       aria-label="Primary navigation"
-      className="flex flex-col w-72 shrink-0 h-screen sticky top-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
+      className="flex flex-col w-72 shrink-0 h-screen sticky top-0 border-r border-[var(--rule)] bg-background text-foreground"
     >
-      {/* Branding header — clickable, navigates to `/` (welcome /
-          home page). Standard front-end pattern: the product mark
-          always takes you to the homepage. Renders as a full-row
-          button so the hit target spans the whole header. */}
+      {/* Top hairline -- 2px ink bar that anchors the wordmark to the
+          page top, broadsheet style. */}
+      <div className="rule-h-thick" />
+
+      {/* Wordmark -- Fraunces italic with a mono volume mark. Click
+          navigates home. Renders as a full-row button so the hit
+          target spans the whole header. */}
       <button
         type="button"
         onClick={() => onGoHome?.()}
         aria-label="Go to home page"
-        className="px-5 pt-6 pb-5 border-b border-sidebar-border flex items-center gap-3.5 text-left hover:bg-accent/40 transition-colors w-full"
+        className="px-4 pt-5 pb-4 flex items-baseline gap-1 text-left hover:bg-[var(--background-tint)] transition-colors w-full"
       >
-        <div className="w-11 h-11 rounded-xl bg-primary flex items-center justify-center shadow-sm shrink-0">
-          <Newspaper className="w-6 h-6 text-primary-foreground" />
-        </div>
-        <div className="flex flex-col leading-tight gap-1 min-w-0">
-          <span className="text-[17px] font-semibold tracking-tight text-foreground truncate">
-            TechPulse AI
-          </span>
-          <span className="text-xs text-muted-foreground truncate">
-            tech-news research
-          </span>
-        </div>
+        <span className="font-display italic font-medium text-2xl text-foreground">
+          TechPulse
+        </span>
+        <span className="font-mono-tx text-[10px] uppercase-eyebrow ml-1">
+          vol. iii
+        </span>
       </button>
 
-      {/* Search affordance — opens the Cmd+K palette. Renamed from
-          "Quick nav" (which confused users) to a clear "Search..."
-          placeholder with a magnifying-glass icon so it reads like a
-          search input. The ⌘K hint keeps the keyboard shortcut
-          discoverable. */}
+      {/* Search affordance -- opens the Cmd+K palette. Hairline-
+          underlined mono "> jump anywhere    ⌘K" row instead of a
+          bordered button slab. */}
       <button
         type="button"
         onClick={() => openPalette()}
-        className="mx-3 mt-4 mb-2 flex items-center justify-between gap-2 px-3 py-2.5 text-sm text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-foreground transition-colors"
         aria-label="Search and jump to anywhere"
+        className="mx-3 my-3 flex items-center justify-between gap-2 border-b border-[var(--rule)] py-2 text-left font-mono-tx text-[12px] text-foreground-soft hover:text-foreground transition-colors"
       >
-        <span className="flex items-center gap-2">
-          <Search className="w-3.5 h-3.5" />
-          <span>Search...</span>
-        </span>
-        <kbd className="text-[10px] px-1.5 py-[1px] border border-border rounded bg-muted font-mono">
-          ⌘K
-        </kbd>
+        <span>&gt; jump anywhere</span>
+        <span className="text-[10px] tracking-wider">⌘K</span>
       </button>
 
-      {/* Nav items — Radix TabsList provides role="tablist", TabsTrigger
+      {/* Nav items -- Radix TabsList provides role="tablist", TabsTrigger
           provides role="tab" and aria-selected state. We override the
-          default horizontal layout with flex-col + full-width items. */}
+          default horizontal layout with flex-col + full-width items.
+
+          Each row gets:
+            - a 3px-wide signal-color block in the gutter when active
+              (the "terminal cursor" reading), absorbed back into the
+              row via negative left margin so it sits flush with the
+              sidebar edge;
+            - a mono numeric prefix (01., 02., ...) marked aria-hidden;
+            - the lucide icon (14px);
+            - the visible label.
+          aria-label on the trigger forces the accessible name to the
+          unprefixed label so Playwright's getByRole("tab", { name })
+          binds to the same string regardless of the prefix glyphs. */}
       <TabsList
         aria-orientation="vertical"
-        className="flex flex-col items-stretch gap-0.5 px-2 py-2 h-auto w-full bg-transparent rounded-none"
+        className="flex flex-col items-stretch gap-0 px-0 py-2 h-auto w-full bg-transparent rounded-none"
       >
-        {SIDEBAR_NAV_ITEMS.map((item) => {
+        {SIDEBAR_NAV_ITEMS.map((item, idx) => {
           const Icon = item.icon;
           const isActive = activeTab === item.value;
           const badge = badges?.[item.value];
+          const num = String(idx + 1).padStart(2, "0") + ".";
           return (
             <TabsTrigger
               key={item.value}
               value={item.value}
+              aria-label={item.label}
               className={[
-                // Reset the horizontal-tab styling from ui/tabs.tsx so the
-                // sidebar items lay out as full-width rows.
-                "relative justify-start gap-3 h-auto py-2.5 px-3 text-sm w-full",
-                "rounded-md border border-transparent",
-                "text-muted-foreground hover:text-foreground hover:bg-accent",
-                "transition-colors",
-                // Active state: accent-tinted background + accent left border.
-                isActive
-                  ? "bg-accent text-accent-foreground border-l-2 border-l-primary"
-                  : "",
+                "group relative flex items-center w-full px-4 py-2 gap-3",
+                "text-left font-medium text-[14px] text-foreground-soft",
+                "hover:text-foreground hover:bg-[var(--background-tint)]",
+                "transition-colors rounded-none",
+                isActive ? "text-foreground bg-[var(--background-tint)]" : "",
               ].join(" ")}
             >
-              <Icon className="w-[18px] h-[18px] shrink-0" />
-              <span className="flex-1 text-left truncate">{item.label}</span>
+              <span
+                aria-hidden="true"
+                className={[
+                  "w-[3px] h-5 ml-[-16px] mr-[13px]",
+                  isActive ? "bg-[var(--accent-signal)]" : "bg-transparent",
+                ].join(" ")}
+              />
+              <span
+                aria-hidden="true"
+                className="font-mono-tx text-[10px] text-foreground-soft uppercase-eyebrow w-7"
+              >
+                {num}
+              </span>
+              <Icon className="w-[14px] h-[14px] shrink-0" />
+              <span className="flex-1">{item.label}</span>
               {badge === "unsaved" && (
                 <span
-                  className="w-1.5 h-1.5 rounded-full bg-yellow-500"
                   aria-label="Unsaved changes"
+                  className="w-1.5 h-1.5 rounded-full bg-[var(--accent-signal)]"
                 />
-              )}
-              {item.placeholder && (
-                <span
-                  aria-hidden="true"
-                  className="text-[10px] text-muted-foreground/70 tracking-wide uppercase"
-                >
-                  Soon
-                </span>
               )}
             </TabsTrigger>
           );
@@ -165,26 +175,29 @@ export function Sidebar({ activeTab, badges, onGoHome }: SidebarProps) {
 
       <div className="flex-1" />
 
-      {/* Theme toggle — bottom of the sidebar */}
-      <div className="px-3 py-4 border-t border-sidebar-border">
-        <button
-          type="button"
-          onClick={toggleTheme}
-          aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-          data-testid="theme-toggle"
-          className="w-full flex items-center justify-between gap-2 px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors border border-transparent hover:border-border"
+      {/* Theme toggle -- bottom of the sidebar. Renders as a ticker
+          row: [ light ] · [ dark ], active option in --foreground,
+          inactive in --foreground-soft. Preserves data-testid for the
+          existing Playwright theme-toggle suite. */}
+      <button
+        type="button"
+        onClick={toggleTheme}
+        data-testid="theme-toggle"
+        aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+        className="mx-3 mb-3 mt-2 px-3 py-2 border-t border-[var(--rule)] flex items-center gap-2 font-mono-tx text-[11px] uppercase-eyebrow"
+      >
+        <span
+          className={theme === "light" ? "text-foreground" : "text-foreground-soft"}
         >
-          <span className="flex items-center gap-1.5">
-            {theme === "dark" ? (
-              <Moon className="w-3.5 h-3.5" />
-            ) : (
-              <Sun className="w-3.5 h-3.5" />
-            )}
-            <span className="capitalize">{theme} theme</span>
-          </span>
-          <span className="text-[10px] uppercase tracking-wide">Toggle</span>
-        </button>
-      </div>
+          [ light ]
+        </span>
+        <span className="text-foreground-soft">·</span>
+        <span
+          className={theme === "dark" ? "text-foreground" : "text-foreground-soft"}
+        >
+          [ dark ]
+        </span>
+      </button>
     </aside>
   );
 }

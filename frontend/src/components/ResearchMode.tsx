@@ -323,6 +323,27 @@ export function ResearchMode({}: ResearchModeProps) {
     return () => clearInterval(id);
   }, [isResearching]);
 
+  // M1 -- broadcast research-streaming state to the masthead so the
+  // dateline's LIVE/FILED token can blink in signal color while the
+  // agent is mid-run. Loose pub/sub via a window-scoped CustomEvent
+  // so the masthead never has to know ResearchMode exists.
+  //
+  // The agent is "streaming" iff the phase is non-empty and not a
+  // terminal state ("done" or "error"). Empty string is the idle /
+  // cancelled state. Decomposing / Searching* / Synthesizing all
+  // qualify as streaming.
+  useEffect(() => {
+    const active = phase !== "" && phase !== "done" && phase !== "error";
+    window.dispatchEvent(
+      new CustomEvent("techpulse:research-stream", { detail: { active } })
+    );
+    return () => {
+      window.dispatchEvent(
+        new CustomEvent("techpulse:research-stream", { detail: { active: false } })
+      );
+    };
+  }, [phase]);
+
   // -----------------------------------------------------------------------
   // SSE event handler.
   // -----------------------------------------------------------------------
