@@ -1,4 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap");
 /*! tailwindcss v4.1.3 | MIT License | https://tailwindcss.com */
 @layer properties {
   @supports (((-webkit-hyphens: none)) and (not (margin-trim: inline))) or ((-moz-orient: inline) and (not (color: rgb(from red r g b)))) {
@@ -409,18 +408,19 @@
   body {
     background-color: var(--background);
     color: var(--foreground);
-    font-family: Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif;
+    font-family: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+    font-feature-settings: "ss01", "cv11";
   }
 
   h1, h2, h3, .heading {
-    font-family: Space Grotesk, Inter, sans-serif;
+    font-family: 'Fraunces', 'Times New Roman', serif;
   }
 
   :where(:not(:has([class*=" text-"]), :not(:has([class^="text-"])))) h1 {
     font-size: var(--text-2xl);
     font-weight: var(--font-weight-medium);
     letter-spacing: -.01em;
-    font-family: Space Grotesk, Inter, sans-serif;
+    font-family: 'Fraunces', 'Times New Roman', serif;
     line-height: 1.5;
   }
 
@@ -428,7 +428,7 @@
     font-size: var(--text-xl);
     font-weight: var(--font-weight-medium);
     letter-spacing: -.01em;
-    font-family: Space Grotesk, Inter, sans-serif;
+    font-family: 'Fraunces', 'Times New Roman', serif;
     line-height: 1.5;
   }
 
@@ -436,7 +436,7 @@
     font-size: var(--text-lg);
     font-weight: var(--font-weight-medium);
     letter-spacing: -.01em;
-    font-family: Space Grotesk, Inter, sans-serif;
+    font-family: 'Fraunces', 'Times New Roman', serif;
     line-height: 1.5;
   }
 
@@ -2854,4 +2854,74 @@ body {
   }
   /* Aspect ratio for curated headline thumbnails. */
   .aspect-\[16\/9\] { aspect-ratio: 16 / 9; }
+}
+
+/* ============================================================
+ * Broadsheet Terminal — M0 bespoke utilities
+ * ------------------------------------------------------------
+ * Tailwind v4 prebuilt bundle does NOT regenerate. Every utility
+ * the redesign needs is hand-authored here. See
+ * docs/designs/frontend-overhaul.md §4 step 5.
+ * ============================================================ */
+@layer utilities {
+  .font-display {
+    font-family: 'Fraunces', 'Times New Roman', serif;
+    font-optical-sizing: auto;
+  }
+  .font-mono-tx {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  .text-signal { color: var(--accent-signal); }
+  .bg-signal-wash { background: var(--accent-signal-bg); }
+  .rule-h { border-top: 1px solid var(--rule); }
+  .rule-h-thick { border-top: 2px solid var(--foreground); }
+  .grain { position: relative; }
+  .grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: url("/textures/grain.png");
+    background-size: 240px 240px;
+    opacity: var(--grain-opacity);
+    mix-blend-mode: multiply;
+  }
+  .dark .grain::after { mix-blend-mode: screen; }
+  .live-cursor::after {
+    content: "▌";
+    margin-left: 0.15em;
+    color: var(--accent-signal);
+    animation: blink 1s steps(2, start) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+  .tick-rule {
+    background-image: repeating-linear-gradient(
+      to right, var(--rule) 0 1px, transparent 1px 8px);
+    height: 8px;
+  }
+  .stream-caret {
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    background: var(--accent-signal);
+    vertical-align: -2px;
+    animation: blink 0.9s steps(2, start) infinite;
+  }
+  .uppercase-eyebrow {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--foreground-soft);
+  }
+  .editorial-drop::first-letter {
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    float: left;
+    font-size: 4.6em;
+    line-height: 0.82;
+    padding: 0.08em 0.12em 0 0;
+    color: var(--accent-signal);
+  }
 }
