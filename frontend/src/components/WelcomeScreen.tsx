@@ -12,10 +12,9 @@
  *   - "Browse News Feed" (secondary) — switches to the News Feed tab and
  *     dismisses the welcome screen.
  *
- * Dismissal persists in ``localStorage`` under
- * ``techpulse-welcome-seen``. Once set, the welcome screen never appears
- * again unless the user manually clears the key. (Future iter: a
- * "What's this app?" footer link could re-trigger the screen.)
+ * Dismissal persists in `localStorage` under `techpulse-welcome-seen`.
+ * Once set, the welcome screen never appears again unless the user
+ * manually clears the key.
  *
  * Test hooks:
  *   - data-testid="welcome-screen"
@@ -36,12 +35,6 @@ import {
 
 export const WELCOME_SEEN_KEY = "techpulse-welcome-seen";
 
-/**
- * Read the welcome-seen flag from localStorage. Returns ``true`` if the
- * user has dismissed the welcome screen before, ``false`` otherwise.
- * Defaults to ``false`` on any error so the welcome screen still works
- * in privacy mode.
- */
 export function hasSeenWelcome(): boolean {
   try {
     return localStorage.getItem(WELCOME_SEEN_KEY) === "1";
@@ -54,16 +47,13 @@ export function markWelcomeSeen(): void {
   try {
     localStorage.setItem(WELCOME_SEEN_KEY, "1");
   } catch {
-    // ignore quota / privacy errors — worst case the user sees the screen again
+    // ignore quota / privacy errors
   }
 }
 
 interface WelcomeScreenProps {
-  /** Called when the user picks "Try Research Mode". */
   onTryResearch: () => void;
-  /** Called when the user picks "Browse News Feed". */
   onBrowseFeed: () => void;
-  /** Called when the user dismisses via the skip link. */
   onSkip: () => void;
 }
 
@@ -84,7 +74,7 @@ const FEATURES: FeatureHighlight[] = [
     icon: Newspaper,
     title: "Curated News Feed",
     description:
-      "Hand-picked tech headlines from TechCrunch, The Verge, Wired, and Ars Technica — with AI-generated summaries.",
+      "Hand-picked tech headlines from TechCrunch, The Verge, Wired, and Ars Technica with AI-generated summaries.",
   },
   {
     icon: Network,
@@ -108,34 +98,33 @@ export function WelcomeScreen({
   return (
     <div
       data-testid="welcome-screen"
-      className="min-h-[70vh] flex flex-col items-center justify-center py-12 px-4"
+      className="min-h-[70vh] flex flex-col items-center justify-center py-16 px-4"
     >
-      <div className="max-w-3xl w-full space-y-10">
-        {/* Hero — product mark, tagline, brief description. */}
-        <div className="text-center space-y-4">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary shadow-lg">
+      <div className="max-w-3xl w-full">
+        {/* Hero block — logo + headline + tagline */}
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary shadow-lg mb-6">
             <Newspaper className="w-9 h-9 text-primary-foreground" />
           </div>
-          <div className="space-y-2">
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              Welcome to TechPulse AI
-            </h1>
-            <p className="text-base text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-              Your AI-powered tech-news research assistant. Aggregate the day's
-              stories, ask deep questions to an agentic research mode, and
-              explore the entities behind the headlines.
-            </p>
-          </div>
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground mb-3">
+            Welcome to TechPulse AI
+          </h1>
+          <p className="text-base text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+            Your AI-powered tech-news research assistant. Aggregate the day's
+            stories, ask deep questions to an agentic research mode, and
+            explore the entities behind the headlines.
+          </p>
         </div>
 
-        {/* Primary CTA — Try Research Mode. The most catchy feature is the
-            agentic research loop; we lead with that. */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+        {/* Primary CTAs — Try Research is the hero action. Both buttons
+            are inline (md: is in the prebuilt bundle; sm: is not).
+            Auto width with px-7 keeps them as proper buttons. */}
+        <div className="flex md:flex-row flex-col items-center justify-center gap-4 mb-6">
           <Button
             data-testid="welcome-cta-research"
             size="lg"
             onClick={onTryResearch}
-            className="w-full sm:w-auto gap-2 h-11 px-6 text-sm font-medium"
+            className="gap-2 h-11 px-7 text-sm font-medium shadow-sm"
           >
             <Sparkles className="w-4 h-4" />
             Try Research Mode
@@ -146,15 +135,17 @@ export function WelcomeScreen({
             variant="outline"
             size="lg"
             onClick={onBrowseFeed}
-            className="w-full sm:w-auto gap-2 h-11 px-6 text-sm font-medium"
+            className="gap-2 h-11 px-7 text-sm font-medium"
           >
             <Newspaper className="w-4 h-4" />
             Browse News Feed
           </Button>
         </div>
 
-        {/* Quick keyboard hint — press ⌘K to search. */}
-        <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+        {/* Keyboard tip — sits close to the CTAs (mb-6 above) as a
+            footnote, then mb-14 pushes the feature grid clearly into
+            its own section. */}
+        <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground mb-14">
           <Search className="w-3 h-3" />
           <span>Tip: press</span>
           <kbd className="text-[10px] px-1.5 py-[1px] border border-border rounded bg-muted font-mono">
@@ -163,25 +154,26 @@ export function WelcomeScreen({
           <span>anytime to jump anywhere.</span>
         </div>
 
-        {/* Feature grid — 2×2 on desktop, 1×4 on mobile. Each cell is a
-            short blurb on one of the four marquee features. */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+        {/* Feature grid — 2x2 at md+, single column below. p-6 padding
+            and bumped typography (text-base title, text-sm body) so
+            cards read as substantial info blocks. */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-12">
           {FEATURES.map((feature) => {
             const Icon = feature.icon;
             return (
               <div
                 key={feature.title}
-                className="p-5 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors space-y-2"
+                className="p-6 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors"
               >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
                     <Icon className="w-4 h-4 text-primary" />
                   </div>
-                  <h3 className="text-sm font-semibold text-foreground">
+                  <h3 className="text-base font-semibold text-foreground">
                     {feature.title}
                   </h3>
                 </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">
+                <p className="text-sm text-muted-foreground leading-relaxed">
                   {feature.description}
                 </p>
               </div>
@@ -189,14 +181,14 @@ export function WelcomeScreen({
           })}
         </div>
 
-        {/* Skip link — quiet text button at the bottom for users who
-            don't want the intro. */}
-        <div className="text-center pt-2">
+        {/* Skip link — quiet text button, generous padding so it
+            doesn't crowd the feature grid above. */}
+        <div className="text-center">
           <button
             data-testid="welcome-dismiss"
             type="button"
             onClick={onSkip}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors px-3 py-2"
           >
             Skip intro
           </button>
