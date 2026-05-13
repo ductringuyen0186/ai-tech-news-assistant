@@ -58,6 +58,9 @@ export const API_ENDPOINTS = {
 
   // Knowledge graph (entity-extraction backed graph view)
   knowledgeGraph: "/api/knowledge-graph/",
+  knowledgeGraphEntity: (id: number | string) =>
+    `/api/knowledge-graph/entity/${id}`,
+  knowledgeGraphTrending: "/api/knowledge-graph/trending",
 
   // Daily digest (top stories + breakdown + trending built from DB)
   digest: "/api/digest/",

@@ -1933,6 +1933,24 @@
     }
   }
 
+  /* Polish iter 3 / Part B — KG layout column spans. */
+  @media (width >= 64rem) {
+    .lg\:grid-cols-4 {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+    .lg\:col-span-3 {
+      grid-column: span 3 / span 3;
+    }
+    .lg\:col-span-2 {
+      grid-column: span 2 / span 2;
+    }
+  }
+
+  /* Polish iter 3 / Part B — entity detail drawer width. */
+  .kg-drawer-width {
+    width: min(420px, calc(100vw - 2rem));
+  }
+
   .dark\:border-input:is(.dark *) {
     border-color: var(--input);
   }
