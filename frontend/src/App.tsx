@@ -16,11 +16,7 @@ import { SavedResearchList } from "./components/SavedResearchList";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { CommandPaletteProvider } from "./components/CommandPalette";
 import { Sidebar } from "./components/Sidebar";
-import {
-  WelcomeScreen,
-  hasSeenWelcome,
-  markWelcomeSeen,
-} from "./components/WelcomeScreen";
+import { WelcomeScreen } from "./components/WelcomeScreen";
 import {
   Newspaper,
   TrendingUp,
@@ -65,65 +61,103 @@ function AppShell() {
   const [savedCategories, setSavedCategories] = useState<string[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [totalArticleCount, setTotalArticleCount] = useState<number>(0);
-  // Active tab -- controlled at App level so Sidebar (owns the TabsList) and
-  // CommandPalette can both mutate it. Radix Tabs becomes controlled via
-  // value/onValueChange.
+  // ---------------------------------------------------------------------- //
+  //  Routing -- History API, clean paths (polish iter 7).
+  // ---------------------------------------------------------------------- //
   //
-  // Polish iter 6: tab state is synced with `window.location.hash` so
-  // reload preserves the tab. URLs look like:
-  //   /            -> welcome (when not seen) OR feed (default)
-  //   /#feed       -> News Feed
-  //   /#research   -> Research
-  //   /#knowledge  -> Knowledge Graph
-  //   /#digest     -> Daily Digest
-  //   /#saved      -> Saved Research
-  //   /#preferences -> Settings
-  // Initialise from the hash on first render so we never flash the wrong
-  // tab on reload.
+  // URL design follows standard front-end practice: every tab is a real
+  // path segment, `/` is the homepage.
+  //
+  //   /            -> Welcome / homepage
+  //   /feed        -> News Feed
+  //   /research    -> Agentic Research
+  //   /knowledge   -> Knowledge Graph
+  //   /digest      -> Daily Digest
+  //   /saved       -> Saved Research
+  //   /settings    -> Settings (renamed from /preferences for shorter URL)
+  //
+  // Deployment note: any SPA-fallback dev/prod server is required so
+  // refreshing /research returns index.html (Vite dev does this by
+  // default; production needs a catch-all route in the static host).
   const VALID_TABS = ["feed", "research", "knowledge", "digest", "saved", "preferences"] as const;
-  const readHashTab = (): string | null => {
-    if (typeof window === "undefined") return null;
-    const raw = (window.location.hash || "").replace(/^#\/?/, "");
-    return (VALID_TABS as readonly string[]).includes(raw) ? raw : null;
+  // Internal tab id -> URL path segment. Most are identical; preferences
+  // maps to /settings because that's the user-facing label and the
+  // shorter URL reads better.
+  const TAB_TO_PATH: Record<string, string> = {
+    feed: "/feed",
+    research: "/research",
+    knowledge: "/knowledge",
+    digest: "/digest",
+    saved: "/saved",
+    preferences: "/settings",
   };
-  const [activeTab, setActiveTabState] = useState<string>(() => readHashTab() || "feed");
+  const PATH_TO_TAB: Record<string, string> = {
+    feed: "feed",
+    research: "research",
+    knowledge: "knowledge",
+    digest: "digest",
+    saved: "saved",
+    settings: "preferences",
+    // Backwards-compat: keep /preferences working for any old bookmarks.
+    preferences: "preferences",
+  };
+  const readPathTab = (): string | null => {
+    if (typeof window === "undefined") return null;
+    const seg = window.location.pathname.replace(/^\/+/, "").split("/")[0];
+    if (!seg) return null; // "/" -> no tab, render welcome
+    return PATH_TO_TAB[seg] || null;
+  };
+  const [activeTab, setActiveTabState] = useState<string>(
+    () => readPathTab() || "feed"
+  );
 
-  // First-load welcome screen -- shown when the user has not dismissed it
-  // before AND no tab hash is set in the URL. Visiting a deep link like
-  // /#research skips the welcome entirely so shared URLs always land on
-  // the intended content.
-  const [showWelcome, setShowWelcome] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    if (readHashTab() !== null) return false; // deep link wins
-    return !hasSeenWelcome();
-  });
+  // Welcome screen shows when the user is at `/` (no tab path).
+  // Deep links like /research skip the welcome so shared URLs always
+  // land on the intended content. The legacy `techpulse-welcome-seen`
+  // localStorage flag is no longer consulted -- `/` is now a real
+  // routable home page, not a one-time onboarding flash.
+  const [showWelcome, setShowWelcome] = useState<boolean>(
+    () => readPathTab() === null
+  );
 
-  // Tab setter that also pushes the new value into the URL hash. We
-  // wrap the raw setter so every callsite (sidebar, command palette,
-  // welcome CTAs) automatically updates the URL.
+  // Tab setter that also pushes the new path into history. Wrapped so
+  // every callsite (Sidebar, CommandPalette, Welcome CTAs) updates the
+  // URL automatically. Uses pushState so back/forward navigates between
+  // tabs. setShowWelcome(false) is called here so any tab navigation
+  // automatically dismisses the welcome overlay.
   const setActiveTab = (next: string) => {
     setActiveTabState(next);
+    setShowWelcome(false);
     if (typeof window !== "undefined") {
-      const desired = `#${next}`;
-      if (window.location.hash !== desired) {
-        window.history.replaceState(null, "", desired);
+      const desired = TAB_TO_PATH[next] || `/${next}`;
+      if (window.location.pathname !== desired) {
+        window.history.pushState(null, "", desired);
       }
     }
   };
 
-  // Listen for hashchange (back/forward button, manual URL edit, link
-  // click) and reflect it into state. Also swallow the welcome overlay
-  // when the user navigates to a real tab via the hash.
+  // Navigate to the home page (welcome screen). Sidebar logo uses this.
+  const goHome = () => {
+    setShowWelcome(true);
+    if (typeof window !== "undefined" && window.location.pathname !== "/") {
+      window.history.pushState(null, "", "/");
+    }
+  };
+
+  // Listen for popstate (back/forward button, manual URL edit) and
+  // reflect the new path into state.
   useEffect(() => {
-    const onHash = () => {
-      const tab = readHashTab();
+    const onPop = () => {
+      const tab = readPathTab();
       if (tab) {
         setActiveTabState(tab);
         setShowWelcome(false);
+      } else {
+        setShowWelcome(true);
       }
     };
-    window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
   }, []);
 
   const reduceMotion = useReducedMotion();
@@ -436,6 +470,7 @@ function AppShell() {
       <CommandPaletteProvider activeTab={activeTab} onSelectTab={setActiveTab}>
         <Sidebar
           activeTab={activeTab}
+          onGoHome={goHome}
           badges={hasUnsavedChanges ? { preferences: "unsaved" } : undefined}
         />
 
@@ -483,18 +518,12 @@ function AppShell() {
             {showWelcome && (
               <WelcomeScreen
                 onTryResearch={() => {
-                  markWelcomeSeen();
-                  setShowWelcome(false);
                   setActiveTab("research");
                 }}
                 onBrowseFeed={() => {
-                  markWelcomeSeen();
-                  setShowWelcome(false);
                   setActiveTab("feed");
                 }}
                 onSkip={() => {
-                  markWelcomeSeen();
-                  setShowWelcome(false);
                   setActiveTab("feed");
                 }}
               />
@@ -632,7 +661,7 @@ function AppShell() {
               ) : (
                 <div
                   data-testid="news-feed-list"
-                  className={`grid gap-5 ${
+                  className={`grid gap-6 ${
                     viewMode === "detailed"
                       ? "grid-cols-1 lg:grid-cols-2"
                       : "grid-cols-1"

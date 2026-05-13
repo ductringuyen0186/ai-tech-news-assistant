@@ -51,6 +51,9 @@ interface SidebarProps {
   activeTab: string;
   /** Optional click-tap visual hint (e.g. unsaved-changes pill on Settings). */
   badges?: Partial<Record<string, "unsaved" | "warn">>;
+  /** Navigate to the home page (welcome screen). Wired to the
+   *  branding-header logo click so users can always return to `/`. */
+  onGoHome?: () => void;
 }
 
 /**
@@ -58,7 +61,7 @@ interface SidebarProps {
  * theme toggle and Cmd+K hint sit outside the TabsList so they don't get
  * roving-focus selected by the tablist arrow-key handler.
  */
-export function Sidebar({ activeTab, badges }: SidebarProps) {
+export function Sidebar({ activeTab, badges, onGoHome }: SidebarProps) {
   const { theme, toggleTheme } = useTheme();
   const { open: openPalette } = useCommandPalette();
 
@@ -68,10 +71,16 @@ export function Sidebar({ activeTab, badges }: SidebarProps) {
       aria-label="Primary navigation"
       className="flex flex-col w-72 shrink-0 h-screen sticky top-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
     >
-      {/* Branding header — generous vertical padding so the logo + title
-          have room to breathe. Bigger logo (44px square) reads as a real
-          product mark rather than a compressed badge. */}
-      <div className="px-5 pt-6 pb-5 border-b border-sidebar-border flex items-center gap-3.5">
+      {/* Branding header — clickable, navigates to `/` (welcome /
+          home page). Standard front-end pattern: the product mark
+          always takes you to the homepage. Renders as a full-row
+          button so the hit target spans the whole header. */}
+      <button
+        type="button"
+        onClick={() => onGoHome?.()}
+        aria-label="Go to home page"
+        className="px-5 pt-6 pb-5 border-b border-sidebar-border flex items-center gap-3.5 text-left hover:bg-accent/40 transition-colors w-full"
+      >
         <div className="w-11 h-11 rounded-xl bg-primary flex items-center justify-center shadow-sm shrink-0">
           <Newspaper className="w-6 h-6 text-primary-foreground" />
         </div>
@@ -83,7 +92,7 @@ export function Sidebar({ activeTab, badges }: SidebarProps) {
             tech-news research
           </span>
         </div>
-      </div>
+      </button>
 
       {/* Search affordance — opens the Cmd+K palette. Renamed from
           "Quick nav" (which confused users) to a clear "Search..."
