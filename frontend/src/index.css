@@ -2986,3 +2986,88 @@ body {
   .bg-\[var\(--accent-signal\)\] { background-color: var(--accent-signal); }
   .hover\:bg-\[var\(--background-tint\)\]:hover { background-color: var(--background-tint); }
 }
+
+/* ============================================================
+ * Broadsheet Terminal -- M2 utilities
+ * ------------------------------------------------------------
+ * Hand-authored utilities for the News Feed front-page rebuild.
+ * Tailwind v4 prebuilt bundle does NOT regenerate.
+ * See docs/designs/frontend-overhaul.md S6 (M2 spec).
+ * ============================================================ */
+@layer utilities {
+  /* 12-col grid + col-span helpers for the asymmetric feed layout. */
+  .grid-cols-12 { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+  .col-span-1 { grid-column: span 1 / span 1; }
+  .col-span-3 { grid-column: span 3 / span 3; }
+  .col-span-4 { grid-column: span 4 / span 4; }
+  .col-span-5 { grid-column: span 5 / span 5; }
+  .col-span-8 { grid-column: span 8 / span 8; }
+  .col-span-12 { grid-column: span 12 / span 12; }
+
+  @media (min-width: 64rem) {
+    .lg\:col-span-4 { grid-column: span 4 / span 4; }
+    .lg\:col-span-8 { grid-column: span 8 / span 8; }
+    .lg\:col-span-12 { grid-column: span 12 / span 12; }
+  }
+
+  /* Larger type scale. */
+  .text-\[18px\] { font-size: 18px; line-height: 24px; }
+  .text-\[20px\] { font-size: 20px; line-height: 28px; }
+  .text-\[22px\] { font-size: 22px; line-height: 28px; }
+  .text-\[44px\] { font-size: 44px; line-height: 1.05; }
+  .leading-\[1\.15\] { line-height: 1.15; }
+  .leading-\[1\.55\] { line-height: 1.55; }
+
+  /* line-clamp variants needed by the lead body + summary lockups. */
+  .line-clamp-4 {
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    display: -webkit-box;
+    overflow: hidden;
+  }
+  .line-clamp-6 {
+    -webkit-line-clamp: 6;
+    -webkit-box-orient: vertical;
+    display: -webkit-box;
+    overflow: hidden;
+  }
+
+  /* Card-image aspect ratio for secondary stories. */
+  .aspect-\[16\/10\] { aspect-ratio: 16 / 10; }
+
+  /* Save-button positioning. */
+  .top-2 { top: calc(var(--spacing) * 2); }
+  .right-2 { right: calc(var(--spacing) * 2); }
+  .top-3 { top: calc(var(--spacing) * 3); }
+
+  /* Compact-list time gutter + ticker rail. */
+  .w-24 { width: calc(var(--spacing) * 24); }
+  .gap-x-6 { column-gap: calc(var(--spacing) * 6); }
+  .gap-y-6 { row-gap: calc(var(--spacing) * 6); }
+  .gap-y-4 { row-gap: calc(var(--spacing) * 4); }
+  .gap-y-3 { row-gap: calc(var(--spacing) * 3); }
+
+  /* Ticker / mono toolbar primitives. */
+  .border-y { border-top-width: 1px; border-bottom-width: 1px; border-top-style: solid; border-bottom-style: solid; }
+  .border-y-\[var\(--rule\)\] { border-top-color: var(--rule); border-bottom-color: var(--rule); }
+  .border-t-2 { border-top-width: 2px; border-top-style: solid; }
+  .border-b-2 { border-bottom-width: 2px; border-bottom-style: solid; }
+  .border-t-\[var\(--foreground\)\] { border-top-color: var(--foreground); }
+  .border-b-\[var\(--foreground\)\] { border-bottom-color: var(--foreground); }
+
+  /* Image-letterbox bg + button surface. */
+  .bg-foreground\/90 { background-color: color-mix(in oklab, var(--foreground) 90%, transparent); }
+  .bg-background\/90 { background-color: color-mix(in oklab, var(--background) 90%, transparent); }
+  .hover\:bg-background:hover { background-color: var(--background); }
+
+  /* Hover signal-color helpers for the title underline pattern. */
+  .hover\:text-signal:hover { color: var(--accent-signal); }
+  .group:hover .group-hover\:text-signal { color: var(--accent-signal); }
+  .group:hover .group-hover\:underline { text-decoration-line: underline; }
+
+  /* Border-color hover for ticker chip rest -> active state. */
+  .hover\:border-\[var\(--rule\)\]:hover { border-color: var(--rule); }
+
+  /* Foreground border util for the lead-rule. */
+  .border-foreground { border-color: var(--foreground); }
+}

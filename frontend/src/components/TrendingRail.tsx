@@ -1,30 +1,22 @@
 import { useEffect, useState } from "react";
-import { TrendingUp } from "lucide-react";
-import { Badge } from "./ui/badge";
 import { Skeleton } from "./ui/skeleton";
 import { API_ENDPOINTS, apiFetch } from "../config/api";
 
 /**
- * TrendingRail — horizontal chip row of the top ENTITIES by mention count
- * this week.
+ * TrendingRail -- horizontal ticker tape of the top entities by mention
+ * count this week.
  *
- * Polish iter 3 / Part D — previously this rendered top categories using
- * the per-category article-count rollup. We swapped to the knowledge-graph
- * trending-entities endpoint (added in Part B) so the chips show what's
- * actually being talked about across the corpus, not just which bucket
- * has the most articles.
+ * M2 rewrite: drops the rounded pill row in favour of a mono ticker tape
+ * with a leading "> trending" label, dot separators implied by gap, and
+ * a signal-color count flag (`|N`) on each entity. The whole rail sits
+ * inside a hairline-ruled band (`border-y border-[var(--rule)]`) and uses
+ * `whitespace-nowrap` so entries never wrap.
  *
- * Click behaviour: calls ``onSelectCategory(entityName)`` — the parent owns
- * the actual filter state. The prop name is kept as ``onSelectCategory``
- * even though we now pass entity names, because the parent's filter pipeline
- * (App.tsx ``selectedCategories``) is reused as-is. Filtering is approximate
- * (see note in App.tsx) — when an entity name is in the selected list we
- * do a case-insensitive substring match on each article's title and summary.
- *
- * The ``data-testid="news-feed-trending-rail"`` and
- * ``data-testid="news-feed-trending-chip"`` selectors are PRESERVED so the
- * existing Playwright assertions still pass (the semantics are now "entity"
- * but the testid stays).
+ * Test-contract preservation:
+ *   - data-testid="news-feed-trending-rail"      (root)
+ *   - data-testid="news-feed-trending-chip"      (per-entity buttons)
+ *   - data-category="<entity name>"              (per-button data attr)
+ *   - data-entity-type="<entity type>"           (per-button data attr)
  */
 
 interface TrendingRailProps {
@@ -33,8 +25,8 @@ interface TrendingRailProps {
   selectedCategories: string[];
   /** Fired when a chip is clicked. The entity name is the only argument. */
   onSelectCategory: (entityName: string) => void;
-  /** Maximum number of chips to render (default 8 — bumped from 5 for the
-   *  news-feed surface so the rail feels populated). */
+  /** Maximum number of chips to render (default 12 -- longer ticker reads
+   *  more like a wire feed than a 5-chip toolbar). */
   limit?: number;
 }
 
@@ -49,7 +41,7 @@ interface TrendingEntity {
 export function TrendingRail({
   selectedCategories,
   onSelectCategory,
-  limit = 8,
+  limit = 12,
 }: TrendingRailProps) {
   const [trending, setTrending] = useState<TrendingEntity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,9 +52,6 @@ export function TrendingRail({
     const loadTrending = async () => {
       try {
         setLoading(true);
-        // Polish iter 3 / Part D — reuse the Part B knowledge-graph trending
-        // endpoint instead of building a parallel "trending categories"
-        // pipeline. ``days=7&limit=N`` matches the rail's "this week" framing.
         const params = new URLSearchParams({
           days: "7",
           limit: String(limit),
@@ -74,9 +63,6 @@ export function TrendingRail({
         const entities: TrendingEntity[] = Array.isArray(data?.entities)
           ? data.entities
           : [];
-        // Defensive sort by mention_count desc — backend already returns
-        // them in score order, but the chip badge shows mention_count so we
-        // make sure the displayed number monotonically descends.
         const sorted = [...entities].sort(
           (a, b) => (b.mention_count || 0) - (a.mention_count || 0)
         );
@@ -99,25 +85,22 @@ export function TrendingRail({
     };
   }, [limit]);
 
-  // Loading: render 4 skeleton chips so the layout doesn't jump.
   if (loading) {
     return (
       <div
         data-testid="news-feed-trending-rail"
-        className="flex items-center gap-2 flex-wrap"
+        className="relative border-y border-[var(--rule)] py-2 overflow-hidden"
       >
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground pr-2 font-medium">
-          <TrendingUp className="w-3.5 h-3.5" />
-          <span>Trending Now</span>
+        <div className="flex items-center gap-4 font-mono-tx text-[11px] uppercase-eyebrow whitespace-nowrap">
+          <span className="text-foreground-soft shrink-0">&#9658; trending</span>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-4 w-20" />
+          ))}
         </div>
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="h-7 w-24 rounded-full" />
-        ))}
       </div>
     );
   }
 
-  // Empty: hide the rail entirely (per ticket).
   if (trending.length === 0) {
     return null;
   }
@@ -125,42 +108,33 @@ export function TrendingRail({
   return (
     <div
       data-testid="news-feed-trending-rail"
-      className="flex items-center gap-2 flex-wrap max-w-3xl"
+      className="relative border-y border-[var(--rule)] py-2 overflow-hidden"
     >
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground pr-2 shrink-0 font-medium">
-        <TrendingUp className="w-3.5 h-3.5" />
-        <span>Trending Now</span>
-      </div>
-      {trending.map((t) => {
-        const isActive = selectedCategories.includes(t.name);
-        return (
-          <button
-            key={`${t.id}-${t.name}`}
-            type="button"
-            data-testid="news-feed-trending-chip"
-            // ``data-category`` is preserved (and now carries the entity
-            // name) so the existing Playwright assertion that reads this
-            // attribute keeps working.
-            data-category={t.name}
-            data-entity-type={t.type}
-            onClick={() => onSelectCategory(t.name)}
-            className={[
-              "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors",
-              isActive
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-card text-foreground hover:bg-accent/40 hover:text-accent-foreground",
-            ].join(" ")}
-          >
-            <span className="font-medium">{t.name}</span>
-            <Badge
-              variant="secondary"
-              className="h-4 px-1.5 text-[10px] font-normal leading-none"
+      <div className="flex items-center gap-4 font-mono-tx text-[11px] uppercase-eyebrow whitespace-nowrap">
+        <span className="text-foreground-soft shrink-0">&#9658; trending</span>
+        {trending.map((t) => {
+          const isActive = selectedCategories.includes(t.name);
+          return (
+            <button
+              key={`${t.id}-${t.name}`}
+              type="button"
+              data-testid="news-feed-trending-chip"
+              data-category={t.name}
+              data-entity-type={t.type}
+              onClick={() => onSelectCategory(t.name)}
+              className={[
+                "shrink-0 px-1.5 py-0.5 border transition-colors",
+                isActive
+                  ? "text-signal border-[var(--rule)]"
+                  : "text-foreground-soft border-transparent hover:border-[var(--rule)] hover:text-foreground",
+              ].join(" ")}
             >
-              {t.mention_count}
-            </Badge>
-          </button>
-        );
-      })}
+              {t.name.toUpperCase()}{" "}
+              <span className="text-signal">&#9612;{t.mention_count}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

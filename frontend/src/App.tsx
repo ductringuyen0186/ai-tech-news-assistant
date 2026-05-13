@@ -6,6 +6,7 @@ import { Badge } from "./components/ui/badge";
 import { Toaster } from "./components/ui/sonner";
 import { toast } from "sonner";
 import { NewsCard } from "./components/NewsCard";
+import { LeadStoryCard } from "./components/LeadStoryCard";
 import { Settings } from "./components/Settings";
 import { SearchBar } from "./components/SearchBar";
 import { DigestView } from "./components/DigestView";
@@ -608,37 +609,55 @@ function AppShell() {
                 transition={panelTransition}
                 className="space-y-5"
               >
+              {/* News-feed toolbar -- terminal pills. Search input keeps its
+                  existing skin (M3 will revisit), trending/view toggles are
+                  recast as mono [ ] / [+] pills. */}
               <div className="flex flex-col md:flex-row gap-3 items-start md:items-center justify-between">
                 <div className="flex-1 w-full md:max-w-md">
                   <SearchBar onSearch={setSearchQuery} />
                 </div>
-                <div className="flex gap-2 items-center">
-                  <Button
-                    variant={showTrendingOnly ? "default" : "outline"}
-                    size="sm"
+                <div className="flex gap-2 items-center font-mono-tx text-[11px] uppercase-eyebrow">
+                  <button
+                    type="button"
                     onClick={() => setShowTrendingOnly(!showTrendingOnly)}
-                    className="h-8 gap-1.5 text-xs"
+                    aria-pressed={showTrendingOnly}
+                    className={[
+                      "inline-flex items-center gap-1.5 px-2 py-1 border transition-colors",
+                      showTrendingOnly
+                        ? "border-[var(--rule)] text-signal"
+                        : "border-[var(--rule)] text-foreground-soft hover:text-foreground",
+                    ].join(" ")}
                   >
-                    <TrendingUp className="w-3.5 h-3.5" />
-                    Trending Only
-                  </Button>
-                  <div className="flex gap-0.5 border border-border rounded-md p-0.5 bg-card">
-                    <Button
-                      variant={viewMode === "detailed" ? "default" : "ghost"}
-                      size="sm"
+                    <TrendingUp className="w-3 h-3" />
+                    {showTrendingOnly ? "[ trending ]" : "[ trending ]"}
+                  </button>
+                  <div className="inline-flex border border-[var(--rule)]">
+                    <button
+                      type="button"
                       onClick={() => setViewMode("detailed")}
-                      className="h-7 px-2"
+                      aria-pressed={viewMode === "detailed"}
+                      className={[
+                        "inline-flex items-center px-2 py-1 transition-colors",
+                        viewMode === "detailed"
+                          ? "bg-[var(--background-tint)] text-signal"
+                          : "text-foreground-soft hover:text-foreground",
+                      ].join(" ")}
                     >
-                      <Grid className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button
-                      variant={viewMode === "compact" ? "default" : "ghost"}
-                      size="sm"
+                      <Grid className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setViewMode("compact")}
-                      className="h-7 px-2"
+                      aria-pressed={viewMode === "compact"}
+                      className={[
+                        "inline-flex items-center px-2 py-1 border-l border-[var(--rule)] transition-colors",
+                        viewMode === "compact"
+                          ? "bg-[var(--background-tint)] text-signal"
+                          : "text-foreground-soft hover:text-foreground",
+                      ].join(" ")}
                     >
-                      <List className="w-3.5 h-3.5" />
-                    </Button>
+                      <List className="w-3 h-3" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -662,52 +681,56 @@ function AppShell() {
               {(selectedCategories.length > 0 || selectedEntities.length > 0) && (
                 <div
                   data-testid="news-feed-active-filters"
-                  className="flex flex-wrap gap-2 items-center bg-card p-3 rounded-md border border-border"
+                  className="flex flex-wrap gap-2 items-center border-t border-b border-[var(--rule)] py-2 font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft"
                 >
-                  <span className="text-xs text-muted-foreground pr-1">
-                    Filtered by:
-                  </span>
+                  <span className="mr-2">filtered &#9656;</span>
                   {selectedCategories.map((cat) => (
-                    <Badge
+                    <span
                       key={`cat-${cat}`}
-                      variant="secondary"
-                      className="h-5 px-1.5 text-[10px] font-normal"
+                      className="px-1.5 py-0.5 border border-[var(--rule)] text-foreground"
                     >
-                      {cat}
-                    </Badge>
+                      [ {cat} ]
+                    </span>
                   ))}
                   {selectedEntities.map((ent) => (
-                    <Badge
+                    <span
                       key={`ent-${ent}`}
-                      variant="default"
-                      className="h-5 px-1.5 text-[10px] font-normal"
+                      className="px-1.5 py-0.5 border border-[var(--rule)] text-signal"
                     >
-                      {ent}
-                    </Badge>
+                      [ {ent} ]
+                    </span>
                   ))}
-                  <Button
-                    variant="ghost"
-                    size="sm"
+                  <button
+                    type="button"
                     onClick={() => {
                       setSelectedCategories([]);
                       setSelectedEntities([]);
                     }}
-                    className="ml-auto h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                    className="ml-auto hover:text-signal"
                   >
-                    Clear Filters
-                  </Button>
+                    Clear Filters &#215;
+                  </button>
                 </div>
               )}
 
+              {/* News-feed body -- asymmetric 12-col broadsheet composition
+                  in detailed view, single-column mono list in compact view.
+                  Lead story always renders first so the LeadStoryCard sits
+                  before any secondary NewsCard in the DOM (this matters for
+                  the news-feed.spec.ts "Linear-dense" assertion -- see
+                  NewsCard.tsx header for the full explanation). */}
               {loading ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
                 </div>
               ) : filteredArticles.length === 0 ? (
-                <div className="text-center py-12 bg-card rounded-xl border border-border space-y-3">
-                  <Newspaper className="w-12 h-12 text-primary mx-auto" />
-                  <h3 className="text-base font-semibold text-foreground">No articles found</h3>
-                  <p className="text-sm text-muted-foreground">
+                <div
+                  data-testid="news-feed-list"
+                  className="text-center py-12 border-t border-b border-[var(--rule)] space-y-3"
+                >
+                  <Newspaper className="w-12 h-12 text-foreground mx-auto" />
+                  <h3 className="font-display text-[22px] font-medium text-foreground">No articles found</h3>
+                  <p className="text-[14px] text-foreground-soft">
                     Try adjusting your filters or search query
                   </p>
                   <Button
@@ -721,22 +744,88 @@ function AppShell() {
                     Reset Filters
                   </Button>
                 </div>
+              ) : viewMode === "detailed" ? (
+                <div data-testid="news-feed-list" className="space-y-6">
+                  {/* Lead + deck -- 12-col grid. Lead spans cols 1-8 with a
+                      16:9 image and a 44px Fraunces headline; the deck of up
+                      to 3 secondary cards stacks in cols 9-12. */}
+                  <div className="grid grid-cols-12 gap-6">
+                    <div className="col-span-12 lg:col-span-8">
+                      <LeadStoryCard article={filteredArticles[0]} />
+                    </div>
+                    {filteredArticles.length > 1 && (
+                      <div className="col-span-12 lg:col-span-4 flex flex-col">
+                        {filteredArticles.slice(1, 4).map((article) => (
+                          <NewsCard
+                            key={article.id}
+                            article={article}
+                            viewMode="detailed"
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {/* Section break -- tick-rule with mono "more" label. Only
+                      rendered when there are remainder articles. */}
+                  {filteredArticles.length > 4 && (
+                    <>
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft">more</span>
+                        <div className="tick-rule flex-1" />
+                      </div>
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {filteredArticles.slice(4).map((article) => (
+                          <NewsCard
+                            key={article.id}
+                            article={article}
+                            viewMode="detailed"
+                          />
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
               ) : (
-                <div
-                  data-testid="news-feed-list"
-                  className={`grid gap-6 ${
-                    viewMode === "detailed"
-                      ? "grid-cols-1 lg:grid-cols-2"
-                      : "grid-cols-1"
-                  }`}
-                >
-                  {filteredArticles.map((article) => (
-                    <NewsCard
-                      key={article.id}
-                      article={article}
-                      viewMode={viewMode}
-                    />
-                  ))}
+                /* Compact view -- single-column mono list. Each row is a
+                   timestamp + a Fraunces 18px title (hover -> signal) + a
+                   mono source name on the right. No images, no chrome. */
+                <div data-testid="news-feed-list" className="border-t border-[var(--rule)]">
+                  {filteredArticles.map((article) => {
+                    const date = new Date(article.publishedAt);
+                    const hours = Math.floor(
+                      (Date.now() - date.getTime()) / (1000 * 60 * 60)
+                    );
+                    const stamp =
+                      hours < 1
+                        ? "just now"
+                        : hours < 24
+                          ? `${hours}h ago`
+                          : `${Math.floor(hours / 24)}d ago`;
+                    return (
+                      <div
+                        key={article.id}
+                        data-slot="card"
+                        data-testid="news-card"
+                        className="flex items-baseline gap-3 py-3 px-3 border-b border-[var(--rule)] hover:bg-[var(--background-tint)] transition-colors"
+                      >
+                        <span className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft w-24 shrink-0">
+                          {stamp}
+                        </span>
+                        <a
+                          href={article.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          data-slot="card-title"
+                          className="font-display text-[18px] leading-snug text-foreground hover:text-signal flex-1"
+                        >
+                          {article.title}
+                        </a>
+                        <span className="font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft text-gray-500">
+                          {article.source}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
               </motion.div>
