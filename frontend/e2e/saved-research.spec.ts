@@ -1,7 +1,7 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
 
 /**
- * Saved Research — M3.M5 Playwright contract.
+ * Saved Research â€” M3.M5 Playwright contract.
  *
  * Validates the full Save -> list -> open -> delete loop end-to-end with
  * the /api/research SSE stream and the /api/saved-research CRUD surface
@@ -31,7 +31,7 @@ const DEFAULT_REPORT =
   "## Key Findings\n" +
   "- Major advances in AI chip design [1].\n\n" +
   "## Sources Used\n" +
-  "1. TechCrunch — https://example.com/ai-chip\n";
+  "1. TechCrunch â€” https://example.com/ai-chip\n";
 
 function buildSSEBody(report: string): string {
   const frames: string[] = [];
@@ -70,7 +70,7 @@ async function installResearchMock(page: Page) {
 }
 
 // ------------------------------------------------------------------ //
-//  /api/saved-research CRUD mock — in-memory backed.
+//  /api/saved-research CRUD mock â€” in-memory backed.
 // ------------------------------------------------------------------ //
 
 interface SavedRow {
@@ -189,7 +189,7 @@ async function runResearchAndWaitForDone(page: Page) {
 //  Tests
 // ------------------------------------------------------------------ //
 
-test.describe("Saved research — full Save -> list -> open -> delete flow", () => {
+test.describe("Saved research â€” full Save -> list -> open -> delete flow", () => {
   test("save button persists report, then list/open/delete cycle works", async ({
     page,
   }) => {
@@ -201,15 +201,15 @@ test.describe("Saved research — full Save -> list -> open -> delete flow", () 
     await landOnApp(page);
     await runResearchAndWaitForDone(page);
 
-    // 1) Click Save — button flips to "Saved ✓" + success toast.
+    // 1) Click Save â€” button flips to "Saved âœ“" + success toast.
     const saveBtn = page.getByTestId("research-save-btn");
-    await expect(saveBtn).toHaveText(/Save/);
+    await expect(saveBtn).toHaveText(/save/i);
     await saveBtn.click();
-    await expect(saveBtn).toHaveText(/Saved/, { timeout: 5_000 });
+    await expect(saveBtn).toHaveText(/saved/i, { timeout: 5_000 });
     await expect(saveBtn).toBeDisabled();
     await beat(page);
 
-    // 2) Navigate to the Saved tab — the list should contain the row.
+    // 2) Navigate to the Saved tab â€” the list should contain the row.
     await page.getByRole("tab", { name: "Saved", exact: true }).click();
     await expect(page.getByTestId("saved-research-list")).toBeVisible({
       timeout: 10_000,
@@ -218,7 +218,7 @@ test.describe("Saved research — full Save -> list -> open -> delete flow", () 
     await expect(items).toHaveCount(1);
     await expect(items.first()).toContainText(SHORT_QUESTION);
 
-    // 3) Open the saved report — detail view renders the markdown.
+    // 3) Open the saved report â€” detail view renders the markdown.
     await items.first().locator("button").first().click();
     await expect(page.getByTestId("saved-research-detail")).toBeVisible({
       timeout: 10_000,

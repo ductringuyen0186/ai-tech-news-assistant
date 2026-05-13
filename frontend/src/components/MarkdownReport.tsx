@@ -140,7 +140,9 @@ function linkifyChildren(
         if (renderCitation) {
           out.push(<span key={key}>{renderCitation(n, anchor)}</span>);
         } else {
-          out.push(anchor);
+          // React requires `key` on the array element directly, not on
+          // the component's internal return. Wrap so the key applies.
+          out.push(<span key={key}>{anchor}</span>);
         }
         lastIndex = m.index + m[0].length;
       }

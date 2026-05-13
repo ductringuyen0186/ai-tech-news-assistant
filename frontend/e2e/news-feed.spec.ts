@@ -11,7 +11,7 @@ import {
 } from "./_lib/rubric";
 
 /**
- * News Feed tab — asserts real article data renders and filter/search work.
+ * News Feed tab â€” asserts real article data renders and filter/search work.
  *
  * Catches: seed-data regressions, broken category filtering, broken search.
  *
@@ -19,7 +19,7 @@ import {
  * match real article categories. If the saved settings drift away from the
  * real category vocabulary (e.g. legacy "AI" / "Machine Learning" while
  * articles are tagged "AI/ML"), the page will show "No articles found"
- * and these tests will fail — surfacing exactly the kind of behavior bug
+ * and these tests will fail â€” surfacing exactly the kind of behavior bug
  * the contract suite missed.
  */
 
@@ -45,7 +45,7 @@ async function clearFiltersIfPresent(page: import("@playwright/test").Page) {
 
 test.describe("News Feed tab", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/feed");
     await expect(page.getByRole("heading", { name: /TechPulse AI/i })).toBeVisible();
     // Wait for the initial article fetch to settle (or empty-state to render).
     await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => {});
@@ -127,7 +127,7 @@ test.describe("News Feed tab", () => {
     }
   });
 
-  test("M3.M3 — Trending Now rail is visible with at least one category chip", async ({
+  test("M3.M3 â€” Trending Now rail is visible with at least one category chip", async ({
     page,
   }) => {
     // The TrendingRail aggregates category counts; in worst case it may
@@ -143,7 +143,7 @@ test.describe("News Feed tab", () => {
     const chipCount = await chips.count();
     expect(
       chipCount,
-      "Trending rail should render at least one category chip — backend categories are empty?"
+      "Trending rail should render at least one category chip â€” backend categories are empty?"
     ).toBeGreaterThanOrEqual(1);
 
     // Clicking a chip should change the filter set. We assert via the
@@ -163,7 +163,7 @@ test.describe("News Feed tab", () => {
     }
   });
 
-  test("M3.M3 — article cards use Linear-dense styling (font ≤ 14px, padding ≤ 12px)", async ({
+  test("M3.M3 â€” article cards use Linear-dense styling (font â‰¤ 14px, padding â‰¤ 12px)", async ({
     page,
   }) => {
     // Ensure at least one card is present.
@@ -191,9 +191,9 @@ test.describe("News Feed tab", () => {
     // for safety against root-font scaling.
     expect(
       metrics!.titleSize ?? 0,
-      `Title font-size was ${metrics!.titleSize}px; dense layout expects ≤ 16px`
+      `Title font-size was ${metrics!.titleSize}px; dense layout expects â‰¤ 16px`
     ).toBeLessThanOrEqual(16);
-    // Card padding ≤ 12px (`p-3`). Tolerate 14px.
+    // Card padding â‰¤ 12px (`p-3`). Tolerate 14px.
     expect(metrics!.padTop).toBeLessThanOrEqual(14);
     expect(metrics!.padLeft).toBeLessThanOrEqual(14);
   });
@@ -205,7 +205,7 @@ test.describe("News Feed tab", () => {
     await searchInput.fill("OpenAI");
     await searchInput.press("Enter");
 
-    // Small debounce — the search refetches; let it settle.
+    // Small debounce â€” the search refetches; let it settle.
     await page.waitForTimeout(2000);
     await expect(page.locator(".animate-spin").first()).toBeHidden({
       timeout: 15_000,
@@ -221,18 +221,18 @@ test.describe("News Feed tab", () => {
 
     expect(
       cardsVisible || emptyVisible,
-      "Search should either return results or show the empty state — never a blank/crashed page"
+      "Search should either return results or show the empty state â€” never a blank/crashed page"
     ).toBe(true);
   });
 });
 
 // ---------------------------------------------------------------------------
-// Rubric — categories 1, 2, 3, 4, 7, 8 applied to the News Feed tab.
+// Rubric â€” categories 1, 2, 3, 4, 7, 8 applied to the News Feed tab.
 // ---------------------------------------------------------------------------
 
-test.describe("rubric — News Feed", () => {
+test.describe("rubric â€” News Feed", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/feed");
     await expect(page.getByRole("heading", { name: /TechPulse AI/i })).toBeVisible();
     await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => {});
     await expect(page.locator(".animate-spin").first()).toBeHidden({ timeout: 20_000 });
@@ -252,7 +252,7 @@ test.describe("rubric — News Feed", () => {
     });
   });
 
-  test("category 1 — article body has no HTML entities, mojibake, or stringified placeholders", async ({
+  test("category 1 â€” article body has no HTML entities, mojibake, or stringified placeholders", async ({
     page,
   }) => {
     // Read More / Show More on the first card so we exercise the full body too.
@@ -269,7 +269,7 @@ test.describe("rubric — News Feed", () => {
     await assertNoUndefinedNullObjectObject(page, scope);
   });
 
-  test("category 3 — article cards list has no duplicate titles", async ({ page }) => {
+  test("category 3 â€” article cards list has no duplicate titles", async ({ page }) => {
     await assertNoDuplicateSiblings(
       page,
       '[data-slot="card-title"]',
@@ -277,25 +277,25 @@ test.describe("rubric — News Feed", () => {
     );
   });
 
-  test("category 4 — article cards do not horizontally overflow", async ({ page }) => {
+  test("category 4 â€” article cards do not horizontally overflow", async ({ page }) => {
     await assertNoHorizontalOverflow(page, '[data-slot="card"]');
   });
 
-  test("category 7 — feed has no seed/mock/example/epoch data", async ({ page }) => {
-    // Scope to the active feed panel — other tabs have their own checks.
+  test("category 7 â€” feed has no seed/mock/example/epoch data", async ({ page }) => {
+    // Scope to the active feed panel â€” other tabs have their own checks.
     await assertNoMockDataLeak(page, '[data-state="active"][role="tabpanel"]');
   });
 
-  test("category 8 — every visible article card image actually loaded", async ({
+  test("category 8 â€” every visible article card image actually loaded", async ({
     page,
   }) => {
-    // Allow up to 1 broken thumbnail — feeds occasionally serve a bad URL
+    // Allow up to 1 broken thumbnail â€” feeds occasionally serve a bad URL
     // and ImageWithFallback substitutes a placeholder. More than 1 broken
     // means the placeholder fallback itself broke or a CSP is blocking.
     await assertImagesLoadedInFeed(page);
   });
 
-  test("category 2 — taxonomy: each chip the user can click yields results or a clear empty-state", async ({
+  test("category 2 â€” taxonomy: each chip the user can click yields results or a clear empty-state", async ({
     page,
     request,
   }) => {
@@ -321,7 +321,7 @@ test.describe("rubric — News Feed", () => {
 
     // The TopicFilter lives in the Settings tab. Pick at most 4 chips so the
     // suite stays under its 60s budget; if there are fewer chips, we test
-    // them all. We never silently skip — having zero chips here is a
+    // them all. We never silently skip â€” having zero chips here is a
     // regression on its own (means /api/news/categories returned empty).
     await page.getByRole("tab", { name: /Settings/i }).click();
     await expect(page.getByText(/Topic Preferences/i)).toBeVisible({ timeout: 10_000 });
@@ -333,7 +333,7 @@ test.describe("rubric — News Feed", () => {
     // span + a label span. The visible label sits in the LAST <span> in
     // the label, while the first <span> holds the emoji. We pull the
     // label-only text (and the row index) so we can target rows by
-    // position — Playwright's `hasText` filter is unreliable when the
+    // position â€” Playwright's `hasText` filter is unreliable when the
     // accumulated innerText spans newlines.
     const rowLocator = page
       .locator('label')
@@ -342,7 +342,7 @@ test.describe("rubric — News Feed", () => {
     const rowCount = await rowLocator.count();
     expect(
       rowCount,
-      "TopicFilter rendered zero chips — /api/news/categories has no real categories"
+      "TopicFilter rendered zero chips â€” /api/news/categories has no real categories"
     ).toBeGreaterThan(0);
 
     const chipLabels = await rowLocator.evaluateAll((els) =>
@@ -368,7 +368,7 @@ test.describe("rubric — News Feed", () => {
           await clearAll.click();
         }
 
-        // Click the i-th row directly by index — robust to emoji/text content.
+        // Click the i-th row directly by index â€” robust to emoji/text content.
         const row = rowLocator.nth(i);
         await row.click();
 
@@ -394,7 +394,7 @@ test.describe("rubric — News Feed", () => {
 
         expect(
           cardCount > 0 || resetVisible,
-          `Chip "${label}" (row ${i}) produced zero results AND no Reset Filters button — ` +
+          `Chip "${label}" (row ${i}) produced zero results AND no Reset Filters button â€” ` +
             `that's a stuck/crashed feed. Either return articles or surface the empty-state CTA.`
         ).toBe(true);
 
@@ -408,12 +408,12 @@ test.describe("rubric — News Feed", () => {
     } finally {
       // Restore the user's saved categories so we don't leave the
       // downstream Settings spec staring at a chip we picked. Best-effort:
-      // if the restore PUT fails we don't fail the test — the assertion
+      // if the restore PUT fails we don't fail the test â€” the assertion
       // outcome is what matters.
       //
       // We additionally make sure the restored set has at least TWO chips,
       // because the existing Settings spec toggles one off and then needs
-      // the Save Preferences button — which only renders while at least
+      // the Save Preferences button â€” which only renders while at least
       // one chip remains selected. Single-chip restoration would leave
       // the next test wedged on a button that never appears.
       const restoreSet = new Set<string>(savedBefore);
@@ -439,7 +439,7 @@ test.describe("rubric — News Feed", () => {
     }
   });
 
-  test("category 6 — page load + tab navigation produces no console errors", async ({
+  test("category 6 â€” page load + tab navigation produces no console errors", async ({
     browser,
   }) => {
     // Fresh context so we don't inherit listeners from the file-level beforeEach.
@@ -447,11 +447,11 @@ test.describe("rubric — News Feed", () => {
     const page = await ctx.newPage();
     const errors = installConsoleErrorListener(page, [
       // The dev frontend logs an "API Response:" debug line and the
-      // KnowledgeGraph component is allowed to toast "empty" — neither is
+      // KnowledgeGraph component is allowed to toast "empty" â€” neither is
       // an error. The ignore list is empty for now; we want every error to
       // surface. If a known-noisy third-party shows up, add a regex here.
     ]);
-    await page.goto("/");
+    await page.goto("/feed");
     await expect(page.getByRole("heading", { name: /TechPulse AI/i })).toBeVisible();
     await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => {});
     await expect(page.locator(".animate-spin").first()).toBeHidden({ timeout: 20_000 });
@@ -460,7 +460,7 @@ test.describe("rubric — News Feed", () => {
   });
 });
 
-// Local helper — kept inside this spec file because the tolerance is
+// Local helper â€” kept inside this spec file because the tolerance is
 // news-feed-specific (some feeds genuinely have no image_url, others use
 // the ImageWithFallback placeholder which itself MUST load).
 async function assertImagesLoadedInFeed(page: import("@playwright/test").Page) {
@@ -480,7 +480,7 @@ async function assertImagesLoadedInFeed(page: import("@playwright/test").Page) {
   const broken = visible.filter((s) => s.complete && s.naturalWidth === 0);
 
   // Tolerance: at most 20% of visible images may be broken (placeholder
-  // shows). If zero are visible, the test silently passes — the
+  // shows). If zero are visible, the test silently passes â€” the
   // `News Feed tab` spec already asserts cards render.
   const tolerance = Math.max(1, Math.ceil(visible.length * 0.2));
   expect(

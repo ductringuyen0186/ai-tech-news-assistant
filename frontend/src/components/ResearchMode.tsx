@@ -927,20 +927,17 @@ export function ResearchMode({}: ResearchModeProps) {
               data-testid="research-subagents-panel"
               className="mb-6"
             >
-              {/* sr-only header preserves the legacy regex assertion. */}
-              <span
+              {/* Visible mono header. Carries the legacy regex-matching
+                  text so the M3.M2 test contract toBeVisible() +
+                  /Subagents \(\d+ running, \d+ done, \d+ errored\)/i
+                  binds to the same element. */}
+              <div
                 data-testid="research-subagents-header"
-                className="sr-only"
+                className="flex items-center gap-3 font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft mb-3 flex-wrap"
               >
-                {subagentsHeaderText}
-              </span>
-              <div className="flex items-center gap-3 font-mono-tx text-[11px] uppercase-eyebrow text-foreground-soft mb-3 flex-wrap">
                 <span>━ DISPATCHING SUBAGENTS</span>
                 <span className="flex-1 border-t border-[var(--rule)]" />
-                <span>
-                  ▸ {runningCount} reading · {doneCount} done
-                  {erroredCount > 0 ? ` · ${erroredCount} error` : ""}
-                </span>
+                <span>{subagentsHeaderText}</span>
               </div>
               <ul className="space-y-1 font-mono-tx text-[12px]">
                 <AnimatePresence initial={false}>

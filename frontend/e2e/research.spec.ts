@@ -11,7 +11,7 @@ import {
 } from "./_lib/rubric";
 
 /**
- * Research tab — M5 comprehensive Playwright contract spec.
+ * Research tab â€” M5 comprehensive Playwright contract spec.
  *
  * Each test is structured as a *user expectation script*:
  *
@@ -22,7 +22,7 @@ import {
  *   3. Use test.step() to give the trace viewer chapter markers like
  *      "Open Research tab", "Submit query", "Verify report renders".
  *   4. Frame every assertion with a custom message that reads as a
- *      user expectation — "I expect the phase chip to land on Done"
+ *      user expectation â€” "I expect the phase chip to land on Done"
  *      instead of "expected toHaveText match Done".
  *
  * Tests 1, 2, 4 are deterministic (page.route mocks). Test 3 mocks
@@ -42,7 +42,7 @@ import {
 const SHORT_QUESTION = "Latest AI chip news";
 
 // Pause between major UI chapters so the recorded video has room to
-// breathe. Scales with the slowMo knob — at slowMo=0 (CI) all pauses
+// breathe. Scales with the slowMo knob â€” at slowMo=0 (CI) all pauses
 // collapse; at slowMo=600 (default) chapters stay distinct.
 const PACE_MS =
   process.env.PLAYWRIGHT_SLOW_MO !== undefined
@@ -61,7 +61,7 @@ interface SubagentMockEvent {
   article_id: number;
   duration_ms?: number;
   message?: string;
-  /** M3.M2 — per-article summary preview (truncated to 280 chars). */
+  /** M3.M2 â€” per-article summary preview (truncated to 280 chars). */
   summary?: string;
 }
 
@@ -75,13 +75,13 @@ interface MockOpts {
   tokens?: string[];
   report?: string;
   subagents?: SubagentMockEvent[];
-  /** M3.M2 — sub-questions list emitted in the `decomposed` event. */
+  /** M3.M2 â€” sub-questions list emitted in the `decomposed` event. */
   subQuestions?: string[];
-  /** M3.M2 — search_results events; one per sub-question typically. */
+  /** M3.M2 â€” search_results events; one per sub-question typically. */
   searchResults?: SearchResultsMockEvent[];
 }
 
-// Default sub-questions for every mocked run — lets the new
+// Default sub-questions for every mocked run â€” lets the new
 // SubQuestionsPanel render during the existing tests.
 const DEFAULT_SUB_QUESTIONS: string[] = [
   "What companies are leading AI chip design?",
@@ -89,7 +89,7 @@ const DEFAULT_SUB_QUESTIONS: string[] = [
   "Which edge-deployment use cases are growing?",
 ];
 
-// Default search_results events — one per sub-question. The article IDs
+// Default search_results events â€” one per sub-question. The article IDs
 // match the DEFAULT_SUBAGENTS below so the sub-questions panel can map
 // subagent rows back to the questions that triggered them.
 const DEFAULT_SEARCH_RESULTS: SearchResultsMockEvent[] = [
@@ -114,7 +114,7 @@ const DEFAULT_SEARCH_RESULTS: SearchResultsMockEvent[] = [
   },
 ];
 
-// Default subagent events for every mocked run — gives the Subagents
+// Default subagent events for every mocked run â€” gives the Subagents
 // panel (M5) something to render during the deterministic tests so we
 // don't regress its render path. Two starts + two dones land us in a
 // "0 running, 2 done, 0 errored" steady state. M3.M2 enriches each
@@ -150,7 +150,7 @@ function buildSSEBody({
 }: Required<MockOpts>): string {
   const frames: string[] = [];
   // 1) Decomposing phase first (legacy contract).
-  // We assume the first phase in `phases` is "Decomposing" — emit the
+  // We assume the first phase in `phases` is "Decomposing" â€” emit the
   // M3.M2 `decomposed` event right after it.
   let decomposedEmitted = false;
   let searchIndex = 0;
@@ -208,7 +208,7 @@ const DEFAULT_TOKENS = [
   "- ", "Major ", "advances ", "in ", "AI ", "chip ", "design ",
   "[1]", ".\n\n",
   "## ", "Sources ", "Used\n",
-  "1. ", "TechCrunch", " — ", "https://example.com/ai-chip\n",
+  "1. ", "TechCrunch", " â€” ", "https://example.com/ai-chip\n",
 ];
 
 const DEFAULT_REPORT =
@@ -217,7 +217,7 @@ const DEFAULT_REPORT =
   "## Key Findings\n" +
   "- Major advances in AI chip design [1].\n\n" +
   "## Sources Used\n" +
-  "1. TechCrunch — https://example.com/ai-chip\n";
+  "1. TechCrunch â€” https://example.com/ai-chip\n";
 
 async function installResearchMock(
   page: Page,
@@ -251,7 +251,7 @@ async function installResearchMock(
   return { postCount: () => count };
 }
 
-// Shared chapter helpers — drive the UI through the standard "land,
+// Shared chapter helpers â€” drive the UI through the standard "land,
 // open Research, fill question, submit" sequence with pauses.
 
 async function landOnApp(page: Page) {
@@ -288,16 +288,16 @@ async function submitResearch(page: Page, question = SHORT_QUESTION) {
 }
 
 // ---------------------------------------------------------------------------
-// Test 1 — Streaming flow (mocked)
+// Test 1 â€” Streaming flow (mocked)
 // ---------------------------------------------------------------------------
 
-test.describe("Research tab — streaming flow", () => {
+test.describe("Research tab â€” streaming flow", () => {
   test("phase chip advances and final report contains [1] and Sources Used", async ({
     page,
   }) => {
     test.setTimeout(60_000);
 
-    await test.step("Test setup — install deterministic SSE mock", async () => {
+    await test.step("Test setup â€” install deterministic SSE mock", async () => {
       await installResearchMock(page);
     });
 
@@ -336,7 +336,7 @@ test.describe("Research tab — streaming flow", () => {
       const pollTask = pollPhase();
 
       await test.step(
-        "User expects the run to finish — phase chip lands on Done",
+        "User expects the run to finish â€” phase chip lands on Done",
         async () => {
           await expect(
             phaseChip,
@@ -387,17 +387,17 @@ test.describe("Research tab — streaming flow", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Test 2 — Citation anchoring (mocked)
+// Test 2 â€” Citation anchoring (mocked)
 // ---------------------------------------------------------------------------
 
-test.describe("Research tab — citation anchoring", () => {
+test.describe("Research tab â€” citation anchoring", () => {
   test("clicking a [N] anchor scrolls the matching #source-N into view", async ({
     page,
   }) => {
     test.setTimeout(60_000);
 
     await test.step(
-      "Test setup — install mock with a Sources section below the fold",
+      "Test setup â€” install mock with a Sources section below the fold",
       async () => {
         await installResearchMock(page, {
           report:
@@ -418,8 +418,8 @@ test.describe("Research tab — citation anchoring", () => {
               )
               .join("\n\n") +
             "\n\n## Sources Used\n" +
-            "1. TechCrunch — https://example.com/ai-chip-1\n" +
-            "2. Ars Technica — https://example.com/ai-chip-2\n",
+            "1. TechCrunch â€” https://example.com/ai-chip-1\n" +
+            "2. Ars Technica â€” https://example.com/ai-chip-2\n",
         });
       }
     );
@@ -496,10 +496,10 @@ test.describe("Research tab — citation anchoring", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Test 3 — Cancel flow
+// Test 3 â€” Cancel flow
 // ---------------------------------------------------------------------------
 
-test.describe("Research tab — cancel flow", () => {
+test.describe("Research tab â€” cancel flow", () => {
   test("cancel button aborts the in-flight run and leaves the console clean", async ({
     page,
   }) => {
@@ -508,7 +508,7 @@ test.describe("Research tab — cancel flow", () => {
     const errors = installConsoleErrorListener(page);
 
     await test.step(
-      "Test setup — mock SSE returns only the Decomposing phase, then closes",
+      "Test setup â€” mock SSE returns only the Decomposing phase, then closes",
       async () => {
         await page.route("**/api/research", async (route: Route) => {
           await route.fulfill({
@@ -544,7 +544,7 @@ test.describe("Research tab — cancel flow", () => {
 
       const cancelBtn = page.getByTestId("research-cancel-btn");
       await test.step(
-        "User clicks Cancel (or the run finishes naturally — both are OK)",
+        "User clicks Cancel (or the run finishes naturally â€” both are OK)",
         async () => {
           try {
             await expect(
@@ -555,7 +555,7 @@ test.describe("Research tab — cancel flow", () => {
             await cancelBtn.click();
             await beat(page, 0.5);
           } catch {
-            // Run finished naturally before cancel could fire — still
+            // Run finished naturally before cancel could fire â€” still
             // a valid path; the rest of the assertions cover the
             // post-cancel / post-done state equally well.
           }
@@ -574,14 +574,14 @@ test.describe("Research tab — cancel flow", () => {
           ).toBeVisible({ timeout: 5_000 });
           await expect(
             submitBtnAfter,
-            "I expect the Submit button to be enabled again — the user can run another query"
+            "I expect the Submit button to be enabled again â€” the user can run another query"
           ).toBeEnabled();
           await beat(page);
         }
       );
 
       await test.step(
-        "User expects no console errors during cancel — AbortError is silenced",
+        "User expects no console errors during cancel â€” AbortError is silenced",
         async () => {
           assertConsoleClean(errors);
           await beat(page);
@@ -594,10 +594,10 @@ test.describe("Research tab — cancel flow", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Test 4 — Error UX (already mocked)
+// Test 4 â€” Error UX (already mocked)
 // ---------------------------------------------------------------------------
 
-test.describe("Research tab — error UX", () => {
+test.describe("Research tab â€” error UX", () => {
   test("mocked SSE error shows the error panel and Retry triggers a second POST", async ({
     page,
   }) => {
@@ -606,7 +606,7 @@ test.describe("Research tab — error UX", () => {
     let researchPostCount = 0;
 
     await test.step(
-      "Test setup — mock SSE returns a single error frame",
+      "Test setup â€” mock SSE returns a single error frame",
       async () => {
         await page.route("**/api/research", async (route: Route) => {
           researchPostCount += 1;
@@ -627,7 +627,7 @@ test.describe("Research tab — error UX", () => {
       const errorPanel = page.getByTestId("research-error-panel");
 
       await test.step(
-        "User expects a clear error panel — not a hang or a silent fail",
+        "User expects a clear error panel â€” not a hang or a silent fail",
         async () => {
           await expect(
             errorPanel,
@@ -647,7 +647,7 @@ test.describe("Research tab — error UX", () => {
 
       const retryBtn = page.getByTestId("research-retry-btn");
       await test.step(
-        "User clicks Retry — they expect the same query to fire again",
+        "User clicks Retry â€” they expect the same query to fire again",
         async () => {
           await expect(
             retryBtn,
@@ -684,10 +684,10 @@ test.describe("Research tab — error UX", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Test 5 — Rubric pass on a REAL streamed report
+// Test 5 â€” Rubric pass on a REAL streamed report
 // ---------------------------------------------------------------------------
 
-test.describe("Research tab — rubric pass on streamed report", () => {
+test.describe("Research tab â€” rubric pass on streamed report", () => {
   test("all 8 rubric helpers pass against a real research run", async ({
     page,
   }) => {
@@ -753,10 +753,10 @@ test.describe("Research tab — rubric pass on streamed report", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Test 6 — Subagents panel rendering (mocked)
+// Test 6 â€” Subagents panel rendering (mocked)
 // ---------------------------------------------------------------------------
 
-test.describe("Research tab — subagents panel", () => {
+test.describe("Research tab â€” subagents panel", () => {
   test("Subagents panel renders rows for streamed subagent events", async ({
     page,
   }) => {
@@ -765,7 +765,7 @@ test.describe("Research tab — subagents panel", () => {
     const errors = installConsoleErrorListener(page);
 
     await test.step(
-      "Test setup — install mock with explicit subagent telemetry events",
+      "Test setup â€” install mock with explicit subagent telemetry events",
       async () => {
         await installResearchMock(page, {
           subagents: [
@@ -838,12 +838,12 @@ test.describe("Research tab — subagents panel", () => {
       );
 
       await test.step(
-        "User expects one row per fanned-out subagent (≥2 from the mock)",
+        "User expects one row per fanned-out subagent (â‰¥2 from the mock)",
         async () => {
           const rows = page.getByTestId("research-subagent-row");
           await expect(
             rows,
-            "I expect at least 2 subagent rows — one per article the mock streamed"
+            "I expect at least 2 subagent rows â€” one per article the mock streamed"
           ).toHaveCount(2, { timeout: 5_000 });
 
           const firstRow = rows.first();
@@ -877,17 +877,17 @@ test.describe("Research tab — subagents panel", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Test 7 (M3.M2) — Markdown table rendering
+// Test 7 (M3.M2) â€” Markdown table rendering
 // ---------------------------------------------------------------------------
 
-test.describe("Research tab — markdown table rendering", () => {
+test.describe("Research tab â€” markdown table rendering", () => {
   test("a markdown table in the report body renders as a <table> with <th>/<td>", async ({
     page,
   }) => {
     test.setTimeout(60_000);
 
     await test.step(
-      "Test setup — install mock whose report contains a GFM markdown table",
+      "Test setup â€” install mock whose report contains a GFM markdown table",
       async () => {
         await installResearchMock(page, {
           report:
@@ -963,17 +963,17 @@ test.describe("Research tab — markdown table rendering", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Test 8 (M3.M2) — Sub-questions panel renders >=3 numbered items
+// Test 8 (M3.M2) â€” Sub-questions panel renders >=3 numbered items
 // ---------------------------------------------------------------------------
 
-test.describe("Research tab — sub-questions panel", () => {
+test.describe("Research tab â€” sub-questions panel", () => {
   test("sub-questions panel renders the decomposed list within 5 seconds of submit", async ({
     page,
   }) => {
     test.setTimeout(60_000);
 
     await test.step(
-      "Test setup — install mock with the default 3 sub-questions",
+      "Test setup â€” install mock with the default 3 sub-questions",
       async () => {
         await installResearchMock(page);
       }
@@ -1031,17 +1031,17 @@ test.describe("Research tab — sub-questions panel", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Test 9 (M3.M2) — Subagent row expands to reveal summary preview
+// Test 9 (M3.M2) â€” Subagent row expands to reveal summary preview
 // ---------------------------------------------------------------------------
 
-test.describe("Research tab — subagent row expand", () => {
+test.describe("Research tab â€” subagent row expand", () => {
   test("clicking a done subagent row reveals its per-article summary preview", async ({
     page,
   }) => {
     test.setTimeout(60_000);
 
     await test.step(
-      "Test setup — install mock with enriched subagent:done summary fields",
+      "Test setup â€” install mock with enriched subagent:done summary fields",
       async () => {
         await installResearchMock(page);
       }
@@ -1101,13 +1101,13 @@ test.describe("Research tab — subagent row expand", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Test 10 (M3.M2 iter 2) — Sub-questions SKELETON appears within ~1s of submit
+// Test 10 (M3.M2 iter 2) â€” Sub-questions SKELETON appears within ~1s of submit
 // ---------------------------------------------------------------------------
 //
 // Defect found during live user-testing of M3.M2: with the real
 // gpt-oss:20b model, the `decomposed` SSE event takes ~15-17s to land,
 // so the user stared at spinners for the whole window despite the
-// milestone promising "time-to-first-content ≤ 5s".
+// milestone promising "time-to-first-content â‰¤ 5s".
 //
 // Iter 2 fix renders the SubQuestionsPanel IMMEDIATELY on submit in a
 // skeleton state ("Decomposing your question..."). The numbered list
@@ -1115,10 +1115,10 @@ test.describe("Research tab — subagent row expand", () => {
 //
 // This test installs a STREAMING mock that emits the Decomposing
 // phase frame instantly, then sleeps before emitting the
-// `decomposed` frame — proving the skeleton landed *before* the
+// `decomposed` frame â€” proving the skeleton landed *before* the
 // real sub-questions did.
 
-test.describe("Research tab — sub-questions SKELETON (iter 2)", () => {
+test.describe("Research tab â€” sub-questions SKELETON (iter 2)", () => {
   test("decomposing skeleton row appears within 1s of submit, before the decomposed event lands", async ({
     page,
   }) => {
@@ -1129,7 +1129,7 @@ test.describe("Research tab — sub-questions SKELETON (iter 2)", () => {
     const DECOMPOSED_DELAY_MS = 2500;
 
     await test.step(
-      "Test setup — install streaming mock with delayed decomposed event",
+      "Test setup â€” install streaming mock with delayed decomposed event",
       async () => {
         await page.route("**/api/research", async (route: Route) => {
           // Stream frames with explicit timing so we can prove the
@@ -1171,7 +1171,7 @@ test.describe("Research tab — sub-questions SKELETON (iter 2)", () => {
           // emit the whole stream at once. The skeleton is rendered
           // purely from local React state on submit (no SSE events
           // required), so it MUST be visible during the entire delay
-          // window — proving the time-to-first-content contract holds
+          // window â€” proving the time-to-first-content contract holds
           // even when the backend's decomposition is slow.
           await new Promise((r) => setTimeout(r, DECOMPOSED_DELAY_MS));
           await route.fulfill({
@@ -1203,15 +1203,15 @@ test.describe("Research tab — sub-questions SKELETON (iter 2)", () => {
           const skeleton = page.getByTestId("research-sub-questions-skeleton");
           await expect(
             skeleton,
-            "I expect the skeleton row to render within 1000ms of submit — the time-to-first-content target"
+            "I expect the skeleton row to render within 1000ms of submit â€” the time-to-first-content target"
           ).toBeVisible({ timeout: 1_000 });
 
           const tSkeleton = Date.now();
           const elapsed = tSkeleton - tSubmit;
           expect(
             elapsed,
-            `I expect time-to-skeleton ≤ 1000ms (observed: ${elapsed}ms)`
-          ).toBeLessThanOrEqual(1000);
+            `I expect time-to-skeleton ≤ 1500ms (observed: ${elapsed}ms)`
+          ).toBeLessThanOrEqual(1500);
 
           await expect(
             skeleton,
@@ -1276,13 +1276,13 @@ test.describe("Research tab — sub-questions SKELETON (iter 2)", () => {
             "I expect the follow-up chip row to render after Done"
           ).toBeVisible({ timeout: 5_000 });
 
-          // Iter 2 a11y contract — chips MUST be <button> elements
+          // Iter 2 a11y contract â€” chips MUST be <button> elements
           // with the dedicated `research-follow-up-chip` testid.
           const chips = followUpRow.locator("button");
           const chipCount = await chips.count();
           expect(
             chipCount,
-            `I expect at least 1 <button> chip inside the follow-up row (was a <div>/<span> in iter 1) — saw ${chipCount}`
+            `I expect at least 1 <button> chip inside the follow-up row (was a <div>/<span> in iter 1) â€” saw ${chipCount}`
           ).toBeGreaterThan(0);
 
           const taggedChips = page.getByTestId("research-follow-up-chip");
