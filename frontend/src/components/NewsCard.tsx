@@ -298,23 +298,33 @@ export function NewsCard({ article, viewMode }: NewsCardProps) {
               overflowWrap: "anywhere",
               wordBreak: "break-word",
             }}
-            className="text-[15px] leading-snug mb-1.5 font-semibold text-foreground line-clamp-2"
+            className="text-[15px] leading-snug mb-2 font-semibold text-foreground line-clamp-2"
           >
             {article.title}
           </CardTitle>
           {/* Summary preview — 2-3 lines depending on view mode. Uses
               line-clamp-3 with leading-relaxed so the truncation reads
-              like a real paragraph instead of a tight strip. */}
-          {article.summaryShort && (
+              like a real paragraph instead of a tight strip. The
+              `min-h-[3.5rem]` floor guarantees a consistent card height
+              even when the backend returns a single-line teaser, so the
+              grid reads as a uniform rhythm rather than a ragged stack. */}
+          {article.summaryShort ? (
             <p
               data-testid="news-card-summary"
               style={{
                 overflowWrap: "anywhere",
                 wordBreak: "break-word",
               }}
-              className="text-sm text-muted-foreground leading-relaxed line-clamp-3"
+              className="text-sm text-muted-foreground leading-relaxed line-clamp-3 min-h-[3.5rem]"
             >
               {article.summaryShort}
+            </p>
+          ) : (
+            <p
+              data-testid="news-card-summary"
+              className="text-sm text-muted-foreground/60 italic leading-relaxed min-h-[3.5rem]"
+            >
+              Tap "Read article" for the full story.
             </p>
           )}
         </div>
@@ -381,8 +391,10 @@ export function NewsCard({ article, viewMode }: NewsCardProps) {
 
       {/* Footer — category chips on the left, "Read article →" CTA on
           the right. The CTA is the dominant action: visible text +
-          arrow icon + primary colour. Opens the article in a new tab. */}
-      <div className="flex flex-wrap gap-2 items-center justify-between min-w-0">
+          arrow icon + primary colour. Opens the article in a new tab.
+          A subtle top border separates the metadata footer from the
+          summary block above for visual rhythm. */}
+      <div className="flex flex-wrap gap-2 items-center justify-between min-w-0 pt-2 border-t border-border/60">
         <div className="flex flex-wrap gap-1.5 min-w-0">
           {article.category.slice(0, 3).map((cat) => (
             <Badge

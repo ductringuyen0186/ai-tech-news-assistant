@@ -23,7 +23,7 @@ import {
   Bookmark,
   Sun,
   Moon,
-  Command,
+  Search,
 } from "lucide-react";
 
 export interface SidebarNavItem {
@@ -68,30 +68,40 @@ export function Sidebar({ activeTab, badges }: SidebarProps) {
       aria-label="Primary navigation"
       className="flex flex-col w-72 shrink-0 h-screen sticky top-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
     >
-      {/* Branding header */}
-      <div className="px-5 py-5 border-b border-sidebar-border flex items-center gap-3">
-        <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center shadow-sm">
-          <Newspaper className="w-5 h-5 text-primary-foreground" />
+      {/* Branding header — generous vertical padding so the logo + title
+          have room to breathe. Bigger logo (44px square) reads as a real
+          product mark rather than a compressed badge. */}
+      <div className="px-5 pt-6 pb-5 border-b border-sidebar-border flex items-center gap-3.5">
+        <div className="w-11 h-11 rounded-xl bg-primary flex items-center justify-center shadow-sm shrink-0">
+          <Newspaper className="w-6 h-6 text-primary-foreground" />
         </div>
-        <div className="flex flex-col leading-tight gap-0.5">
-          <span className="text-base font-semibold tracking-tight text-foreground">TechPulse AI</span>
-          <span className="text-xs text-muted-foreground">tech-news research</span>
+        <div className="flex flex-col leading-tight gap-1 min-w-0">
+          <span className="text-[17px] font-semibold tracking-tight text-foreground truncate">
+            TechPulse AI
+          </span>
+          <span className="text-xs text-muted-foreground truncate">
+            tech-news research
+          </span>
         </div>
       </div>
 
-      {/* Cmd+K affordance — a button that opens the palette */}
+      {/* Search affordance — opens the Cmd+K palette. Renamed from
+          "Quick nav" (which confused users) to a clear "Search..."
+          placeholder with a magnifying-glass icon so it reads like a
+          search input. The ⌘K hint keeps the keyboard shortcut
+          discoverable. */}
       <button
         type="button"
         onClick={() => openPalette()}
-        className="mx-3 mt-3 mb-2 flex items-center justify-between gap-2 px-3 py-2 text-xs text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
-        aria-label="Open command palette"
+        className="mx-3 mt-4 mb-2 flex items-center justify-between gap-2 px-3 py-2.5 text-sm text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-foreground transition-colors"
+        aria-label="Search and jump to anywhere"
       >
-        <span className="flex items-center gap-1.5">
-          <Command className="w-3 h-3" />
-          <span>Quick nav</span>
+        <span className="flex items-center gap-2">
+          <Search className="w-3.5 h-3.5" />
+          <span>Search...</span>
         </span>
-        <kbd className="text-[10px] px-1 py-[1px] border border-border rounded bg-muted">
-          K
+        <kbd className="text-[10px] px-1.5 py-[1px] border border-border rounded bg-muted font-mono">
+          ⌘K
         </kbd>
       </button>
 

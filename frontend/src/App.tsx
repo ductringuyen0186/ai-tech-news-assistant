@@ -17,6 +17,11 @@ import { ThemeProvider } from "./components/ThemeProvider";
 import { CommandPaletteProvider } from "./components/CommandPalette";
 import { Sidebar } from "./components/Sidebar";
 import {
+  WelcomeScreen,
+  hasSeenWelcome,
+  markWelcomeSeen,
+} from "./components/WelcomeScreen";
+import {
   Newspaper,
   TrendingUp,
   Loader2,
@@ -64,6 +69,10 @@ function AppShell() {
   // CommandPalette can both mutate it. Radix Tabs becomes controlled via
   // value/onValueChange.
   const [activeTab, setActiveTab] = useState<string>("feed");
+  // First-load welcome screen -- shown until the user dismisses it via
+  // one of the CTAs (Try Research / Browse Feed / Skip intro). Persists
+  // in localStorage so returning visitors land directly on the feed.
+  const [showWelcome, setShowWelcome] = useState<boolean>(() => !hasSeenWelcome());
   const reduceMotion = useReducedMotion();
   // Page-tab fade-in: each TabsContent's children are wrapped in a
   // motion.div that fades in from opacity 0 → 1 on mount. Radix unmounts
@@ -100,14 +109,22 @@ function AppShell() {
 
       const articles = data.data || data.items || [];
       const buildSummaries = (a: any): { summaryShort: string; summaryMedium: string } => {
-        const body: string = (a.summary || a.content || "").toString().trim();
+        // Prefer the longer of `summary` vs `content` so cards feel
+        // substantive even when the backend's `summary` field is a one-line
+        // teaser. Falls back to either if only one is present.
+        const summary = (a.summary || "").toString().trim();
+        const content = (a.content || "").toString().trim();
+        const body = content.length > summary.length * 1.5 ? content : (summary || content);
         if (!body) {
           return { summaryShort: "", summaryMedium: "" };
         }
+        // Bumped from 200 -> 280 chars so the 2-3 line summary preview
+        // actually fills the line-clamp-3 box on cards. Medium stays at
+        // 800 for the expanded "Read more" view.
         const short =
-          body.length > 200 ? body.slice(0, 200).trimEnd() + "..." : body;
+          body.length > 280 ? body.slice(0, 280).trimEnd() + "..." : body;
         const medium =
-          body.length > 600 ? body.slice(0, 600).trimEnd() + "..." : body;
+          body.length > 800 ? body.slice(0, 800).trimEnd() + "..." : body;
         return { summaryShort: short, summaryMedium: medium };
       };
       const mappedArticles =
@@ -405,6 +422,31 @@ function AppShell() {
           </header>
 
           <div className="px-6 py-6 flex-1">
+            {/* First-load welcome screen -- shown until the user
+                dismisses it via one of the CTAs. While visible we hide
+                ALL tab content via a wrapper div so Radix's tablist
+                stays intact (preserves a11y) but nothing else renders
+                in the main pane. */}
+            {showWelcome && (
+              <WelcomeScreen
+                onTryResearch={() => {
+                  markWelcomeSeen();
+                  setShowWelcome(false);
+                  setActiveTab("research");
+                }}
+                onBrowseFeed={() => {
+                  markWelcomeSeen();
+                  setShowWelcome(false);
+                  setActiveTab("feed");
+                }}
+                onSkip={() => {
+                  markWelcomeSeen();
+                  setShowWelcome(false);
+                }}
+              />
+            )}
+
+            <div style={{ display: showWelcome ? "none" : "contents" }}>
             {/* Page-tab cross-fade — every TabsContent's children are
                 wrapped in a motion.div that fades in on mount. Radix
                 unmounts the inactive tab's children, so switching tabs
@@ -536,7 +578,7 @@ function AppShell() {
               ) : (
                 <div
                   data-testid="news-feed-list"
-                  className={`grid gap-4 ${
+                  className={`grid gap-5 ${
                     viewMode === "detailed"
                       ? "grid-cols-1 lg:grid-cols-2"
                       : "grid-cols-1"
@@ -630,6 +672,7 @@ function AppShell() {
                 />
               </motion.div>
             </TabsContent>
+            </div>
           </div>
 
           {/* Toast Notifications */}
