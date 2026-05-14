@@ -69,55 +69,65 @@ class ArticleRepository:
     def _row_to_article(self, row):
         if not row:
             return None
-        
-        # Parse JSON fields safely
-        categories = None
-        if row["categories"]:
+
+        # Tolerate two on-disk schemas:
+        #   A) raw-sqlite3 schema (this file's CREATE TABLE):
+        #        source TEXT, categories TEXT (JSON), no language, no source_id
+        #   B) SQLAlchemy ORM schema (src/database/models.py):
+        #        source_id INTEGER FK, language TEXT, no source TEXT,
+        #        categories live in a separate M2M table
+        # When ingestion_service runs first on a fresh Fly volume it creates
+        # schema B. The news API has historically expected schema A. Rather
+        # than fight the schema war we just read defensively here so the
+        # endpoint never 500s on a column-doesn't-exist error.
+        def _safe(col, default=None):
             try:
-                categories = json.loads(row["categories"])
+                return row[col]
+            except (IndexError, KeyError):
+                return default
+
+        # Categories may be a JSON string (schema A) or absent (schema B --
+        # would need a JOIN to recover, which we skip for now).
+        raw_categories = _safe("categories")
+        categories = None
+        if raw_categories:
+            try:
+                categories = json.loads(raw_categories)
             except (json.JSONDecodeError, TypeError):
                 categories = None
-        
+
+        raw_metadata = _safe("metadata")
         metadata = None
-        if row["metadata"]:
+        if raw_metadata:
             try:
-                metadata = json.loads(row["metadata"])
+                metadata = json.loads(raw_metadata)
             except (json.JSONDecodeError, TypeError):
                 metadata = None
-        
-        # `summary_generated` may not exist on legacy rows fetched before the
-        # ALTER TABLE migration ran on the connected DB; default to False.
-        try:
-            summary_generated = bool(row["summary_generated"])
-        except (IndexError, KeyError):
-            summary_generated = False
-
-        # ``image_url`` was added later via lightweight ALTER TABLE; older
-        # rows may simply not have the column populated. Read defensively.
-        try:
-            image_url = row["image_url"]
-        except (IndexError, KeyError):
-            image_url = None
 
         return Article(
             id=row["id"],
             title=row["title"],
             url=row["url"],
-            content=row["content"],
-            summary=row["summary"],
-            source=row["source"],
-            author=row["author"],
-            published_at=row["published_at"],
+            content=_safe("content"),
+            summary=_safe("summary"),
+            # schema A has 'source' TEXT; schema B has 'source_id' INTEGER FK.
+            # If only source_id is present we surface it as a string so the
+            # frontend has SOMETHING to render in the "source" chip.
+            source=_safe("source")
+                   or (f"source#{row['source_id']}"
+                       if _safe("source_id") is not None else None),
+            author=_safe("author"),
+            published_at=_safe("published_at"),
             categories=categories,
             metadata=metadata,
-            image_url=image_url,
-            created_at=row["created_at"],
-            updated_at=row["updated_at"],
-            is_archived=bool(row["is_archived"]),
-            view_count=row["view_count"] or 0,
-            embedding_generated=bool(row["embedding_generated"]),
-            summary_generated=summary_generated,
-            published_date=row["published_at"]
+            image_url=_safe("image_url"),
+            created_at=_safe("created_at"),
+            updated_at=_safe("updated_at"),
+            is_archived=bool(_safe("is_archived") or False),
+            view_count=_safe("view_count") or 0,
+            embedding_generated=bool(_safe("embedding_generated") or False),
+            summary_generated=bool(_safe("summary_generated") or False),
+            published_date=_safe("published_at"),
         )
     
     async def create(self, article):
@@ -254,11 +264,15 @@ class ArticleRepository:
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
 
+            # Detect which schema is in play so the filter clauses don't
+            # blow up on a column-doesn't-exist error.
+            cols = {r[1] for r in conn.execute("PRAGMA table_info(articles)").fetchall()}
+
             # Build query with optional source + category filters
-            base_query = "FROM articles WHERE is_archived = FALSE"
+            base_query = "FROM articles WHERE is_archived = 0"
             params: list = []
 
-            if source:
+            if source and "source" in cols:
                 base_query += " AND source = ?"
                 params.append(source)
 
@@ -266,7 +280,7 @@ class ArticleRepository:
             # '["AI/ML"]'). We match on the exact quoted token so "AI"
             # doesn't accidentally match "AI/ML" via substring.
             cat_list = [c for c in (categories or []) if c]
-            if cat_list:
+            if cat_list and "categories" in cols:
                 clauses = []
                 for c in cat_list:
                     clauses.append("categories LIKE ?")
