@@ -49,9 +49,13 @@ primary_region = "iad"          # US East. Closest to most early users + lowest 
   # Fly's check never flaps when the SQLite probe is slow or fails. When
   # the check flaps, Fly's proxy serves 5xx errors WITHOUT CORS headers
   # which the browser shows as cryptic "blocked by CORS policy" failures.
-  interval = "30s"
-  timeout = "5s"
-  grace_period = "30s"
+  #
+  # Long timeout + interval -- single-worker uvicorn can briefly head-of-
+  # line block during a slow SQLite query. Better to be slow to mark
+  # critical than to flap.
+  interval = "60s"
+  timeout = "10s"
+  grace_period = "60s"
   method = "GET"
   path = "/health/live"
 
