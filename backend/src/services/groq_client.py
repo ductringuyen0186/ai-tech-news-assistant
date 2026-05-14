@@ -129,16 +129,26 @@ async def groq_stream(
     timeout: Optional[int] = None,
     label: str = "stream",
 ) -> AsyncGenerator[str, None]:
-    """Stream chunks of generated text (OpenAI-style SSE deltas)."""
+    """Stream chunks of generated text (OpenAI-style SSE deltas).
+
+    Caps ``max_tokens`` at 1500 to keep ``input_tokens + max_tokens`` under
+    Groq's free-tier TPM ceiling (12k for 70B-versatile, 6k for 8b-instant).
+    Our synthesis prompt is ~7k tokens; capping output at 1500 gives an
+    ~8.5k request which fits the 70b limit with headroom. A 1500-token
+    report is roughly 1100 words -- plenty for an executive summary.
+    """
     settings = get_settings()
     model = model or settings.groq_model
     timeout = timeout or settings.groq_timeout
+
+    # Free-tier-safe cap. Override the caller's larger num_predict.
+    max_tokens = min(int(num_predict), 1500)
 
     payload = {
         "model": model,
         "messages": _build_messages(prompt),
         "stream": True,
-        "max_tokens": int(num_predict),
+        "max_tokens": max_tokens,
         "temperature": float(temperature),
         "top_p": 0.9,
     }
