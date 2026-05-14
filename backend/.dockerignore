@@ -1,52 +1,39 @@
-# Keep the build context small. Without this, the local virtualenv
-# (~2 GB) and pytest caches get shipped to the daemon and the image
-# build slows to a crawl.
+# Keep the image small — drop dev artifacts the runtime doesn't need.
 
-# Python tooling artefacts
-venv/
-.venv/
-env/
+# Python local artifacts
 __pycache__/
-*.py[cod]
-*$py.class
+*.pyc
+*.pyo
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-.coverage
-htmlcov/
-*.egg-info/
 
-# IDE / editor
-.idea/
+# Virtual environments — the image creates its own /opt/venv
+venv/
+.venv/
+
+# Local SQLite DB (production uses /data/news.db on Fly volume)
+news.db
+news.db-journal
+news_assistant.db
+data/
+
+# Sentence-transformers cache (pre-downloaded at build time into /opt/models)
+models/
+
+# IDE / OS
 .vscode/
+.idea/
+.DS_Store
 *.swp
 
-# Local data — never bake into the image
-data/
-logs/
-*.db
-*.db-journal
-*.sqlite
-*.sqlite3
-
-# Local env (secrets) — env file is mounted into the container at runtime
-.env
-.env.*
-!.env.example
-!.env.testing
-
-# Tests — not strictly needed inside the production image
-tests/
-test_*.py
-*_test.py
-
-# Docker and git metadata
-.dockerignore
-Dockerfile
-.git/
-.gitignore
+# Test artifacts
+htmlcov/
+.coverage
+.tox/
 
 # Misc
 *.log
-backend_log.txt
-models/
+*.tmp
+.env
+.env.local

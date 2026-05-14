@@ -1,46 +1,78 @@
-# Production Dockerfile for AI Tech News Assistant Backend
-FROM python:3.13-slim
+# syntax=docker/dockerfile:1.6
+#
+# TechPulse AI backend image — multi-stage build for a slim runtime.
+#
+# Stage 1 (builder): installs all Python deps into a virtualenv at /opt/venv.
+# Stage 2 (runtime): copies the venv + source, runs uvicorn.
+#
+# Sentence-transformers model (all-MiniLM-L6-v2, ~80MB) is pre-downloaded
+# at image build time and baked into /opt/models so the first request
+# doesn't pay a cold-start download tax.
 
-# Set working directory
-WORKDIR /app
+# ─── builder ────────────────────────────────────────────────────────────────
+FROM python:3.13-slim AS builder
 
-# Install system dependencies
-# build-essential + python3-dev are needed to compile chroma-hnswlib from source
-# on Python 3.13 (no pre-built wheels yet); removed after pip install to keep
-# the image small.
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    sqlite3 \
-    build-essential \
-    python3-dev \
+        build-essential \
+        curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better Docker layer caching
-COPY requirements.txt .
+# Create venv at /opt/venv so the runtime can copy it as a single dir
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
-# Install Python dependencies, then drop the C/C++ toolchain to slim the image.
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt \
-    && apt-get purge -y --auto-remove build-essential python3-dev \
-    && rm -rf /var/lib/apt/lists/*
+# Install Python deps first (this layer is cached unless requirements.txt changes)
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install -r /tmp/requirements.txt
 
-# Copy application code
-COPY . .
+# Pre-download the sentence-transformer model so the runtime doesn't
+# need to hit huggingface.co on first request.
+RUN python -c "from sentence_transformers import SentenceTransformer; m = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2', cache_folder='/opt/models'); print('model cached:', m)"
 
-# Create necessary directories
-RUN mkdir -p /app/data /app/logs
+# ─── runtime ────────────────────────────────────────────────────────────────
+FROM python:3.13-slim AS runtime
 
-# Create non-root user for security
-RUN groupadd -r appuser && useradd -r -g appuser appuser
-RUN chown -R appuser:appuser /app
-USER appuser
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/opt/venv/bin:$PATH" \
+    SENTENCE_TRANSFORMERS_HOME=/opt/models \
+    HF_HOME=/opt/models \
+    # Default DB path inside the Fly volume mount.
+    SQLITE_DATABASE_PATH=/data/news.db \
+    DATABASE_URL=sqlite:////data/news.db
 
-# Expose port
+# Only the bare runtime libs needed; no build tooling in the final image.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libgomp1 \
+        curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --uid 1000 app
+
+# Bring the prebuilt venv + model cache over from builder
+COPY --from=builder /opt/venv /opt/venv
+COPY --from=builder /opt/models /opt/models
+
+# App source
+WORKDIR /app
+COPY . /app
+
+# Ensure the Fly volume mount point exists before uvicorn boots.
+# (Fly mounts `/data` at startup; this directory will be the persistent
+# disk holding news.db, ingestion_runs, front_page_snapshots, etc.)
+RUN mkdir -p /data && chown -R app:app /data /app /opt/models
+
+USER app
+
+# Healthcheck — Fly polls this to decide if the machine is alive.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:8000/health || exit 1
+
 EXPOSE 8000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
-
-# Production command
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+# Single worker is fine for hobby scale; uvicorn auto-reload OFF in prod.
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--log-level", "info"]

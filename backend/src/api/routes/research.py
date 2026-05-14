@@ -292,6 +292,18 @@ async def _stream_research(
 
 @router.post("")
 async def research_stream(request: Request, body: ResearchRequest):
+    # Production feature flag -- skip the agent when LLM provider is
+    # unavailable (e.g. Fly deploy without GROQ_API_KEY set yet).
+    import os
+    if os.environ.get("RESEARCH_ENABLED", "true").lower() in ("0", "false", "no", ""):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Agentic research is temporarily disabled on this deploy. "
+                   "The other tabs (News Feed, Knowledge Graph, Digest, Saved, "
+                   "Settings) still work. Set RESEARCH_ENABLED=true once the "
+                   "LLM provider is configured.",
+        )
+
     """Stream a multi-step research run as Server-Sent Events.
 
     Returns ``text/event-stream`` with one :class:`AgentEvent`-shaped JSON

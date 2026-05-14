@@ -1,0 +1,70 @@
+# fly.toml -- TechPulse AI backend
+#
+# To launch:
+#   cd backend
+#   flyctl auth login        # one-time
+#   flyctl launch --copy-config --no-deploy   # creates the app + volume
+#   flyctl secrets set ADMIN_TOKEN=... GROQ_API_KEY=... INGESTION_ALERT_WEBHOOK=...
+#   flyctl deploy
+#
+# To redeploy after code changes:  flyctl deploy
+# To tail logs:                     flyctl logs
+# To open a shell:                  flyctl ssh console
+
+app = "techpulse-ai-backend"
+primary_region = "iad"          # US East. Closest to most early users + lowest LLM API latency.
+
+[build]
+  # Build the image from backend/Dockerfile (the directory we're in).
+
+[env]
+  # Production runtime defaults; overridable via `flyctl secrets set`.
+  SQLITE_DATABASE_PATH = "/data/news.db"
+  DATABASE_URL = "sqlite:////data/news.db"
+  LLM_PROVIDER = "groq"
+  # CORS allow-list — set the Vercel domain here after first frontend deploy.
+  CORS_ALLOW_ORIGINS = "https://techpulse-ai.vercel.app,http://localhost:3000"
+  # Public health probe budget — past 36h since last ingestion is unhealthy.
+  INGESTION_MAX_AGE_HOURS = "36"
+  PYTHONUNBUFFERED = "1"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "off"    # Keep one machine running — SSE-streaming research needs persistent connections.
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 50
+    soft_limit = 25
+
+[[http_service.checks]]
+  interval = "30s"
+  timeout = "5s"
+  grace_period = "20s"
+  method = "GET"
+  path = "/health"
+
+[mounts]
+  # 1GB persistent volume holds news.db, ingestion_runs, front_page_snapshots,
+  # and the sentence-transformer model cache. Re-creating the volume wipes
+  # the corpus; daily ingestion cron will repopulate it.
+  source = "techpulse_data"
+  destination = "/data"
+  initial_size = "1gb"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"
+  cpus = 1
+  # shared-cpu-1x with 1GB RAM stays inside Fly's free hobby tier when
+  # only one machine is running. The sentence-transformer model needs
+  # ~400MB resident; that leaves enough headroom for the FastAPI process.
+
+# Daily ingestion cron is handled by GitHub Actions in .github/workflows/
+# daily-ingestion.yml, NOT a Fly machine. APScheduler inside the running
+# app is the in-process fallback; the GitHub workflow guarantees the run
+# even if the Fly machine crashes overnight.
