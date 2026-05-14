@@ -9,11 +9,15 @@ const getApiBaseUrl = (): string => {
   if (viteEnv?.VITE_API_BASE_URL) {
     return viteEnv.VITE_API_BASE_URL;
   }
+  // Production fallback -- if VITE_API_BASE_URL didn't get baked in for
+  // some reason (missing .env.production, missing Vercel project env var),
+  // any *.vercel.app host points at the live Fly.io backend so the app
+  // still works. localhost stays on the dev backend.
   if (
     typeof window !== "undefined" &&
     window.location.hostname.includes("vercel.app")
   ) {
-    return "https://ai-tech-news-assistant-backend.onrender.com";
+    return "https://techpulse-ai-backend.fly.dev";
   }
   return "http://localhost:8000";
 };
