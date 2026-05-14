@@ -37,10 +37,11 @@ import { API_ENDPOINTS, apiFetch } from "./config/api";
 function AppShell() {
   const [articles, setArticles] = useState<any[]>([]);
   const [filteredArticles, setFilteredArticles] = useState<any[]>([]);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([
-    "AI",
-    "Machine Learning",
-  ]);
+  // Start with no category filters so the News Feed shows every ingested
+  // article on first load. Previously we pre-applied ["AI", "Machine
+  // Learning"] which hid every article whose RSS categories didn't include
+  // those exact strings -- 'No articles found' on a fully-populated DB.
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   // Polish iter 3 / Part D — entities the user has chip-toggled from the
   // TrendingRail. Kept separate from ``selectedCategories`` (which still
   // hits the backend ``?category=`` filter) because entity names are NOT
