@@ -46,6 +46,7 @@ class LLMProvider(str, Enum):
     ANTHROPIC = "anthropic"
     OLLAMA = "ollama"
     HUGGINGFACE = "huggingface"
+    GROQ = "groq"
 
 
 class Settings(BaseSettings):
@@ -115,6 +116,16 @@ class Settings(BaseSettings):
     ollama_model: str = Field(default="llama3.2", alias="OLLAMA_MODEL")
     ollama_timeout: int = Field(default=60, alias="OLLAMA_TIMEOUT", ge=1, le=300)
     ollama_keep_alive: str = Field(default="5m", alias="OLLAMA_KEEP_ALIVE")
+
+    # Groq settings (OpenAI-compatible API; used when DEFAULT_LLM_PROVIDER=groq).
+    groq_api_key: Optional[SecretStr] = Field(default=None, alias="GROQ_API_KEY")
+    groq_base_url: str = Field(
+        default="https://api.groq.com/openai/v1", alias="GROQ_BASE_URL"
+    )
+    groq_model: str = Field(
+        default="llama-3.3-70b-versatile", alias="GROQ_MODEL"
+    )
+    groq_timeout: int = Field(default=120, alias="GROQ_TIMEOUT", ge=1, le=600)
     
     # Embedding settings
     embedding_model: str = Field(default="all-MiniLM-L6-v2", alias="EMBEDDING_MODEL")

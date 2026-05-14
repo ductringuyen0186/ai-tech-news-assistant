@@ -1250,7 +1250,29 @@ class AgenticResearchService:
         temperature: float = 0.2,
         label: str = "generate",
     ) -> str:
-        """Send ``prompt`` to ``/api/generate`` and return the response text."""
+        """Send ``prompt`` to the configured LLM and return the response text.
+
+        Despite the name, this dispatches based on
+        ``settings.default_llm_provider``: ``ollama`` (default, hits the
+        local Ollama server) or ``groq`` (the OpenAI-compatible cloud API,
+        used in prod where Ollama isn't available). Other call sites
+        upstream still say "_ollama_" -- kept for grep continuity.
+        """
+        from ..core.config import LLMProvider as _LLMProvider
+        from .groq_client import groq_generate
+
+        settings = get_settings()
+        if settings.default_llm_provider == _LLMProvider.GROQ:
+            async with self._ollama_call(label) as info:
+                text, token_count = await groq_generate(
+                    prompt,
+                    num_predict=num_predict,
+                    temperature=temperature,
+                    label=label,
+                )
+                info["token_count"] = token_count
+                return text
+
         payload: Dict[str, Any] = {
             "model": self.model,
             "prompt": prompt,
@@ -1319,6 +1341,25 @@ class AgenticResearchService:
            thinking content as the report -- better a slightly raw
            reasoning trace than a hard failure.
         """
+        # Provider dispatch -- when DEFAULT_LLM_PROVIDER=groq we stream from
+        # Groq's OpenAI-compatible SSE endpoint instead of Ollama's NDJSON.
+        from ..core.config import LLMProvider as _LLMProvider
+        from .groq_client import groq_stream
+
+        if get_settings().default_llm_provider == _LLMProvider.GROQ:
+            async with self._ollama_call(label) as info:
+                token_count = 0
+                async for chunk in groq_stream(
+                    prompt,
+                    num_predict=num_predict,
+                    temperature=temperature,
+                    label=label,
+                ):
+                    token_count += 1
+                    yield chunk
+                info["token_count"] = token_count
+            return
+
         payload: Dict[str, Any] = {
             "model": self.model,
             "prompt": prompt,

@@ -222,9 +222,25 @@ class SummarizationService:
         self, prompt: str, style: Optional[str] = None
     ) -> tuple[str, int]:
         """
-        Send the prompt to Ollama's /api/generate endpoint and return the
-        response text plus an approximate word count.
+        Send the prompt to the configured LLM and return ``(text, word_count)``.
+
+        Dispatches on ``settings.default_llm_provider``:
+          * ``groq``   -> :func:`groq_client.groq_generate` (cloud, prod default)
+          * anything else -> local Ollama at ``/api/generate``
         """
+        # --- Groq path (prod default; no local Ollama available on Fly) ---
+        from ..core.config import LLMProvider as _LLMProvider
+        from .groq_client import groq_generate
+
+        if settings.default_llm_provider == _LLMProvider.GROQ:
+            return await groq_generate(
+                prompt,
+                num_predict=min(self.max_length * 2, 1024),
+                temperature=self.temperature,
+                label="summarize",
+            )
+
+        # --- Ollama path (local dev) ---
         payload: Dict[str, Any] = {
             "model": self.model,
             "prompt": prompt,
