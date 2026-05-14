@@ -220,6 +220,7 @@ async def test_happy_path_all_phases_succeed(monkeypatch, tmp_db):
         "summarize",
         "embed",
         "entity_extract",
+        "front_page",
     }
     assert _phase(report, "fetch").processed == 5
     # Two unsummarised articles in the fixture.
@@ -375,5 +376,5 @@ async def test_ingestion_runs_row_persisted_after_run(monkeypatch, tmp_db):
     parsed = _json.loads(report_json)
     assert parsed["health_status"] == report.health_status
     assert {p["name"] for p in parsed["phases"]} == {
-        "fetch", "summarize", "embed", "entity_extract"
+        "fetch", "summarize", "embed", "entity_extract", "front_page"
     }

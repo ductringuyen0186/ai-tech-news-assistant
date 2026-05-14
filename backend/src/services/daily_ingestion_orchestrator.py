@@ -133,6 +133,7 @@ async def run_daily_ingestion(
     summarize: bool = True,
     embed: bool = True,
     extract_entities: bool = True,
+    precompute_front_page: bool = True,
     dry_run: bool = False,
 ) -> DailyIngestionReport:
     """Run the full daily ingestion pipeline.
@@ -147,10 +148,12 @@ async def run_daily_ingestion(
         :pyattr:`IngestionService.DEFAULT_FEEDS`. Each entry is treated
         as a feed URL; ``name`` and ``category`` fall back to safe
         defaults.
-    summarize, embed, extract_entities
+    summarize, embed, extract_entities, precompute_front_page
         Phase toggles. Each defaults to ``True``. Set to ``False`` to
         skip the corresponding phase entirely (no work-set query, no
-        writes, no PhaseReport entry).
+        writes, no PhaseReport entry). ``precompute_front_page`` runs
+        the 5th phase that bakes the daily News Feed snapshot into
+        ``front_page_snapshots``.
     dry_run
         When ``True`` every phase computes its work-set size but writes
         nothing. Used by the admin endpoint smoke test.
@@ -201,6 +204,16 @@ async def run_daily_ingestion(
             await _run_phase(
                 "entity_extract",
                 _phase_entities,
+                db_path=resolved_db,
+                dry_run=dry_run,
+            )
+        )
+
+    if precompute_front_page:
+        phases.append(
+            await _run_phase(
+                "front_page",
+                _phase_precompute_front_page,
                 db_path=resolved_db,
                 dry_run=dry_run,
             )
@@ -544,6 +557,44 @@ async def _phase_entities(
             logger.warning(
                 "[entity_extract] article %s failed: %s", article_id, exc
             )
+
+
+async def _phase_precompute_front_page(
+    *,
+    report: PhaseReport,
+    db_path: str,
+    dry_run: bool,
+) -> None:
+    """Phase 5: bake the daily News Feed front-page snapshot.
+
+    Delegates to :func:`compute_front_page` which selects the lead
+    story, 3-card deck (with source diversity), category sections, and
+    trending entities, then UPSERTs them into ``front_page_snapshots``.
+
+    ``processed`` counts the total article slots filled (lead + deck +
+    section cards) so a green dashboard can see the snapshot was
+    non-trivial. ``dry_run=True`` skips compute entirely.
+    """
+    if dry_run:
+        logger.info("[front_page] dry_run=True; skipping snapshot compute")
+        return
+
+    # Lazy import: keeps this module cheap to load for the scheduler
+    # bootstrap path and lets tests patch ``compute_front_page`` on
+    # the source module directly.
+    from src.services.front_page_precompute import compute_front_page
+
+    try:
+        snapshot = await compute_front_page(db_path)
+        report.processed = (
+            (1 if snapshot.lead else 0)
+            + len(snapshot.deck)
+            + sum(len(s.articles) for s in snapshot.sections)
+        )
+    except Exception as exc:  # noqa: BLE001 - phase-level isolation
+        report.failed = 1
+        report.add_error(f"compute_front_page crashed: {exc}"[:200])
+        logger.exception("[front_page] compute_front_page crashed")
 
 
 # --------------------------------------------------------------------- #

@@ -325,6 +325,49 @@ async def search_articles(
         )
 
 
+@router.get("/front-page", response_model=Dict[str, Any])
+async def get_front_page(
+    date: Optional[str] = Query(default=None, description="YYYY-MM-DD; defaults to latest snapshot"),
+    recompute: bool = Query(default=False, description="Force fresh computation"),
+) -> Dict[str, Any]:
+    """
+    Return the precomputed News Feed front-page composition.
+
+    The daily ingestion orchestrator bakes a snapshot into the
+    ``front_page_snapshots`` table at the end of each run (5th phase).
+    This endpoint serves that snapshot in a single query. With
+    ``recompute=true`` callers can force a fresh compute (admin
+    debugging / smoke tests). If no snapshot exists yet on a fresh DB
+    we fall back to live-compute so the UI is never blank.
+    """
+    from ...core.config import get_settings
+    from ...services.front_page_precompute import (
+        compute_front_page,
+        load_latest_snapshot,
+    )
+
+    settings = get_settings()
+    db_path = settings.get_database_path()
+    if db_path.startswith("sqlite:///"):
+        db_path = db_path.replace("sqlite:///", "")
+
+    try:
+        if recompute:
+            snap = await compute_front_page(db_path)
+        else:
+            snap = load_latest_snapshot(db_path, date)
+            if snap is None:
+                # No snapshot yet (fresh DB or first deploy). Live-
+                # compute on the fly so the response is always usable.
+                snap = await compute_front_page(db_path)
+        return snap.to_dict()
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to load front page: {str(e)}",
+        )
+
+
 @router.get("/{article_id}", response_model=BaseResponse[Article])
 async def get_article(
     article_id: int,
