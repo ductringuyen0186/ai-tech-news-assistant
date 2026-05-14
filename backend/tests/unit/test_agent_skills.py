@@ -596,4 +596,8 @@ class TestAgentSkillsPackage:
         ):
             assert hasattr(agent_skills, name), f"missing export: {name}"
             tool_obj = getattr(agent_skills, name)
-            # @tool-decora
+            # @tool-decorated objects expose .name and .ainvoke.
+            assert hasattr(tool_obj, "ainvoke"), (
+                f"{name} does not look like a LangChain tool"
+            )
+            assert hasattr(tool_obj, "name")

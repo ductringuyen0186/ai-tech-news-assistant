@@ -323,7 +323,7 @@ async def find_similar_articles(
         reference_embedding, _ = result
         
         # Find similar articles
-        similar_results = await embedding_repo.similarity_search(
+        similar_results = embedding_repo.similarity_search(
             query_embedding=reference_embedding,
             model_name=model_name,
             top_k=limit + 1,  # +1 because the reference article might be included
@@ -423,21 +423,40 @@ async def semantic_search(
         Dict with results containing full article objects and similarity scores
     """
     try:
-        # Generate embedding for the query
+        # Try vector search first; if no embeddings exist yet, fall back below.
         from ...models.embedding import EmbeddingRequest
         embedding_request = EmbeddingRequest(texts=[request.query], batch_size=1)
         embedding_response = await embedding_service.generate_embeddings(embedding_request)
         query_embedding = embedding_response.embeddings[0]
-        
-        # Find similar items
-        similar_results = await embedding_repo.similarity_search(
+
+        try:
+            similar_results = embedding_repo.similarity_search(
             query_embedding=query_embedding,
             model_name=embedding_response.model_name,
             top_k=request.limit,
             similarity_threshold=request.threshold,
-            content_type=request.content_type
-        )
+            content_type=request.content_type,
+            )
+        except Exception as exc:
+            # No embeddings table / no rows yet - fall back to a keyword search
+            # so the Research tab still returns something useful.
+            similar_results = []
+            import logging as _logging
+            _logging.getLogger(__name__).info(
+                "vector similarity_search unavailable, falling back to keyword: %s", exc
+            )
         
+        # If vector search produced nothing, do a keyword search via the
+        # article repo so the user always gets some response.
+        if not similar_results:
+            kw_articles = await article_repo.search_articles(request.query, request.limit)
+            return {
+                "results": [{"article": a, "score": 0.5} for a in (kw_articles or [])],
+                "query": request.query,
+                "total": len(kw_articles or []),
+                "fallback_used": "keyword",
+            }
+
         # Fetch full article details for each result
         results_with_articles = []
         for result in similar_results:

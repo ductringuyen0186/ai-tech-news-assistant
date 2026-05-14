@@ -25,11 +25,11 @@ except ImportError:
         from .fallback_deps import FallbackTorch as torch
         from .fallback_deps import FallbackNumpy as np
 
-from utils.logger import get_logger
-from utils.config import get_settings
+import logging
+# from utils.config import get_settings  # stub
 
-logger = get_logger(__name__)
-settings = get_settings()
+logger = logging.getLogger(__name__)
+settings = None  # legacy reference
 
 
 class EmbeddingGenerator:

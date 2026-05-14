@@ -598,4 +598,13 @@ SCRATCH.md
 TODO.md
 TEMP*.md
 
-# Keep important docs (negative pattern to override a
+# Keep important docs (negative pattern to override above)
+!README.md
+!docs/**/*.md
+!.github/**/*.md
+# Sentence-transformers / HuggingFace model caches (large, regenerated at runtime)
+models/
+backend/models/
+
+# Windows accidental "nul" artifact from cmd redirects
+nul

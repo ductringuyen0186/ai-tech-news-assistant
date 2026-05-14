@@ -26,11 +26,11 @@ except ImportError:
     CHROMADB_AVAILABLE = False
 
 from vectorstore.embeddings import EmbeddingGenerator
-from utils.logger import get_logger
-from utils.config import get_settings
+import logging
+# from utils.config import get_settings  # stub
 
-logger = get_logger(__name__)
-settings = get_settings()
+logger = logging.getLogger(__name__)
+settings = None  # legacy reference
 
 
 class ChromaVectorStore:

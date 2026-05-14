@@ -292,3 +292,6 @@ async def test_compute_runs_inside_orchestrator(monkeypatch, seeded_db):
     )
 
     # Exactly one call into compute_front_page, against our seeded DB.
+    assert calls == [seeded_db]
+    # And the new phase appears in the report.
+    assert any(p.name == "front_page" for p in report.phases)

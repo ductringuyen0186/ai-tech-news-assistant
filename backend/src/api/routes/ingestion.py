@@ -3,9 +3,10 @@ Ingestion Routes
 ===============
 
 API endpoints for managing news article ingestion:
-- POST /api/ingest - Trigger manual ingestion
-- GET /api/ingest/status - Get latest ingestion status
-- GET /api/ingest/stats - Get ingestion statistics
+- POST /api/ingest             - Trigger manual ingestion (+ auto-summarize)
+- POST /api/ingest/summarize-pending - Run summarizer over un-summarized rows
+- GET  /api/ingest/status      - Get latest ingestion status
+- GET  /api/ingest/stats       - Get ingestion statistics
 """
 
 import logging
@@ -17,11 +18,12 @@ from pydantic import BaseModel
 from src.database.base import get_db
 from src.database.session import DatabaseManager
 from src.services.ingestion_service import IngestionService
+from src.services.summarization_orchestrator import SummarizationOrchestrator
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/ingest", tags=["ingestion"])
 
-# Store latest ingestion result globally (in production, use Redis or database)
+# Latest ingestion result (in-process; OK for a single uvicorn worker).
 latest_ingestion_result = None
 
 
@@ -29,6 +31,7 @@ class IngestRequest(BaseModel):
     """Request model for ingestion endpoint."""
     sources: Optional[List[Dict[str, str]]] = None
     background: bool = True
+    auto_summarize: bool = True
 
 
 class IngestResponse(BaseModel):
@@ -48,122 +51,146 @@ class IngestStatusResponse(BaseModel):
 async def trigger_ingestion(
     request: IngestRequest = Body(...),
     background_tasks: BackgroundTasks = None,
-    db=Depends(get_db)
+    db=Depends(get_db),
 ):
     """
-    Trigger news article ingestion from configured RSS feeds.
-    
-    Can run in foreground or background based on request.
-    
-    Args:
-        request: IngestRequest with optional custom sources
-        background_tasks: FastAPI background tasks
-        db: Database session
-        
-    Returns:
-        IngestResponse with job information
-        
-    Raises:
-        HTTPException: 500 if ingestion fails
+    Trigger news article ingestion from configured RSS feeds. After ingestion
+    completes (background or foreground), articles missing AI summaries are
+    fed through the SummarizationOrchestrator unless auto_summarize is False.
     """
     try:
         ingestion_service = IngestionService(db)
-        
+
         if request.background and background_tasks:
-            # Run in background
             background_tasks.add_task(
                 _run_ingestion,
                 ingestion_service,
-                request.sources
+                request.sources,
+                request.auto_summarize,
             )
             return IngestResponse(
                 message="Ingestion started in background",
                 job_id="bg_ingest_001",
-                background=True
+                background=True,
             )
-        else:
-            # Run in foreground
-            result = ingestion_service.ingest_all(request.sources)
-            ingestion_service.close()
-            
-            global latest_ingestion_result
-            latest_ingestion_result = result
-            
-            return IngestResponse(
-                message=f"Ingestion completed: {result.total_articles_saved} articles saved",
-                background=False
-            )
-    
-    except Exception as e:
-        logger.error(f"Ingestion failed: {e}", exc_info=True)
+
+        # Foreground path
+        result = ingestion_service.ingest_all(request.sources)
+        ingestion_service.close()
+
+        global latest_ingestion_result
+        latest_ingestion_result = result
+
+        summary_msg = ""
+        if request.auto_summarize and result.total_articles_saved > 0:
+            try:
+                orchestrator = SummarizationOrchestrator()
+                summ_result = await orchestrator.run_pending(limit=20)
+                summary_msg = (
+                    f"; summarized {summ_result.summarized}/"
+                    f"{summ_result.requested}"
+                )
+            except Exception as exc:
+                logger.error(
+                    "Foreground summarization failed: %s", exc, exc_info=True
+                )
+                summary_msg = "; summarization failed (see logs)"
+
+        return IngestResponse(
+            message=(
+                f"Ingestion completed: {result.total_articles_saved} articles "
+                f"saved{summary_msg}"
+            ),
+            background=False,
+        )
+
+    except Exception as exc:
+        logger.error("Ingestion failed: %s", exc, exc_info=True)
         raise HTTPException(
-            status_code=500,
-            detail=f"Ingestion failed: {str(e)}"
+            status_code=500, detail=f"Ingestion failed: {exc}"
+        )
+
+
+@router.post("/summarize-pending")
+async def summarize_pending(limit: int = 50):
+    """
+    Run the summarization orchestrator over articles still missing an AI
+    summary. Use this for backfill or as a manual trigger when ingestion was
+    started with auto_summarize=False.
+    """
+    try:
+        orchestrator = SummarizationOrchestrator()
+        result = await orchestrator.run_pending(limit=limit)
+        return {"success": True, "result": result.to_dict()}
+    except Exception as exc:
+        logger.error("summarize-pending failed: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=500, detail=f"Failed to run summarization: {exc}"
         )
 
 
 @router.get("/status", response_model=IngestStatusResponse)
 async def get_ingestion_status():
-    """
-    Get the status of the latest ingestion operation.
-    
-    Returns:
-        IngestStatusResponse with latest ingestion result
-    """
+    """Get the status of the latest ingestion operation."""
     global latest_ingestion_result
-    
     if latest_ingestion_result is None:
-        return IngestStatusResponse(
-            status="no_ingestion_run",
-            result=None
-        )
-    
+        return IngestStatusResponse(status="no_ingestion_run", result=None)
     return IngestStatusResponse(
         status=latest_ingestion_result.status.value,
-        result=latest_ingestion_result.to_dict()
+        result=latest_ingestion_result.to_dict(),
     )
 
 
 @router.get("/stats")
 async def get_ingestion_stats(db=Depends(get_db)):
-    """
-    Get ingestion statistics and database metrics.
-    
-    Args:
-        db: Database session
-        
-    Returns:
-        Dictionary with statistics about articles, sources, and categories
-    """
+    """Get ingestion statistics from the database."""
     try:
         ingestion_service = IngestionService(db)
         stats = ingestion_service.get_stats()
         ingestion_service.close()
         return stats
-    except Exception as e:
-        logger.error(f"Failed to get stats: {e}", exc_info=True)
+    except Exception as exc:
+        logger.error("Failed to get stats: %s", exc, exc_info=True)
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get stats: {str(e)}"
+            status_code=500, detail=f"Failed to get stats: {exc}"
         )
 
 
-def _run_ingestion(service: IngestionService, sources: Optional[List[Dict[str, str]]]):
+async def _run_ingestion(
+    service: IngestionService,
+    sources: Optional[List[Dict[str, str]]],
+    auto_summarize: bool = True,
+    summarize_limit: int = 20,
+):
     """
-    Background task for running ingestion.
-    
-    Args:
-        service: IngestionService instance
-        sources: Optional custom sources
+    Background task: run ingestion, then (optionally) summarize new articles.
+
+    Summarization runs only after a successful ingest that actually saved
+    new articles. Failures here are logged but do not propagate, so a broken
+    Ollama install never masks an otherwise-good ingestion run.
     """
     global latest_ingestion_result
-    
     try:
         result = service.ingest_all(sources)
         latest_ingestion_result = result
-        logger.info(f"Background ingestion completed: {result.to_dict()}")
-    except Exception as e:
-        logger.error(f"Background ingestion failed: {e}", exc_info=True)
-    finally:
+        logger.info("Background ingestion completed: %s", result.to_dict())
+    except Exception as exc:
+        logger.error("Background ingestion failed: %s", exc, exc_info=True)
+        try:
+            service.close()
+        finally:
+            return
+    else:
         service.close()
 
+    if not auto_summarize or result.total_articles_saved <= 0:
+        return
+
+    try:
+        orchestrator = SummarizationOrchestrator()
+        summ_result = await orchestrator.run_pending(limit=summarize_limit)
+        logger.info(
+            "Post-ingest summarization complete: %s", summ_result.to_dict()
+        )
+    except Exception as exc:
+        logger.error("Post-ingest summarization failed: %s", exc, exc_info=True)

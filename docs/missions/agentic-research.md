@@ -158,9 +158,18 @@ single source of truth for the run.
 - **Next step:** Phase 2 — surface plan to user and wait for explicit
   approval before spawning M1 worker.
 
-### Phase 3 log (to be filled in during execution)
-_Each milestone appends a one-paragraph entry: worker commit SHA,
-validator verdicts, retries, learnings. Empty until Phase 2 unlocks._
+### Phase 3 log
+
+**M1 — Agent core service** *(2026-05-08, PASS)*
+- Worker commit: `d3773be` — `feat(agent): M1 — AgenticResearchService decompose-search-synthesize loop`
+- Files: `backend/src/services/agentic_research_service.py` (NEW, ~787 lines), `backend/src/models/article.py` (+`AgentEvent`), `backend/src/models/__init__.py` (export), `backend/tests/unit/test_agentic_research_service.py` (NEW, 9 tests)
+- Tests: 9/9 unit tests pass; 16-test contract suite skipped at validator (sandbox can't reach live backend) but diff is purely additive — no HTTP route, no existing test/route modified
+- Scrutiny verdict: PASS, no required fixes
+- Retries: 0
+- **Note for M2 worker:** the `done` event payload has the report on `event["report"]` (not `event["data"]` — `data` carries the literal string `"done"`). M2's SSE serializer must include the `report` key in the `data:` JSON frame. Validator flagged this as non-blocking but worth surfacing.
+- Bonus discovery: `SearchService.search(SearchRequest(...))` is already a clean async Python entry point — no refactor needed to expose semantic-search internals.
+
+**M2 — SSE endpoint** _(in progress)_
 
 ---
 

@@ -2,364 +2,327 @@
 Summarization Service
 ==================
 
-Business logic for LLM-based text summarization using OpenAI-compatible API.
-Handles content summarization with proper validation and response processing.
+Business logic for LLM-based text summarization using Ollama (local LLM).
+
+Replaces the prior MagicMock-based stub with a real, async Ollama HTTP client.
+The public interface (`summarize_content`, `batch_summarize`, `health_check`) is
+preserved so existing routes and tests continue to work; internal calls now hit
+a running Ollama server (default http://localhost:11434).
 """
 
 import asyncio
 import logging
-from typing import List, Dict, Any, Optional
-from datetime import datetime, timezone
 import re
 import time
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+
+import httpx
 
 from ..core.config import get_settings
 from ..core.exceptions import LLMError, ValidationError
-from ..models.article import (
-    SummarizationRequest,
-    ArticleSummary
-)
+from ..models.article import ArticleSummary, SummarizationRequest
 
 settings = get_settings()
-
 logger = logging.getLogger(__name__)
 
 
 class SummarizationService:
     """
-    Service for handling LLM-based text summarization.
-    
-    This service provides OpenAI-compatible API for text summarization
-    with proper validation, prompt optimization, and response processing.
+    Service for handling LLM-based text summarization via Ollama.
+
+    Configuration is read from `Settings`:
+      - settings.ollama_host    (default: http://localhost:11434)
+      - settings.ollama_model   (default: llama3.2)
+      - settings.ollama_timeout (default: 60s)
+
+    The service is safe to instantiate even when Ollama is not running; failures
+    only surface when `summarize_content` / `health_check` are actually called.
     """
-    
+
+    # Min/max content lengths accepted for summarization
+    MIN_CONTENT_LENGTH = 10
+    MAX_CONTENT_LENGTH = 100_000  # 100k chars
+    # Approximate char limit we forward to the LLM (keeps prompts within context)
+    MAX_PROMPT_CHARS = 8_000
+
     def __init__(self, skip_api_key_validation: bool = False):
-        """Initialize the summarization service."""
-        import sys
-        
-        self.model = getattr(settings, 'summarization_model', 'gpt-3.5-turbo')
-        self.max_length = getattr(settings, 'max_summary_length', 150)
-        self.temperature = getattr(settings, 'temperature', 0.7)
-        self.api_key = getattr(settings, 'openai_api_key', None)
-        
-        # Validate API key (skip in testing environment)
-        is_testing = (
-            skip_api_key_validation or
-            getattr(settings, 'is_testing', lambda: False)() or 
-            'pytest' in sys.modules or 
-            'unittest' in sys.modules
+        """
+        Initialize the summarization service.
+
+        Args:
+            skip_api_key_validation: kept for backward compatibility with prior
+                signature; Ollama does not require an API key, so this is a no-op.
+        """
+        # Read Ollama configuration
+        self.base_url: str = getattr(
+            settings, "ollama_host", "http://localhost:11434"
+        ).rstrip("/")
+        self.model: str = getattr(settings, "ollama_model", "llama3.2")
+        self.timeout: int = getattr(settings, "ollama_timeout", 60)
+
+        # Generation defaults (overridable per-request via SummarizationRequest)
+        self.max_length: int = getattr(settings, "max_summary_length", 200)
+        self.temperature: float = getattr(settings, "temperature", 0.3)
+
+        logger.info(
+            "SummarizationService initialised (provider=ollama, model=%s, host=%s)",
+            self.model,
+            self.base_url,
         )
-        
-        if not self.api_key and not is_testing:
-            raise ValueError("OpenAI API key is required")
-        
-        # Initialize OpenAI-compatible client
-        self.client = self._create_openai_client()
-        
-    def _create_openai_client(self):
-        """Create OpenAI-compatible client."""
-        try:
-            # Mock client for testing
-            from unittest.mock import MagicMock
-            client = MagicMock()
-            
-            # Create mock structure: client.chat.completions.create
-            client.chat = MagicMock()
-            client.chat.completions = MagicMock()
-            client.chat.completions.create = MagicMock()
-            
-            return client
-        except Exception:
-            # In production, would create actual OpenAI client
-            return None
-    
-    async def summarize_content(self, request: SummarizationRequest) -> ArticleSummary:
+
+    # ------------------------------------------------------------------ #
+    #  Public API
+    # ------------------------------------------------------------------ #
+
+    async def summarize_content(
+        self, request: SummarizationRequest
+    ) -> ArticleSummary:
         """
-        Summarize the provided content using LLM.
-        
+        Summarize the provided content using Ollama.
+
         Args:
-            request: The summarization request containing content and parameters
-            
+            request: SummarizationRequest with content and parameters
+
         Returns:
-            ArticleSummary: The summarized content with metadata
-            
+            ArticleSummary with summary text and metadata
+
         Raises:
-            ValidationError: If content is invalid
-            LLMError: If summarization fails
+            ValidationError: if content fails validation
+            LLMError: if the Ollama call fails
         """
+        start_time = time.time()
+
+        # Validate content
+        if not self._validate_content(request.content):
+            raise ValidationError("Content validation failed")
+
+        target_length = getattr(request, "max_length", None) or self.max_length
+        style = getattr(request, "style", None)
+
+        prompt = self._get_summary_prompt(request.content, target_length, style)
+
         try:
-            start_time = time.time()
-            
-            # Validate content
-            if not self._validate_content(request.content):
-                raise ValidationError("Content validation failed")
-            
-            # Get summary prompt
-            prompt = self._get_summary_prompt(request.content, request.max_length)
-            
-            # Call OpenAI-compatible API
-            response, word_count = await self._call_llm(prompt, request.style if hasattr(request, 'style') else None)
-            
-            # Clean and validate summary
-            summary = self._clean_summary(response)
-            
-            # Calculate processing time
-            processing_time = self._calculate_processing_time(start_time)
-            
-            return ArticleSummary(
-                summary=summary,
-                word_count=word_count,
-                original_length=len(request.content),
-                summary_length=len(summary),
-                compression_ratio=len(summary) / len(request.content),
-                processing_time=processing_time,
-                model_used=self.model,
-                created_at=datetime.now(timezone.utc)
-            )
-            
-        except ValidationError:
+            response_text, word_count = await self._call_llm(prompt, style)
+        except (httpx.HTTPError, asyncio.TimeoutError) as exc:
+            logger.error("Ollama HTTP failure: %s", exc, exc_info=True)
+            raise LLMError(f"Ollama call failed: {exc}") from exc
+        except LLMError:
             raise
-        except Exception as e:
-            logger.error(f"Summarization failed: {str(e)}")
-            raise LLMError(f"Summarization failed: {str(e)}")
-    
-    async def batch_summarize(self, requests: List[SummarizationRequest]) -> List[ArticleSummary]:
-        """
-        Summarize multiple pieces of content in batch.
-        
-        Args:
-            requests: List of summarization requests
-            
-        Returns:
-            List[ArticleSummary]: List of summarized content
-            
-        Raises:
-            ValidationError: If any content is invalid
-            LLMError: If batch summarization fails
-        """
-        try:
-            # Process requests in batches
-            batch_size = 5
-            results = []
-            
-            for i in range(0, len(requests), batch_size):
-                batch = requests[i:i + batch_size]
-                
-                # Process batch concurrently
-                tasks = [self.summarize_content(req) for req in batch]
-                batch_results = await asyncio.gather(*tasks, return_exceptions=True)
-                
-                # Collect successful results
-                for result in batch_results:
-                    if isinstance(result, ArticleSummary):
-                        results.append(result)
-                    else:
-                        # Log error but continue with other summaries
-                        logger.error(f"Batch summarization error: {result}")
-            
-            return results
-            
-        except Exception as e:
-            logger.error(f"Batch summarization failed: {str(e)}")
-            raise LLMError(f"Failed to process batch summarization: {str(e)}")
-    
-    async def _call_llm(self, prompt: str, style: Optional[str] = None) -> tuple[str, int]:
-        """
-        Call the LLM with the given prompt.
-        
-        Args:
-            prompt: The prompt to send to the LLM
-            style: Optional style for summarization
-            
-        Returns:
-            tuple: (response_content, word_count)
-            
-        Raises:
-            LLMError: If the LLM call fails
-        """
-        try:
-            if not self.client:
-                raise LLMError("OpenAI client not initialized")
-            
-            # Create system message based on style
-            system_message = "You are a helpful assistant that summarizes text."
-            if style:
-                style_instructions = {
-                    "bullet_points": "You are a helpful assistant that creates bullet points summaries.",
-                    "detailed": "You are a helpful assistant that creates detailed summaries.",
-                    "technical": "You are a helpful assistant that creates technical summaries.",
-                    "executive": "You are a helpful assistant that creates executive summaries."
-                }
-                system_message = style_instructions.get(style, system_message)
-            
-            # Make the call
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": system_message},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=self.max_length,
-                temperature=self.temperature
-            )
-            
-            if not response.choices or not response.choices[0].message:
-                raise LLMError("No summary generated")
-            
-            content = response.choices[0].message.content
-            word_count = getattr(response.usage, 'total_tokens', len(content.split())) if hasattr(response, 'usage') else len(content.split())
-            
-            return content, word_count
-            
-        except Exception as e:
-            logger.error(f"LLM call failed: {str(e)}")
-            raise LLMError(f"Failed to call LLM: {str(e)}")
-    
-    def _get_summary_prompt(self, content: str, target_length: Optional[int] = None) -> str:
-        """
-        Generate an optimized prompt for summarization.
-        
-        Args:
-            content: The content to summarize
-            target_length: Optional target length for the summary
-            
-        Returns:
-            str: The formatted prompt
-        """
-        length_instruction = ""
-        if target_length:
-            length_instruction = f" Keep the summary to approximately {target_length} words."
-        elif self.max_length:
-            length_instruction = f" Keep the summary to approximately {self.max_length} words."
-        
-        # Handle different summary styles
-        style_instructions = {
-            "concise": "Please provide a concise summary",
-            "detailed": "Please provide a detailed summary",
-            "bullet_points": "Please provide a bullet points summary",
-            "technical": "Please provide a technical summary",
-            "executive": "Please provide an executive summary"
-        }
-        
-        # Check if content is actually a style (for test cases)
-        if content in style_instructions:
-            style_instruction = style_instructions.get(content, "Please provide a concise summary")
-        else:
-            style_instruction = "Please provide a concise summary"
-        
-        prompt = f"""{style_instruction} of the following text.{length_instruction}
+        except Exception as exc:  # noqa: BLE001 - last-resort catch-all
+            logger.error("Summarization failed: %s", exc, exc_info=True)
+            raise LLMError(f"Summarization failed: {exc}") from exc
 
-Text to summarize:
-{content}
-
-Summary:"""
-        
-        return prompt
-    
-    def _validate_content(self, content: str) -> bool:
-        """
-        Validate the content before summarization.
-        
-        Args:
-            content: The content to validate
-            
-        Returns:
-            bool: True if content is valid, False otherwise
-        """
-        if not content or not content.strip():
-            return False
-        
-        if len(content) < 10:
-            return False
-        
-        if len(content) >= 100000:  # 100k character limit
-            return False
-            
-        return True
-    
-    def _clean_summary(self, summary: str) -> str:
-        """
-        Clean and format the summary text.
-        
-        Args:
-            summary: The raw summary from LLM
-            
-        Returns:
-            str: The cleaned summary
-        """
+        summary = self._clean_summary(response_text)
         if not summary:
-            return ""
-        
-        # Remove extra whitespace
-        summary = re.sub(r'\s+', ' ', summary.strip())
-        
-        # Remove any markdown formatting
-        summary = re.sub(r'\*\*(.*?)\*\*', r'\1', summary)  # Remove bold
-        summary = re.sub(r'\*(.*?)\*', r'\1', summary)      # Remove italic
-        summary = re.sub(r'#{1,6}\s*', '', summary)         # Remove headers
-        
-        return summary
-    
-    def _calculate_processing_time(self, start_time) -> float:
+            raise LLMError("Empty summary returned from Ollama")
+
+        original_len = max(len(request.content), 1)  # avoid div-by-zero
+        # `ArticleSummary` is dual-purpose in this codebase (article-view +
+        # summary metadata) and requires id/title/source/url. The summarizer
+        # works on raw text and doesn't know the article it came from, so we
+        # fill those with safe placeholders. Callers that have an article
+        # context (e.g. routes/article-by-id) can patch them after the fact.
+        return ArticleSummary(
+            id=0,
+            title="",
+            source="",
+            url="",
+            summary=summary,
+            word_count=word_count,
+            original_length=len(request.content),
+            summary_length=len(summary),
+            compression_ratio=round(len(summary) / original_len, 4),
+            processing_time=self._calculate_processing_time(start_time),
+            model_used=self.model,
+            created_at=datetime.now(timezone.utc),
+        )
+
+    async def batch_summarize(
+        self, requests: List[SummarizationRequest]
+    ) -> List[ArticleSummary]:
         """
-        Calculate the processing time for summarization.
-        
-        Args:
-            start_time: The start time of processing (float timestamp or datetime)
-            
-        Returns:
-            float: Processing time in seconds
+        Summarize multiple pieces of content. Failures inside the batch are
+        logged but do not abort the rest of the batch.
         """
-        if isinstance(start_time, datetime):
-            # Handle naive datetime as UTC
-            if start_time.tzinfo is None:
-                start_time = start_time.replace(tzinfo=timezone.utc)
-            start_timestamp = start_time.timestamp()
-            return round(time.time() - start_timestamp, 3)
-        else:
-            # Assume it's already a timestamp
-            return round(time.time() - start_time, 3)
-    
+        batch_size = 5
+        results: List[ArticleSummary] = []
+
+        for i in range(0, len(requests), batch_size):
+            batch = requests[i : i + batch_size]
+            tasks = [self.summarize_content(r) for r in batch]
+            batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            for r in batch_results:
+                if isinstance(r, ArticleSummary):
+                    results.append(r)
+                else:
+                    logger.error("Batch item failed: %s", r)
+
+        return results
+
     async def health_check(self) -> Dict[str, Any]:
         """
-        Check the health of the summarization service.
-        
-        Returns:
-            Dict[str, Any]: Health status information
+        Verify Ollama is reachable and the configured model is loaded.
         """
+        result: Dict[str, Any] = {
+            "provider": "ollama",
+            "model": self.model,
+            "host": self.base_url,
+            "max_length": self.max_length,
+            "temperature": self.temperature,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
         try:
-            # Test API connection by making a small call
-            test_response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": "Test"}
-                ],
-                max_tokens=1,
-                temperature=0.0
+            async with httpx.AsyncClient(timeout=5) as client:
+                tags_resp = await client.get(f"{self.base_url}/api/tags")
+                if tags_resp.status_code != 200:
+                    result.update(
+                        {
+                            "status": "unhealthy",
+                            "api_accessible": False,
+                            "error": f"/api/tags returned {tags_resp.status_code}",
+                        }
+                    )
+                    return result
+
+                models = [
+                    m.get("name", "")
+                    for m in tags_resp.json().get("models", [])
+                ]
+                model_loaded = any(
+                    m == self.model or m.startswith(f"{self.model}:") for m in models
+                )
+
+                result.update(
+                    {
+                        "status": "healthy" if model_loaded else "degraded",
+                        "api_accessible": True,
+                        "model_loaded": model_loaded,
+                        "available_models": models,
+                    }
+                )
+                return result
+        except Exception as exc:  # noqa: BLE001
+            result.update(
+                {
+                    "status": "unhealthy",
+                    "api_accessible": False,
+                    "error": str(exc),
+                }
             )
-            
-            api_accessible = bool(test_response and test_response.choices)
-            status = "healthy" if api_accessible else "unhealthy"
-            
-            return {
-                "status": status,
-                "api_accessible": api_accessible,
-                "model": self.model,
-                "max_length": self.max_length,
+            return result
+
+    # ------------------------------------------------------------------ #
+    #  Internals
+    # ------------------------------------------------------------------ #
+
+    async def _call_llm(
+        self, prompt: str, style: Optional[str] = None
+    ) -> tuple[str, int]:
+        """
+        Send the prompt to Ollama's /api/generate endpoint and return the
+        response text plus an approximate word count.
+        """
+        payload: Dict[str, Any] = {
+            "model": self.model,
+            "prompt": prompt,
+            "stream": False,
+            "options": {
                 "temperature": self.temperature,
-                "client_available": self.client is not None,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            }
-            
-        except Exception as e:
-            return {
-                "status": "unhealthy",
-                "api_accessible": False,
-                "error": str(e),
-                "model": self.model,
-                "max_length": self.max_length,
-                "temperature": self.temperature,
-                "client_available": self.client is not None,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            }
+                "top_p": 0.9,
+                # `num_predict` caps token output (rough proxy for word count)
+                "num_predict": min(self.max_length * 2, 1024),
+            },
+        }
+        if getattr(settings, "ollama_keep_alive", None):
+            payload["keep_alive"] = settings.ollama_keep_alive
+
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            resp = await client.post(
+                f"{self.base_url}/api/generate", json=payload
+            )
+
+        if resp.status_code != 200:
+            raise LLMError(
+                f"Ollama returned {resp.status_code}: {resp.text[:200]}"
+            )
+
+        data = resp.json()
+        text = (data.get("response") or "").strip()
+        if not text:
+            raise LLMError("Ollama returned empty response")
+
+        # Ollama reports `eval_count` (tokens generated). Fall back to a word count.
+        word_count = data.get("eval_count") or len(text.split())
+        return text, int(word_count)
+
+    def _get_summary_prompt(
+        self,
+        content: str,
+        target_length: Optional[int] = None,
+        style: Optional[str] = None,
+    ) -> str:
+        """Build a summarization prompt tuned for tech-news content."""
+        length_hint = (
+            f" Keep the summary to roughly {target_length} words."
+            if target_length
+            else ""
+        )
+
+        style_hint = {
+            "bullet_points": "Return the summary as 3-5 short bullet points.",
+            "detailed": "Provide a thorough, multi-paragraph summary.",
+            "technical": "Emphasise technical details, architectures, and trade-offs.",
+            "executive": "Provide an executive summary suitable for a non-technical reader.",
+            "concise": "Provide a concise 2-3 sentence summary.",
+        }.get(style or "", "Provide a concise 3-5 sentence summary.")
+
+        # Truncate content sent to the LLM to stay inside context limits
+        truncated = content[: self.MAX_PROMPT_CHARS]
+
+        return (
+            "You are an AI assistant that summarises technology news articles.\n"
+            f"{style_hint}{length_hint}\n"
+            "Focus on: the main announcement, key technical details, the companies "
+            "or people involved, and the significance.\n\n"
+            "Article:\n"
+            f"{truncated}\n\n"
+            "Summary:"
+        )
+
+    def _validate_content(self, content: str) -> bool:
+        """Reject empty / too-short / too-long content."""
+        if not content or not content.strip():
+            return False
+        if len(content) < self.MIN_CONTENT_LENGTH:
+            return False
+        if len(content) >= self.MAX_CONTENT_LENGTH:
+            return False
+        return True
+
+    def _clean_summary(self, summary: str) -> str:
+        """Normalise whitespace and strip basic markdown artefacts."""
+        if not summary:
+            return ""
+        summary = re.sub(r"\s+", " ", summary.strip())
+        summary = re.sub(r"\*\*(.*?)\*\*", r"\1", summary)  # bold
+        summary = re.sub(r"\*(.*?)\*", r"\1", summary)        # italics
+        summary = re.sub(r"#{1,6}\s*", "", summary)            # headings
+        # Strip any leading "Summary:" / "Here is the summary:" the model emits
+        summary = re.sub(
+            r"^\s*(here(?:'s| is)? (?:the )?summary[:.\-]\s*|summary[:.\-]\s*)",
+            "",
+            summary,
+            flags=re.IGNORECASE,
+        )
+        return summary.strip()
+
+    def _calculate_processing_time(self, start_time) -> float:
+        """Return seconds elapsed since `start_time` (timestamp or datetime)."""
+        if isinstance(start_time, datetime):
+            if start_time.tzinfo is None:
+                start_time = start_time.replace(tzinfo=timezone.utc)
+            return round(time.time() - start_time.timestamp(), 3)
+        return round(time.time() - start_time, 3)

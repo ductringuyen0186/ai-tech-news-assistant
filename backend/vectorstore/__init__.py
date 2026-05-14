@@ -15,9 +15,9 @@ from .embeddings import EmbeddingGenerator, generate_article_embeddings
 __all__ = ["EmbeddingGenerator", "generate_article_embeddings", "VectorStore"]
 
 from typing import List, Dict, Any
-from utils.logger import get_logger
+import logging
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class VectorStore:

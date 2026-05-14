@@ -22,6 +22,11 @@ const SLOW_MO = process.env.PLAYWRIGHT_SLOW_MO !== undefined
   ? Number(process.env.PLAYWRIGHT_SLOW_MO)
   : 600;
 
+// Write artifacts outside OneDrive so the sync client doesn't churn on every
+// video/screenshot/trace. The project lives under ~/OneDrive/... and Playwright
+// can write ~5 files/sec during a run.
+const ARTIFACT_ROOT = "C:/temp/playwright-tech-news";
+
 export default defineConfig({
   testDir: "./e2e",
   testIgnore: ["**/*.live.spec.ts"],
@@ -30,7 +35,8 @@ export default defineConfig({
   timeout: 120_000,
   fullyParallel: false,
   workers: 1,
-  reporter: [["list"], ["html", { open: "never" }]],
+  outputDir: `${ARTIFACT_ROOT}/test-results`,
+  reporter: [["list"], ["html", { open: "never", outputFolder: `${ARTIFACT_ROOT}/playwright-report` }]],
   use: {
     baseURL: "http://localhost:3000",
     headless: false,

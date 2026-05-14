@@ -12,7 +12,7 @@ print("Starting backend server...")
 # Start uvicorn in a subprocess
 backend_dir = os.path.join(os.path.dirname(__file__), 'backend')
 server_process = subprocess.Popen(
-    [sys.executable, '-m', 'uvicorn', 'main:app', '--host', '127.0.0.1', '--port', '8000'],
+    [sys.executable, '-m', 'uvicorn', 'src.main:app', '--host', '127.0.0.1', '--port', '8000'],
     cwd=backend_dir,
     stdout=subprocess.PIPE,
     stderr=subprocess.PIPE,

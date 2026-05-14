@@ -97,3 +97,12 @@ volumes:
     driver: local
   # Persistent app logs (APScheduler retention runs etc.).
   news_logs:
+    driver: local
+  # Pulled Ollama models (e.g. llama3.2:1b is ~1.3 GB). Pull once,
+  # cache forever:  docker exec news-aggregator-ollama ollama pull llama3.2:1b
+  ollama_models:
+    driver: local
+
+networks:
+  news_net:
+    driver: bridge

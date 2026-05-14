@@ -493,13 +493,15 @@ All three are free for commercial use, all three have variable / wide character 
 
 ---
 
-## 11. Open questions
+## 11. Open questions — RESOLVED
 
-1. **Default theme.** Right now light (`hsl(40 24% 95%)` cream) is default and dark is opt-in via `<html class="dark">`. The Broadsheet Terminal reads more strongly in dark mode (the signal cyan on cold off-black is the more memorable screenshot). Do you want to flip the default to dark, or keep light-default and let the dark mode be the "marketing-screenshot" mode?
-2. **Welcome — single screen or scroll narrative?** M4 proposes a 4-panel scroll. That works for a landing-style URL but slows down repeat visits (the user has to scroll past the cover every time they go home). Acceptable trade, or do we collapse to the cover panel only on second visit?
-3. **Drop cap scope.** I have the `.editorial-drop` class proposed only on the first paragraph of (a) the digest daily brief, (b) the research executive summary. Want it anywhere else, or kept rare as a "signature?"
-4. **Knowledge graph type colors.** I'm proposing we drop per-type color in favor of shape + saturation-by-importance. This is a real opinion change — some users *want* color-coded types because that's how they learned graph viz. Greenlight monochrome, or do you want a hybrid (mono + a single accent fill per-type)?
-5. **Live "wire" on welcome.** The cover panel proposes a live mono feed of recent headlines piping in from `/api/news/?page_size=12` on mount. That's an extra request on every welcome render and a non-trivial visual moving part. Greenlight, or static lorem-ipsum mockup of a wire (cheaper, less impressive, no API hit)?
+User signed off on the following (Tue 12 May 2026):
+
+1. **Default theme — LIGHT (newsprint cream).** Dark mode (terminal) is opt-in via the theme toggle. The marketing screenshots can still be taken in dark mode where the signal-cyan accent pops, but the cold-open default is paper-on-ink.
+2. **Welcome — SINGLE SCREEN.** Drop the 4-panel scroll narrative. The cover panel IS the entire welcome page; everything fits in the viewport. Faster repeat visits, simpler layout, no IntersectionObserver. The four feature columns and the CTA strip and the dateline all live above the fold.
+3. **Drop cap — WIDER scope.** `.editorial-drop` is applied to the first paragraph of: (a) the Digest daily brief, (b) the Research executive summary, (c) the lead story on the News Feed front page, (d) the saved-research detail view, (e) globally on `MarkdownReport`'s first `<p>` when length > 200 chars. The signal-accent drop cap becomes a recurring editorial signature, not a one-off.
+4. **Knowledge graph — MONOCHROME, shape + saturation.** Drop the four per-type hex colors entirely. Node fill is `--foreground` lerped toward `--accent-signal` by `mentions / 50` clamped to 1. Type is encoded by shape only — square (company), circle (person), triangle (technology), diamond (product). The stat-card numeric counts get the corresponding shape glyph (`■ ● ▲ ◆`) in `--foreground` next to the number, no color.
+5. **Live wire on Welcome — LIVE API feed.** Render an actual mono telex stream of `/api/news/?page_size=12` headlines on the cover. Boot animation types `BOOTING WIRE…` then pipes headlines in at 80ms each. Single fetch on mount, cached in `useState` so revisits don't re-hit the API. Includes a `BOOTING…` → headlines fallback skeleton if the request takes >400ms.
 
 ---
 

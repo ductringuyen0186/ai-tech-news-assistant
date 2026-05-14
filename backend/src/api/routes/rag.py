@@ -10,11 +10,11 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
 from pydantic import BaseModel, Field
 
-from rag.pipeline import get_rag_pipeline
+from src.services.rag_service import get_rag_pipeline
 from ...models.api import BaseResponse
-from utils.logger import get_logger
+import logging
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/rag", tags=["RAG"])
 
 
