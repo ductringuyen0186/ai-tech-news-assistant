@@ -24,8 +24,9 @@ primary_region = "iad"          # US East. Closest to most early users + lowest 
   LLM_PROVIDER = "groq"
   # CORS allow-list. Note the env var name is ALLOWED_ORIGINS (matches the
   # `alias="ALLOWED_ORIGINS"` on Settings.allowed_origins in core/config.py).
-  # We list every Vercel preview pattern we expect plus localhost for dev.
-  ALLOWED_ORIGINS = "https://techpulse-ai.vercel.app,https://techpulse-nyn9twyqh-ductringuyen0186s-projects.vercel.app,https://techpulse-ai-ductringuyen0186s-projects.vercel.app,http://localhost:3000,http://localhost:5173"
+  # Pydantic-settings parses List[str] env vars as JSON, so this needs to
+  # be a JSON-array literal, not a comma-separated string.
+  ALLOWED_ORIGINS = '["https://techpulse-ai.vercel.app","https://techpulse-nyn9twyqh-ductringuyen0186s-projects.vercel.app","https://techpulse-ai-ductringuyen0186s-projects.vercel.app","http://localhost:3000","http://localhost:5173"]'
   # Public health probe budget — past 36h since last ingestion is unhealthy.
   INGESTION_MAX_AGE_HOURS = "36"
   PYTHONUNBUFFERED = "1"
