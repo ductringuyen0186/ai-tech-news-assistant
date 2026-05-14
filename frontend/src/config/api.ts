@@ -44,8 +44,12 @@ export const API_ENDPOINTS = {
   search: "/api/search/",
   semanticSearch: "/api/search/semantic",
 
-  // Agentic research endpoint (POST returns text/event-stream)
-  research: "/api/research/",
+  // Agentic research endpoint (POST returns text/event-stream).
+  // Backend mounts this with `@router.post("")` on a `/research` prefix,
+  // so the canonical path is `/api/research` WITHOUT a trailing slash.
+  // Sending the slash form here causes FastAPI to 307 -> the CORS headers
+  // get dropped on the redirect, and the browser blocks the second hop.
+  research: "/api/research",
 
   // Summarization endpoints (backend prefix is /api/summarize)
   summarize: "/api/summarize/",
