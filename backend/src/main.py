@@ -86,6 +86,18 @@ async def lifespan(app: FastAPI):
         }
     )
 
+    # Ensure the SQLite schema exists. Idempotent: create_all() is a no-op
+    # when tables are already present. On Fly's persistent volume this only
+    # actually does work the first time the machine boots (or after a wipe).
+    try:
+        from src.database.base import Base, engine
+        # Import models to register them on Base.metadata before create_all.
+        import src.database.models  # noqa: F401
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database schema ensured (create_all)")
+    except Exception as exc:  # pragma: no cover
+        logger.error("Database schema init failed", extra={"error": str(exc)})
+
     # Retention cron (Milestone 3). Runs once on startup AND daily at
     # 00:00 UTC. The job itself is defined in
     # src.services.retention_service.run_retention_job.
