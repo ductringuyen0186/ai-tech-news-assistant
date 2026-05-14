@@ -25,8 +25,14 @@ const getApiBaseUrl = (): string => {
 export const API_BASE_URL = getApiBaseUrl();
 
 export const API_ENDPOINTS = {
-  // News endpoints
-  news: "/api/news",
+  // News endpoints. NOTE the trailing slashes: FastAPI's APIRouter has
+  // redirect_slashes=True by default and serves the canonical path WITH
+  // the slash. If we send `/api/news`, FastAPI replies with a 307 to
+  // `/api/news/` -- but its 307 response is generated *before* the CORS
+  // middleware, so the redirect has no Access-Control-Allow-Origin
+  // header and the browser blocks the second hop. The fix is to call
+  // the canonical (trailing-slash) URL from the start.
+  news: "/api/news/",
   newsById: (id: string) => `/api/news/${id}`,
   newsSearch: "/api/news/search",
   newsIngest: "/api/news/ingest",
@@ -35,11 +41,11 @@ export const API_ENDPOINTS = {
   newsCategories: "/api/news/categories",
 
   // Search endpoints
-  search: "/api/search",
+  search: "/api/search/",
   semanticSearch: "/api/search/semantic",
 
   // Agentic research endpoint (POST returns text/event-stream)
-  research: "/api/research",
+  research: "/api/research/",
 
   // Summarization endpoints (backend prefix is /api/summarize)
   summarize: "/api/summarize/",
