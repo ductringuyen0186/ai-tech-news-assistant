@@ -86,18 +86,18 @@ async def lifespan(app: FastAPI):
         }
     )
 
-    # Ensure the SQLite schema exists. Idempotent: create_all() is a no-op
-    # when tables are already present. On Fly's persistent volume this only
-    # actually does work the first time the machine boots (or after a wipe).
-    # init_db() also lazily creates the engine if it hasn't been created yet,
-    # which is the case on a fresh process boot.
+    # Ensure the SQLite schema exists. On a fresh Fly volume /data/news.db
+    # doesn't exist at all. Instantiating ArticleRepository runs its
+    # _ensure_tables_exist() which CREATE TABLE IF NOT EXISTS-es the
+    # denormalised `articles` schema that BOTH the news API and the daily
+    # ingestion orchestrator expect (both use raw sqlite3, NOT the
+    # SQLAlchemy ORM models -- those are leftover from an earlier
+    # iteration and live in src/database/models.py only for type hints).
     try:
-        from src.database.base import init_db
-        init_db()
-        logger.info("Database schema ensured (init_db)")
+        from src.repositories.article_repository import ArticleRepository
+        ArticleRepository(db_path=settings.sqlite_database_path)
+        logger.info("Database schema ensured (ArticleRepository init)")
     except Exception as exc:  # pragma: no cover
-        # Include the actual exception text in the message so we can read it
-        # without structured-extras log formatting.
         logger.error(f"Database schema init failed: {type(exc).__name__}: {exc}")
 
     # Retention cron (Milestone 3). Runs once on startup AND daily at
