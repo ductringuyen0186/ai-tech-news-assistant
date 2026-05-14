@@ -1,0 +1,51 @@
+# Production requirements for Fly.io / Vercel deploy.
+# Slimmer than requirements.txt -- drops dev deps (pytest/black/mypy/flake8),
+# Postgres driver (we ship SQLite-on-volume), and the unused
+# langchain-community / langchain-chroma / langchain-groq / langchain-ollama /
+# deepagents / chromadb packages whose modules our `src/` code never imports.
+#
+# Tight version pins are intentional: they short-circuit pip's resolver so the
+# Fly remote builder doesn't time out backtracking through httpcore/h11/etc.
+#
+# Use:  pip install -r requirements-prod.txt
+# The Dockerfile in this same folder copies and installs this file.
+
+# ---- FastAPI core ----
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic-settings==2.5.2
+python-dotenv==1.0.0
+python-multipart==0.0.6
+
+# ---- HTTP ----
+httpx==0.27.2
+httpcore==1.0.7
+h11==0.14.0
+requests==2.32.3
+
+# ---- Data ----
+numpy==2.1.3
+
+# ---- Feeds + scraping ----
+feedparser==6.0.11
+beautifulsoup4==4.12.2
+newspaper3k==0.2.8
+lxml-html-clean==0.1.0
+
+# ---- Embeddings (sentence-transformers stack, baked into image) ----
+sentence-transformers==3.3.1
+transformers==4.46.3
+torch==2.5.1
+huggingface-hub==0.26.5
+
+# ---- ORM / DB ----
+sqlalchemy==2.0.36
+
+# ---- Scheduler (daily retention cron) ----
+APScheduler==3.10.4
+
+# ---- LangChain Core (ONLY -- for the @tool decorator on agent skills) ----
+langchain-core==0.3.25
+
+# ---- Logging ----
+structlog==23.2.0

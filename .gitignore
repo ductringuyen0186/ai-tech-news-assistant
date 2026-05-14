@@ -608,3 +608,5 @@ backend/models/
 
 # Windows accidental "nul" artifact from cmd redirects
 nul
+.deploy/
+ce-transformers / HuggingFace 
