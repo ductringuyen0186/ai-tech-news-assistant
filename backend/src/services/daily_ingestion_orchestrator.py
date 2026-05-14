@@ -42,6 +42,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import sqlite3
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -217,6 +218,19 @@ async def run_daily_ingestion(
 
     # Single grep-able JSON line, as called for in spec §2 M1 phase 5.
     logger.info("daily_ingestion_report %s", json.dumps(report.to_dict()))
+
+    # M4 observability: persist the run + fire optional alert webhook.
+    # Both are best-effort -- a failure here must not bubble up and
+    # break the scheduler, since the run itself succeeded.
+    try:
+        _persist_ingestion_run(resolved_db, report)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("ingestion_runs persistence failed: %s", exc)
+    try:
+        await _fire_alert_webhook_if_needed(report)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("ingestion alert webhook failed: %s", exc)
+
     return report
 
 
@@ -678,6 +692,115 @@ def _select_unextracted_article_ids(db_path: str, *, limit: int) -> List[int]:
                 (limit,),
             ).fetchall()
     return [int(r[0]) for r in rows]
+
+
+
+
+# --------------------------------------------------------------------- #
+#  M4 observability: ingestion_runs table + alert webhook
+# --------------------------------------------------------------------- #
+
+
+def _ensure_ingestion_runs_table(db_path: str) -> None:
+    """Create the ``ingestion_runs`` table on first touch.
+
+    Idempotent; safe to call on every run. Index on ``started_at DESC``
+    powers the trend query in the admin health endpoint.
+    """
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ingestion_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                started_at TIMESTAMP NOT NULL,
+                finished_at TIMESTAMP NOT NULL,
+                total_duration_ms INTEGER NOT NULL,
+                health_status TEXT NOT NULL,
+                dry_run BOOLEAN NOT NULL,
+                report_json TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ingestion_runs_started "
+            "ON ingestion_runs(started_at DESC)"
+        )
+        conn.commit()
+
+
+def _persist_ingestion_run(
+    db_path: str, report: "DailyIngestionReport"
+) -> None:
+    """Insert one row into ``ingestion_runs`` after a run completes.
+
+    Captures every run, including dry-runs and runs whose mid-pipeline
+    crashes degraded the ``health_status`` -- the audit table is what
+    the M4 health endpoint reads to produce its trend view.
+    """
+    _ensure_ingestion_runs_table(db_path)
+    payload = json.dumps(report.to_dict())
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO ingestion_runs
+                (started_at, finished_at, total_duration_ms,
+                 health_status, dry_run, report_json)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                report.started_at.isoformat(),
+                report.finished_at.isoformat(),
+                int(report.total_duration_ms),
+                str(report.health_status),
+                1 if report.dry_run else 0,
+                payload,
+            ),
+        )
+        conn.commit()
+
+
+async def _fire_alert_webhook_if_needed(
+    report: "DailyIngestionReport",
+) -> None:
+    """POST a JSON alert when the run was red.
+
+    Reads the webhook URL from ``INGESTION_ALERT_WEBHOOK`` env var; if
+    unset or empty, this is a no-op. Payload shape works for Slack,
+    Discord, and most Telegram webhook bridges (they all accept a JSON
+    body with a ``text`` field). Best-effort: any failure logs a
+    warning and is swallowed by :func:`run_daily_ingestion`.
+    """
+    webhook_url = os.environ.get("INGESTION_ALERT_WEBHOOK", "").strip()
+    if not webhook_url:
+        return
+    if report.health_status != "red":
+        return
+
+    payload = {
+        "text": f"TechPulse ingestion: {report.health_status}",
+        "detail": {
+            "started_at": report.started_at.isoformat(),
+            "finished_at": report.finished_at.isoformat(),
+            "total_duration_ms": report.total_duration_ms,
+            "dry_run": report.dry_run,
+            "phases": [
+                {
+                    "name": p.name,
+                    "processed": p.processed,
+                    "failed": p.failed,
+                    "errors": p.errors[:3],
+                }
+                for p in report.phases
+            ],
+        },
+    }
+    # ``httpx`` is an existing dependency (used by IngestionService and
+    # SummarizationService). Lazy-import to keep the orchestrator
+    # module cheap to load.
+    import httpx
+
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        await client.post(webhook_url, json=payload)
 
 
 __all__ = [

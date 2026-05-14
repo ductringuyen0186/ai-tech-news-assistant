@@ -347,6 +347,74 @@ async def metrics() -> Dict[str, Any]:
     }
 
 
+@router.get("/health/ingestion")
+async def ingestion_health_public() -> Dict[str, Any]:
+    """Public ingestion health probe (no auth).
+
+    Mission daily-ingestion M4: a tiny endpoint that monitoring services
+    (UptimeRobot, Better Stack, GitHub Actions watchers) can hit without
+    needing the admin token. Returns only enough information to decide
+    "is daily ingestion healthy?" -- no per-phase details, no error
+    strings.
+
+    Response shape::
+
+        {
+            "status": "green" | "yellow" | "red" | "unknown",
+            "last_run_at": ISO8601 string | None,
+            "age_hours": float | None
+        }
+
+    ``age_hours`` measures how stale the latest run is; > 26 hours
+    suggests the cron stopped firing even if the last run itself was
+    green.
+    """
+    try:
+        db_path = settings.get_database_path()
+        if db_path.startswith("sqlite:///"):
+            db_path = db_path.replace("sqlite:///", "")
+        with sqlite3.connect(db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT started_at, health_status
+                FROM ingestion_runs
+                ORDER BY started_at DESC
+                LIMIT 1
+                """
+            ).fetchone()
+    except sqlite3.OperationalError:
+        row = None
+    except Exception:  # noqa: BLE001
+        row = None
+
+    if row is None:
+        return {
+            "status": "unknown",
+            "last_run_at": None,
+            "age_hours": None,
+        }
+
+    started_at, status = row
+    age_hours: float | None = None
+    try:
+        if started_at:
+            # SQLite stores TIMESTAMP as ISO string -- parse defensively.
+            ts = datetime.fromisoformat(str(started_at).replace("Z", "+00:00"))
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+            age_hours = (
+                datetime.now(timezone.utc) - ts
+            ).total_seconds() / 3600.0
+    except Exception:  # noqa: BLE001
+        age_hours = None
+
+    return {
+        "status": status or "unknown",
+        "last_run_at": started_at,
+        "age_hours": age_hours,
+    }
+
+
 # Utility functions for health checks
 
 def get_system_metrics() -> Dict[str, Any]:

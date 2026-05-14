@@ -1,0 +1,82 @@
+# Daily ingestion cron (Mission daily-ingestion M5).
+#
+# Triggers ``POST /api/admin/ingest`` on the production backend at
+# 05:00 UTC every day. The same endpoint can be hit manually via the
+# ``workflow_dispatch`` trigger on the GitHub UI (optionally with
+# ``dry_run=true`` to smoke-test without writing rows).
+#
+# Required repository secrets:
+#   - PROD_BACKEND_URL  e.g. ``https://api.techpulse.example.com``
+#   - ADMIN_TOKEN       must match the ``ADMIN_TOKEN`` env var
+#                       configured on the backend deployment
+#
+# The job fails -- and the on-call gets a notification -- when the
+# ingestion report comes back with ``health_status: red``. A yellow
+# result (e.g. quiet news day with zero new articles) is treated as
+# a soft pass.
+
+name: Daily ingestion
+
+on:
+  schedule:
+    - cron: "0 5 * * *"  # 05:00 UTC daily
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (count work-sets only, write nothing)"
+        type: boolean
+        default: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Trigger ingestion
+        env:
+          PROD_BACKEND_URL: ${{ secrets.PROD_BACKEND_URL }}
+          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -e
+          if [ -z "$PROD_BACKEND_URL" ]; then
+            echo "ERROR: PROD_BACKEND_URL secret is not set" >&2
+            exit 1
+          fi
+          if [ -z "$ADMIN_TOKEN" ]; then
+            echo "ERROR: ADMIN_TOKEN secret is not set" >&2
+            exit 1
+          fi
+          URL="${PROD_BACKEND_URL%/}/api/admin/ingest"
+          if [ "$DRY_RUN" = "true" ]; then
+            URL="${URL}?dry_run=true"
+          fi
+          echo "POST $URL"
+          curl -fsS -X POST "$URL" \
+            -H "X-Admin-Token: $ADMIN_TOKEN" \
+            -H "Content-Type: application/json" \
+            --max-time 1500 \
+            -o response.json \
+            -w "HTTP %{http_code} in %{time_total}s\n"
+          echo "--- response ---"
+          head -c 4000 response.json
+          echo
+
+      - name: Check ingestion health
+        run: |
+          python3 - <<'PY'
+          import json, sys
+          with open("response.json") as f:
+              report = json.load(f)
+          status = report.get("health_status", "unknown")
+          print(f"health_status: {status}")
+          # Echo a phase summary for the workflow log.
+          for p in report.get("phases", []):
+              print(
+                  f"  phase {p.get('name')}: processed={p.get('processed')} "
+                  f"failed={p.get('failed')} errors={len(p.get('errors', []))}"
+              )
+          # Fail the workflow only when health flipped red.
+          # Yellow (e.g. quiet news day) is a soft pass.
+          sys.exit(0 if status in ("green", "yellow") else 1)
+          PY

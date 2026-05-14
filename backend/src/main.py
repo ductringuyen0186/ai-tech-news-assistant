@@ -116,6 +116,54 @@ async def lifespan(app: FastAPI):
                 replace_existing=True,
                 misfire_grace_time=60,
             )
+
+            # Daily ingestion cron (Mission daily-ingestion M2). Runs
+            # alongside the retention job; both share this same
+            # AsyncIOScheduler instance so the coroutine can be passed
+            # in directly (no asyncio.create_task / asyncio.run wrapping
+            # required -- AsyncIOScheduler awaits coroutine jobs on its
+            # own event loop).
+            import os as _os
+            from src.services.daily_ingestion_orchestrator import (
+                run_daily_ingestion,
+            )
+
+            _ingestion_db_path = settings.get_database_path()
+            _scheduler.add_job(
+                run_daily_ingestion,
+                trigger=CronTrigger(hour=5, minute=0, timezone="UTC"),
+                id="daily_ingestion",
+                name="Daily article ingestion",
+                kwargs={"db_path": _ingestion_db_path},
+                replace_existing=True,
+                misfire_grace_time=3600,
+                coalesce=True,
+                max_instances=1,
+            )
+            logger.info(
+                "Daily ingestion scheduler started (daily 05:00 UTC, db=%s)",
+                _ingestion_db_path,
+            )
+
+            # Dev affordance: when RUN_INGESTION_ON_BOOT=1, schedule a
+            # one-shot run 60 seconds after boot so a fresh `uvicorn`
+            # produces ingestion output without waiting until 05:00 UTC.
+            # Off by default; production never sets this.
+            if _os.environ.get("RUN_INGESTION_ON_BOOT") == "1":
+                _scheduler.add_job(
+                    run_daily_ingestion,
+                    trigger="date",
+                    run_date=datetime.now(_tz.utc) + timedelta(seconds=60),
+                    id="ingestion_boot_run",
+                    name="Boot ingestion run (RUN_INGESTION_ON_BOOT=1)",
+                    kwargs={"db_path": _ingestion_db_path},
+                    replace_existing=True,
+                    misfire_grace_time=120,
+                )
+                logger.info(
+                    "RUN_INGESTION_ON_BOOT=1 -- ingestion will run 60s after boot"
+                )
+
             _scheduler.start()
             logger.info(
                 "Retention scheduler started (days=%d, max=%d, daily 00:00 UTC + startup run in 15s)",

@@ -342,3 +342,38 @@ async def test_dry_run_no_writes(monkeypatch, tmp_db):
 
     if "article_embeddings" in after:
         assert after["article_embeddings"] == before.get("article_embeddings", 0)
+
+
+# --------------------------------------------------------------------- #
+#  Test 4: M4 audit row persisted after a run
+# --------------------------------------------------------------------- #
+
+
+@pytest.mark.asyncio
+async def test_ingestion_runs_row_persisted_after_run(monkeypatch, tmp_db):
+    """After ``run_daily_ingestion`` completes, exactly one row appears
+    in the ``ingestion_runs`` audit table containing the report JSON
+    and the computed ``health_status`` (Mission daily-ingestion M4).
+    """
+    _install_phase_mocks(monkeypatch)
+
+    report = await run_daily_ingestion(tmp_db)
+
+    with sqlite3.connect(tmp_db) as conn:
+        rows = conn.execute(
+            "SELECT health_status, dry_run, total_duration_ms, report_json "
+            "FROM ingestion_runs ORDER BY id DESC"
+        ).fetchall()
+
+    assert len(rows) == 1, f"expected 1 ingestion_runs row, got {len(rows)}"
+    health, dry_run_flag, dur_ms, report_json = rows[0]
+    assert health == report.health_status
+    assert dry_run_flag == 0  # SQLite stores BOOLEAN as 0/1
+    assert dur_ms >= 0
+
+    import json as _json
+    parsed = _json.loads(report_json)
+    assert parsed["health_status"] == report.health_status
+    assert {p["name"] for p in parsed["phases"]} == {
+        "fetch", "summarize", "embed", "entity_extract"
+    }
