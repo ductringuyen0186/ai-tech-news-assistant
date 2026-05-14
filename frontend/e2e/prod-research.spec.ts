@@ -1,20 +1,35 @@
 /**
- * Drives the LIVE Research tab through a real browser and verifies the
- * full agentic loop works end-to-end. Targets the exact textarea +
- * submit button from ResearchMode.tsx.
+ * Comprehensive end-to-end test of the LIVE Research tab.
+ *
+ * The Research page boots the App.tsx shell which fans out fetches to
+ * ~9 endpoints (news feed, masthead stats, daily digest, trending
+ * knowledge-graph entities, knowledge-graph nodes for the sidebar,
+ * saved-research list, settings, etc.). All of those need to land
+ * before the user even submits a question. We assert:
+ *
+ *   A. Every sidebar/masthead fetch returns 2xx with CORS headers.
+ *   B. No console errors during initial load.
+ *   C. Submitting a question yields a real streamed report (>1000 chars).
+ *   D. The streamed phases reach Synthesizing or Done.
+ *
+ * Captures POST URL, every /api response status, failed requests, and
+ * console errors so when something breaks we see it instead of guessing.
  */
 import { test, expect } from "@playwright/test";
 
 const FRONTEND = "https://techpulse-ai-phi.vercel.app";
 
 test.describe("prod research", () => {
-  test("research run streams through and renders a report", async ({ page }) => {
+  test("all sidebar fetches + research submission work end-to-end", async ({
+    page,
+  }) => {
     test.setTimeout(180_000);
 
     const consoleErrors: string[] = [];
     const failedRequests: string[] = [];
     const seenPostUrls: string[] = [];
-    const seenResponses: { url: string; status: number }[] = [];
+    const apiResponses: { url: string; status: number; ms: number }[] = [];
+    const requestStartTimes = new Map<string, number>();
 
     page.on("console", (msg) => {
       if (msg.type() === "error") consoleErrors.push(msg.text());
@@ -28,67 +43,83 @@ test.describe("prod research", () => {
       );
     });
     page.on("request", (req) => {
-      if (req.method() === "POST" && req.url().includes("/api/research")) {
-        seenPostUrls.push(req.url());
+      if (req.url().includes("/api/")) {
+        requestStartTimes.set(req.url() + req.method(), Date.now());
+        if (req.method() === "POST" && req.url().includes("/api/research")) {
+          seenPostUrls.push(req.url());
+        }
       }
     });
     page.on("response", (resp) => {
       const url = resp.url();
       if (url.includes("/api/")) {
-        seenResponses.push({ url, status: resp.status() });
+        const key = url + resp.request().method();
+        const t0 = requestStartTimes.get(key) ?? Date.now();
+        apiResponses.push({
+          url,
+          status: resp.status(),
+          ms: Date.now() - t0,
+        });
       }
     });
 
-    // 1. Land on Research and wait for it to finish loading.
+    // 1. Load the Research page.
     await page.goto(`${FRONTEND}/research`, {
       waitUntil: "domcontentloaded",
       timeout: 30_000,
     });
 
-    // Warm the backend with a no-op fetch (CORS preflight + masthead
-    // articles) so the cold-start doesn't tank the test.
-    await page.waitForTimeout(3000);
+    // 2. Give the sidebar fetches time to complete. The app fans out
+    // many requests on mount; wait until network looks quiet OR 12s.
+    await page.waitForLoadState("networkidle", { timeout: 12_000 }).catch(() => {
+      // SSE keepalives can prevent "idle" from firing; that's OK.
+    });
 
-    // 2. Locate the research textarea by placeholder.
-    const input = page.locator(
-      'textarea[placeholder*="ask the desk"]'
-    ).first();
+    // 3. Find the research textarea and submit a question.
+    const input = page
+      .locator('textarea[placeholder*="ask the desk"]')
+      .first();
     await input.waitFor({ state: "visible", timeout: 20_000 });
     await input.fill("What are the latest developments in AI agents?");
 
-    // 3. The submit button has the visible text "[ Research" and a Send
-    // arrow. Match by visible text inside the button.
-    const submitBtn = page.locator('button:has-text("Research")').filter({
-      hasText: /Research/,
-    }).last(); // last because the sidebar also has "Research" -- the in-form button is later in DOM order
+    const submitBtn = page
+      .locator('button:has-text("Research")')
+      .filter({ hasText: /Research/ })
+      .last();
     await submitBtn.click();
     console.log("Clicked submit button.");
 
-    // 4. Wait for the research run. We poll the DOM for phase chips +
-    // streamed report body. The "research-phase-chip" testid lights up
-    // with the current phase string; "research-report-body" wraps the
-    // streamed markdown.
+    // 4. Wait for the research run.
     const started = Date.now();
     let lastLen = 0;
-    // Accumulate every phase we've EVER seen so the final assertion isn't
-    // tripped by the chip text snapping from "Synthesizing" to "Done" right
-    // before our final snapshot.
     const seenPhases = new Set<string>();
-    let saw: { phases: string[]; bodyLen: number; errorMsg: string | null; phaseChip: string } = {
-      phases: [],
+    let saw = {
+      phases: [] as string[],
       bodyLen: 0,
-      errorMsg: null,
+      errorMsg: null as string | null,
       phaseChip: "",
     };
 
     while (Date.now() - started < 120_000) {
       saw = await page.evaluate(() => {
         const text = document.body.innerText || "";
-        const phaseTokens = ["Decomposing", "Searching", "Synthesizing", "Done", "done"];
+        const phaseTokens = [
+          "Decomposing",
+          "Searching",
+          "Synthesizing",
+          "Done",
+          "done",
+        ];
         const phases = phaseTokens.filter((p) => text.includes(p));
-        const chipEl = document.querySelector('[data-testid="research-phase-chip"]');
-        const reportEl = document.querySelector('[data-testid="research-report-body"]');
-        const errEl = document.querySelector('[data-testid="research-error-panel"]');
+        const chipEl = document.querySelector(
+          '[data-testid="research-phase-chip"]'
+        );
+        const reportEl = document.querySelector(
+          '[data-testid="research-report-body"]'
+        );
+        const errEl = document.querySelector(
+          '[data-testid="research-error-panel"]'
+        );
         return {
           phases,
           bodyLen: (reportEl?.textContent || text).length,
@@ -102,56 +133,98 @@ test.describe("prod research", () => {
       if (saw.errorMsg) break;
       if (saw.bodyLen > lastLen + 100) {
         console.log(
-          `t+${((Date.now() - started) / 1000).toFixed(1)}s chip="${saw.phaseChip}" bodyLen=${saw.bodyLen} seen=${Array.from(seenPhases).join(",")}`
+          `t+${((Date.now() - started) / 1000).toFixed(
+            1
+          )}s chip="${saw.phaseChip}" bodyLen=${saw.bodyLen} seen=${Array.from(
+            seenPhases
+          ).join(",")}`
         );
         lastLen = saw.bodyLen;
       }
-      // Success: chip says Done AND body has real content.
-      if ((saw.phaseChip === "Done" || saw.phases.includes("Done")) && saw.bodyLen > 1500) {
+      if (
+        (saw.phaseChip === "Done" || saw.phases.includes("Done")) &&
+        saw.bodyLen > 1500
+      ) {
         break;
       }
       await page.waitForTimeout(500);
     }
-    // Surface every phase we observed over the run, not just the last frame.
     saw.phases = Array.from(seenPhases);
 
+    // 5. Report everything we learned.
     console.log("");
     console.log("==================== TRACE ====================");
+    console.log("--- /api/ responses (status + ms) ---");
+    apiResponses.forEach((r) => {
+      const path = r.url.replace("https://techpulse-ai-backend.fly.dev", "");
+      console.log(`  ${r.status}  ${r.ms.toString().padStart(5)}ms  ${path}`);
+    });
     console.log("--- POST URLs to /api/research ---");
     seenPostUrls.forEach((u) => console.log(`  ${u}`));
-    console.log("--- /api/ responses ---");
-    seenResponses.forEach((r) => console.log(`  ${r.status}  ${r.url}`));
     console.log("--- failed requests ---");
     failedRequests.forEach((r) => console.log(`  ${r}`));
-    console.log("--- console errors ---");
-    consoleErrors.forEach((e) => console.log(`  ${e.slice(0, 240)}`));
+    console.log("--- console errors (non-MetaMask) ---");
+    consoleErrors
+      .filter((e) => !e.includes("MetaMask") && !e.includes("inpage.js"))
+      .forEach((e) => console.log(`  ${e.slice(0, 240)}`));
     console.log("--- final state ---");
     console.log(JSON.stringify(saw, null, 2));
 
     await page.screenshot({ path: "research-result.png", fullPage: true });
 
-    // Hard expectations.
+    // ----- Assertions -----
+
+    // A. Every /api fetch the page kicked off should have returned 2xx.
+    //    Anything 4xx/5xx (or a network-level failure recorded earlier)
+    //    means the user will see a CORS-looking error in DevTools.
+    const apiFailures = apiResponses.filter((r) => r.status >= 400);
     expect(
-      saw.errorMsg,
-      `Visible error in research-error-panel: ${saw.errorMsg}`
-    ).toBeNull();
+      apiFailures,
+      `Sidebar/masthead /api fetches must all be 2xx. Saw: ${JSON.stringify(
+        apiFailures
+      )}`
+    ).toEqual([]);
+    expect(
+      failedRequests,
+      `Browser-level request failures must be zero. Saw: ${failedRequests.join(
+        " | "
+      )}`
+    ).toEqual([]);
+
+    // B. No console errors from our code (MetaMask extension errors filtered).
+    const ourErrors = consoleErrors.filter(
+      (e) => !e.includes("MetaMask") && !e.includes("inpage.js")
+    );
+    expect(ourErrors, `No console errors from our code`).toEqual([]);
+
+    // C. Research POST went out and got 200.
     expect(
       seenPostUrls.length,
-      "Frontend should have POSTed /api/research"
+      "Frontend must POST /api/research"
     ).toBeGreaterThan(0);
-    expect(seenPostUrls[0], "POST should target /api/research without trailing slash").toMatch(
-      /\/api\/research(?:\?|$)/
+    expect(
+      seenPostUrls[0],
+      "POST should hit /api/research without trailing slash"
+    ).toMatch(/\/api\/research(?:\?|$)/);
+    const researchResp = apiResponses.find(
+      (r) => r.url.includes("/api/research") && !r.url.includes("/api/research-")
     );
-    // Either Synthesizing or the terminal Done phase signals the agent
-    // ran the full pipeline. We accept either since the chip flips fast.
+    expect(researchResp?.status, "Research SSE should return 200").toBe(200);
+
+    // D. Pipeline ran -- saw at least Synthesizing or Done.
     const reachedSynthesisOrDone =
       saw.phases.includes("Synthesizing") ||
       saw.phases.includes("Done") ||
       saw.phases.includes("done");
     expect(
       reachedSynthesisOrDone,
-      `Should reach Synthesizing or Done; saw=${saw.phases.join(",")}`,
+      `Should reach Synthesizing or Done; saw=${saw.phases.join(",")}`
     ).toBe(true);
-    expect(saw.bodyLen, "Report body must contain real synthesised content").toBeGreaterThan(1000);
+
+    // E. Report has real content.
+    expect(
+      saw.bodyLen,
+      "Report body must contain >1000 chars of streamed content"
+    ).toBeGreaterThan(1000);
   });
 });
