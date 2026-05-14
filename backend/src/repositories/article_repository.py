@@ -65,6 +65,27 @@ class ArticleRepository:
                 # Hero/thumbnail URL extracted from RSS feed media tags.
                 # Frontend NewsCard falls back to a placeholder when null.
                 conn.execute("ALTER TABLE articles ADD COLUMN image_url TEXT")
+            # The legacy SQLAlchemy ORM models (still used by
+            # `src/services/ingestion_service.py`) expect these extra columns
+            # to exist on the `articles` table. We additively bring them in
+            # here so both code paths (raw-sqlite3 news API + SQLAlchemy
+            # ingestion) can talk to one schema. None of them are required
+            # by ArticleRepository itself -- they just stop ingestion from
+            # blowing up with "no such column: articles.language".
+            if "language" not in existing_cols:
+                conn.execute("ALTER TABLE articles ADD COLUMN language TEXT DEFAULT 'en'")
+            if "word_count" not in existing_cols:
+                conn.execute("ALTER TABLE articles ADD COLUMN word_count INTEGER")
+            if "reading_time" not in existing_cols:
+                conn.execute("ALTER TABLE articles ADD COLUMN reading_time INTEGER")
+            if "is_featured" not in existing_cols:
+                conn.execute(
+                    "ALTER TABLE articles ADD COLUMN is_featured BOOLEAN DEFAULT FALSE"
+                )
+            if "sentiment_score" not in existing_cols:
+                conn.execute("ALTER TABLE articles ADD COLUMN sentiment_score REAL")
+            if "source_id" not in existing_cols:
+                conn.execute("ALTER TABLE articles ADD COLUMN source_id INTEGER")
     
     def _row_to_article(self, row):
         if not row:
